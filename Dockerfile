@@ -1,44 +1,46 @@
 # syntax=docker/dockerfile:1
 # ──────────────────────────────────────────────────────────────────────────────
 # Single-image deploy: the Express backend serves the REST API *and* the built
-# Angular SPA (NODE_ENV=production → express.static + SPA fallback). One service,
-# one domain. Prisma uses the @prisma/adapter-pg driver, so no query-engine
-# binary is needed at runtime.
+# Angular SPA (NODE_ENV=production → express.static + SPA fallback). Prisma uses
+# the @prisma/adapter-pg driver, so no query-engine binary is needed at runtime.
+#
+# ONE sequential build stage (not parallel multi-stage): frontend, then backend,
+# one heavy step at a time. This keeps peak memory low so a small build server's
+# OOM killer doesn't take out `ng build` / `tsc`.
 # Build context = the inapp-help-assistant/ directory.
 # ──────────────────────────────────────────────────────────────────────────────
 
-# ---- 1. Build the Angular SPA ----------------------------------------------
-FROM node:24-alpine AS frontend
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci --legacy-peer-deps --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
-COPY frontend/ ./
-RUN npm run build            # → dist/help-assistant-ui/browser (production config)
+FROM node:24-alpine AS build
+WORKDIR /app
 
-# ---- 2. Build the backend (compile TS + generate Prisma client) ------------
-FROM node:24-alpine AS backend
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm ci --legacy-peer-deps --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
-COPY backend/ ./
-RUN npx prisma generate && npm run build   # → dist/
+# ---- Frontend (install → build) ----
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci --legacy-peer-deps --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
+COPY frontend/ ./frontend/
+RUN cd frontend && npm run build            # → frontend/dist/help-assistant-ui/browser
 
-# ---- 3. Runtime ------------------------------------------------------------
+# ---- Backend (install → generate client → compile) ----
+COPY backend/package*.json ./backend/
+RUN cd backend && npm ci --legacy-peer-deps --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
+COPY backend/ ./backend/
+RUN cd backend && npx prisma generate && npm run build   # → backend/dist
+
+# ---- Runtime ----
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/backend
 
-# Bring the built backend with its (working) node_modules + generated client.
-COPY --from=backend /app/backend/node_modules ./node_modules
-COPY --from=backend /app/backend/dist ./dist
-COPY --from=backend /app/backend/package*.json ./
-COPY --from=backend /app/backend/prisma ./prisma
-COPY --from=backend /app/backend/prisma.config.ts ./
+# Backend with its (working) node_modules + generated Prisma client.
+COPY --from=build /app/backend/node_modules ./node_modules
+COPY --from=build /app/backend/dist ./dist
+COPY --from=build /app/backend/package*.json ./
+COPY --from=build /app/backend/prisma ./prisma
+COPY --from=build /app/backend/prisma.config.ts ./
 
 # The server resolves the SPA at ../frontend/dist/help-assistant-ui/browser.
-COPY --from=frontend /app/frontend/dist ../frontend/dist
+COPY --from=build /app/frontend/dist ../frontend/dist
 
-# Uploads live here; mount a persistent volume at this path in Easypanel.
+# Uploads live here; mount a persistent volume at this path.
 RUN mkdir -p /app/backend/uploads
 
 EXPOSE 3000
