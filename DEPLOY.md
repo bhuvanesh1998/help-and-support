@@ -58,6 +58,45 @@ The current DB is already in sync. If the Prisma schema changes in future, run
 `npx prisma db push` (or add migrations) against `DATABASE_URL` before/▶ during
 deploy. The container does **not** auto-migrate, to avoid surprising prod data.
 
+## 7. Custom domain + HTTPS (required for the embeddable widget)
+
+The widget is blocked on secure (`https`) client sites when served over plain
+`http`. Put the app behind a subdomain with TLS — Easypanel's built-in proxy
+(Traefik) auto-issues a Let's Encrypt certificate.
+
+**A. DNS** — at your domain registrar, add an **A record**:
+
+| Type | Name | Value | TTL |
+|---|---|---|---|
+| A | `help` (→ `help.twixor.com`) | `182.156.249.170` | default |
+
+Wait for it to resolve (`nslookup help.twixor.com` returns the IP). Ensure the
+server's ports **80 and 443** are open — Let's Encrypt validates over port 80.
+
+**B. Easypanel** — App service → **Domains** → Add domain:
+- Host: `help.twixor.com`
+- Container port: `3000`
+- HTTPS: **on** (Let's Encrypt). The cert is issued automatically once DNS resolves.
+
+With the domain attached via the proxy, the raw `8080→3000` published port is no
+longer needed and can be removed.
+
+**C. Update env to the HTTPS origin, then redeploy:**
+
+| Var | Value |
+|---|---|
+| `PUBLIC_BASE_URL` | `https://help.twixor.com` |
+| `CORS_ORIGIN` | `https://help.twixor.com` |
+| `EMBED_ALLOWED_ORIGINS` | space-separated client sites, e.g. `https://app.acme.com` (or `*`) |
+
+**D. Re-seed image URLs.** Stored image URLs are absolute and were written with
+the *previous* origin. After switching the domain, just run **Pages → Export →
+Restore from backup…** again — restore re-points every image URL to the current
+`PUBLIC_BASE_URL`. (Tip: set the final domain *before* the first restore to skip
+this step.)
+
+Verify: `https://help.twixor.com/api/health` → 200, and the green padlock shows.
+
 ## Notes
 - The image bundles dev dependencies for build reliability; it can be slimmed
   later with a prod-only `npm ci --omit=dev` + selective Prisma client copy.
