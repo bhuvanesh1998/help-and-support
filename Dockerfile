@@ -47,4 +47,4 @@ EXPOSE 3000
 # On a fresh DB (set RUN_DB_PUSH=true), sync the schema and seed the super admin
 # before starting. Both steps are idempotent, so they are safe on every boot.
 # Leave RUN_DB_PUSH unset in environments whose schema you manage manually.
-CMD ["sh","-c","if [ \"$RUN_DB_PUSH\" = \"true\" ]; then npx prisma db push --skip-generate && (npx prisma db seed || true); fi; exec node dist/server.js"]
+CMD ["sh","-c","if [ \"$RUN_DB_PUSH\" = \"true\" ]; then npx prisma db push --accept-data-loss && (npx tsx prisma/seed.ts || true); fi; exec node dist/server.js"]
