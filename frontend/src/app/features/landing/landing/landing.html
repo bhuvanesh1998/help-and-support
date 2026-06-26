@@ -1,0 +1,198 @@
+<!-- ── Nav ──────────────────────────────────────────────────────────────── -->
+<header class="site-nav">
+  <div class="nav-inner">
+    <!-- Logo -->
+    <span class="nav-logo" aria-label="HelpAssistant">
+      <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <circle cx="14" cy="14" r="14" fill="var(--mat-sys-primary)"/>
+        <path d="M9 14h10M14 9v10" stroke="var(--mat-sys-on-primary)" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      HelpAssistant
+    </span>
+
+    <!-- Controls -->
+    <div class="nav-controls">
+      <!-- Palette picker -->
+      <button mat-icon-button
+              [matMenuTriggerFor]="paletteMenu"
+              matTooltip="Color theme"
+              aria-label="Color theme"
+              class="nav-icon-btn">
+        <mat-icon>palette</mat-icon>
+      </button>
+
+      <!-- Dark/light toggle -->
+      <button mat-icon-button
+              (click)="theme.cycle()"
+              [matTooltip]="theme.label[theme.mode()]"
+              [attr.aria-label]="theme.label[theme.mode()]"
+              class="nav-icon-btn">
+        <mat-icon>{{ theme.icon[theme.mode()] }}</mat-icon>
+      </button>
+
+      <span class="nav-divider" aria-hidden="true"></span>
+
+      <a routerLink="/admin/login" class="nav-cta">Admin Login</a>
+    </div>
+  </div>
+</header>
+
+<!-- ── Palette menu ───────────────────────────────────────────────────────── -->
+<mat-menu #paletteMenu="matMenu" class="palette-menu-panel">
+  <div class="palette-menu-title" (click)="$event.stopPropagation()">Color theme</div>
+  @for (p of theme.paletteOptions; track p.key) {
+    <button mat-menu-item
+            class="palette-item"
+            [class.palette-item--active]="theme.palette() === p.key"
+            (click)="theme.setPalette(p.key)"
+            [attr.aria-pressed]="theme.palette() === p.key">
+      <span class="palette-radio" [class.palette-radio--checked]="theme.palette() === p.key" aria-hidden="true"></span>
+      <span class="palette-item-label">{{ p.label }}</span>
+      <span class="palette-item-swatch" aria-hidden="true">
+        <span class="swatch-half" [style.background]="p.primaryColor"></span>
+        <span class="swatch-half" [style.background]="p.tertiaryColor"></span>
+      </span>
+    </button>
+  }
+</mat-menu>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-inner">
+    <span class="hero-badge">In-App User Manual System</span>
+    <h1 class="hero-headline">
+      Guide your users,<br />step by step.
+    </h1>
+    <p class="hero-sub">
+      A route-aware help assistant that detects the current page, fetches
+      matching user manuals from the backoffice, and walks users through every
+      feature — without leaving the app.
+    </p>
+    <div class="hero-actions">
+      <a href="#tutorials" class="btn-primary">Browse user manuals</a>
+      <a routerLink="/admin/login" class="btn-ghost">Go to Admin &rarr;</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat">
+        <strong>{{ tutorials().length }}</strong>
+        <span>User Manual pages</span>
+      </div>
+      <div class="stat">
+        <strong>{{ totalSteps() }}</strong>
+        <span>Steps authored</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Tutorials ─────────────────────────────────────────────────────────── -->
+<section class="tutorials-section" id="tutorials">
+  <div class="section-inner">
+    @if (activeCategory()) {
+      <button type="button" class="cat-back" (click)="backToCategories()">
+        <mat-icon>arrow_back</mat-icon> All categories
+      </button>
+      <h2 class="section-title">{{ activeCategory() }}</h2>
+      <p class="section-sub">
+        {{ activeCategoryMeta()?.description || 'Step-by-step guides in this module.' }}
+      </p>
+    } @else {
+      <h2 class="section-title">Browse User Manuals by Module</h2>
+      <p class="section-sub">Pick a module to see its guides.</p>
+    }
+
+    @if (loading()) {
+      <div class="tutorial-grid" aria-busy="true" aria-label="Loading user manuals">
+        @for (n of [1,2,3,4,5,6]; track n) {
+          <div class="card-skeleton" aria-hidden="true"></div>
+        }
+      </div>
+    } @else if (tutorials().length === 0) {
+      <div class="empty-state" role="status">
+        <p>No user manuals yet. <a routerLink="/admin/login">Add one in the admin &rarr;</a></p>
+      </div>
+    } @else if (activeCategory()) {
+      <!-- Level 2: manuals inside the open category -->
+      <div class="tutorial-grid">
+        @for (t of activeManuals(); track t.id) {
+          <article
+            class="tutorial-card"
+            (click)="open(t.id)"
+            role="button"
+            tabindex="0"
+            (keydown.enter)="open(t.id)"
+            (keydown.space)="open(t.id)"
+            [attr.aria-label]="'Open user manual: ' + t.title"
+          >
+            <div class="card-inner">
+              <code class="route-pill">{{ t.routePath }}</code>
+              <h3 class="card-title">{{ t.title }}</h3>
+              @if (t.description) {
+                <p class="card-desc">{{ preview(t.description) }}{{ t.description.length > 120 ? '…' : '' }}</p>
+              }
+              <div class="card-footer">
+                <span class="step-count">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M9 12h6M9 16h6M9 8h6M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  {{ t.steps.length }} {{ t.steps.length === 1 ? 'step' : 'steps' }}
+                </span>
+                <span class="read-link">
+                  Read guide
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <!-- Level 1: module summary cards -->
+      <div class="cat-card-grid">
+        @for (c of categorySummaries(); track c.name) {
+          <button type="button" class="cat-summary-card" (click)="openCategory(c.name)" [attr.aria-label]="'Open ' + c.name">
+            <mat-icon class="cat-summary-icon">{{ c.icon || 'folder' }}</mat-icon>
+            <span class="cat-summary-name">{{ c.name }}</span>
+            @if (c.description) { <span class="cat-summary-desc">{{ c.description }}</span> }
+            <span class="cat-summary-count">{{ c.count }} manual{{ c.count === 1 ? '' : 's' }}</span>
+          </button>
+        }
+      </div>
+    }
+  </div>
+</section>
+
+<!-- ── How it works ──────────────────────────────────────────────────────── -->
+<section class="how-section">
+  <div class="section-inner">
+    <h2 class="section-title">How it works</h2>
+    <div class="how-grid">
+      <div class="how-card">
+        <span class="how-num" aria-hidden="true">01</span>
+        <h4>Detects the route</h4>
+        <p>The widget reads the current URL path and queries the API for matching help content.</p>
+      </div>
+      <div class="how-card">
+        <span class="how-num" aria-hidden="true">02</span>
+        <h4>Fetches steps</h4>
+        <p>Ordered Markdown steps are returned — authored in the backoffice, served in milliseconds.</p>
+      </div>
+      <div class="how-card">
+        <span class="how-num" aria-hidden="true">03</span>
+        <h4>Guides the user</h4>
+        <p>A slide-out panel walks users through each step with rendered Markdown and annotated screenshots.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>HelpAssistant &copy; 2026 &mdash; Angular 21 &middot; Express 5 &middot; Prisma 7 &middot; PostgreSQL</span>
+    <a routerLink="/admin/login">Admin</a>
+  </div>
+</footer>

@@ -1,0 +1,94 @@
+@if (!suppressed()) {
+<!-- Floating action button -->
+<button
+  mat-fab
+  class="ha-fab"
+  [class.ha-fab--open]="isOpen()"
+  aria-label="Help & user manuals"
+  matTooltip="Help & user manuals"
+  matTooltipPosition="left"
+  (click)="toggle()"
+>
+  <mat-icon>{{ isOpen() ? 'close' : 'help_outline' }}</mat-icon>
+</button>
+
+<!-- Slide-out panel -->
+@if (isOpen()) {
+  <aside class="ha-panel" role="dialog" aria-label="Help panel" aria-modal="true">
+    <header class="ha-panel__header">
+      <span class="ha-panel__title">
+        @if (state() === 'loaded' && page()) {
+          {{ page()!.title }}
+        } @else {
+          Help & User Manuals
+        }
+      </span>
+      <button mat-icon-button aria-label="Close help panel" (click)="close()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+
+    <div class="ha-panel__body">
+      @switch (state()) {
+        @case ('loading') {
+          <div class="ha-panel__spinner">
+            <mat-spinner diameter="40" />
+          </div>
+        }
+
+        @case ('not-found') {
+          <div class="ha-panel__empty">
+            <mat-icon class="ha-panel__empty-icon">menu_book</mat-icon>
+            <p>No user manuals available for this page yet.</p>
+          </div>
+        }
+
+        @case ('error') {
+          <div class="ha-panel__empty">
+            <mat-icon class="ha-panel__empty-icon">error_outline</mat-icon>
+            <p>Could not load user manuals. Please try again.</p>
+          </div>
+        }
+
+        @case ('loaded') {
+          <div class="ha-panel__progress-row" role="progressbar"
+               [attr.aria-valuenow]="activeStep() + 1"
+               [attr.aria-valuemin]="1"
+               [attr.aria-valuemax]="totalSteps()">
+            <div class="ha-panel__progress-track">
+              <div class="ha-panel__progress-fill" [style.width.%]="progress()"></div>
+            </div>
+            <span class="ha-panel__progress-label">
+              Step {{ activeStep() + 1 }} of {{ totalSteps() }}
+            </span>
+          </div>
+
+          @if (currentStep(); as step) {
+            <ha-step-card [step]="step" />
+          }
+
+          <nav class="ha-panel__nav" aria-label="User manual navigation">
+            <button
+              mat-stroked-button
+              [disabled]="!hasPrev()"
+              aria-label="Previous step"
+              (click)="prevStep()"
+            >
+              <mat-icon>chevron_left</mat-icon> Previous
+            </button>
+            <button
+              mat-flat-button
+              color="primary"
+              [disabled]="!hasNext()"
+              aria-label="Next step"
+              (click)="nextStep()"
+            >
+              Next <mat-icon>chevron_right</mat-icon>
+            </button>
+          </nav>
+        }
+      }
+    </div>
+  </aside>
+}
+}

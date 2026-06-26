@@ -1,0 +1,108 @@
+@use '@angular/material' as mat;
+
+// ── Default palette (cyan) — light ────────────────────────────────────────────
+:root {
+  @include mat.theme((
+    color: (theme-type: light, primary: mat.$cyan-palette, tertiary: mat.$orange-palette),
+    typography: Inter,
+    density: -2,
+  ));
+  color-scheme: light;
+}
+
+// ── Default palette — forced dark ─────────────────────────────────────────────
+html.dark {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$cyan-palette, tertiary: mat.$orange-palette),
+    density: -2,
+  ));
+  color-scheme: dark;
+}
+
+// ── Default palette — system dark ─────────────────────────────────────────────
+@media (prefers-color-scheme: dark) {
+  html:not(.light):not(.dark) {
+    @include mat.theme((
+      color: (theme-type: dark, primary: mat.$cyan-palette, tertiary: mat.$orange-palette),
+      density: -2,
+    ));
+    color-scheme: dark;
+  }
+}
+
+// ── Palette mixin: generates light, forced-dark and system-dark variants ───────
+@mixin apply-palette($key, $primary, $tertiary) {
+  html[data-palette="#{$key}"] {
+    @include mat.theme((color: (theme-type: light, primary: $primary, tertiary: $tertiary)));
+    color-scheme: light;
+  }
+  html.dark[data-palette="#{$key}"] {
+    @include mat.theme((color: (theme-type: dark, primary: $primary, tertiary: $tertiary)));
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    html:not(.light):not(.dark)[data-palette="#{$key}"] {
+      @include mat.theme((color: (theme-type: dark, primary: $primary, tertiary: $tertiary)));
+      color-scheme: dark;
+    }
+  }
+}
+
+// ── Palette: Violet & Yellow ──────────────────────────────────────────────────
+@include apply-palette("violet", mat.$violet-palette, mat.$yellow-palette);
+
+// ── Palette: Rose & Azure ─────────────────────────────────────────────────────
+@include apply-palette("rose", mat.$rose-palette, mat.$azure-palette);
+
+// ── Palette: Magenta & Spring Green ──────────────────────────────────────────
+@include apply-palette("magenta", mat.$magenta-palette, mat.$spring-green-palette);
+
+// ── Palette: Azure & Orange ───────────────────────────────────────────────────
+@include apply-palette("azure", mat.$azure-palette, mat.$orange-palette);
+
+// ── Palette: Spring Green & Magenta ──────────────────────────────────────────
+@include apply-palette("spring", mat.$spring-green-palette, mat.$magenta-palette);
+
+@include mat.form-field-density(-5);
+
+// ── Base ──────────────────────────────────────────────────────────────────────
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font-family: Inter, Roboto, 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+// ── Smooth theme + palette transition ─────────────────────────────────────────
+html {
+  transition: background-color 240ms ease, color 240ms ease;
+}
+
+// ── Custom scrollbar ──────────────────────────────────────────────────────────
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--mat-sys-outline-variant);
+  border-radius: 3px;
+  &:hover { background: var(--mat-sys-outline); }
+}
+
+// ── Focus ring ────────────────────────────────────────────────────────────────
+:focus-visible {
+  outline: 2px solid var(--mat-sys-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+// ── Palette picker menu panel ─────────────────────────────────────────────────
+.palette-menu-panel {
+  min-width: 228px !important;
+
+  .mat-mdc-menu-content {
+    padding: 4px 0 8px !important;
+  }
+}

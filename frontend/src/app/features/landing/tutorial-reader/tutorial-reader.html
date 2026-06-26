@@ -1,0 +1,215 @@
+<!-- ── Top navigation bar ─────────────────────────────────────────────────── -->
+<header class="reader-nav">
+  <a routerLink="/" class="back-link">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M19 12H5M5 12l7 7M5 12l7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    All User Manuals
+  </a>
+
+  @if (tutorial(); as t) {
+    <div class="nav-center">
+      <span class="nav-title">{{ t.title }}</span>
+      <code class="route-pill">{{ t.routePath }}</code>
+    </div>
+  }
+
+  <a routerLink="/admin/login" class="nav-admin">Admin →</a>
+</header>
+
+<!-- ── Loading ────────────────────────────────────────────────────────────── -->
+@if (loading()) {
+  <div class="loading-shell" aria-label="Loading user manual">
+    <div class="skeleton-sidebar">
+      @for (n of [1,2,3,4,5]; track n) { <div class="sk-line"></div> }
+    </div>
+    <div class="skeleton-content">
+      @for (n of [1,2,3]; track n) { <div class="sk-block"></div> }
+    </div>
+  </div>
+}
+
+<!-- ── Two-column reader layout ──────────────────────────────────────────── -->
+@if (!loading() && tutorial(); as t) {
+  <div class="reader-layout">
+
+    <!-- Left sidebar — step navigation (sticky, scrollspy) -->
+    <aside class="sidebar" aria-label="User manual contents">
+      <p class="sidebar-heading">On this page</p>
+      <nav>
+        @for (step of t.steps; track step.id) {
+          <a
+            class="step-nav-item"
+            [class.active]="activeStepId() === step.id"
+            [href]="'#step-' + step.id"
+            (click)="scrollToStep(step.id, $event)"
+          >
+            <span class="nav-num">{{ step.stepNumber }}</span>
+            <span class="nav-label">{{ step.title }}</span>
+          </a>
+        }
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="reader-content">
+
+      <!-- Page header -->
+      <div class="content-header">
+        <h1 class="content-title">{{ t.title }}</h1>
+        @if (t.description) {
+          <p class="content-desc">{{ t.description }}</p>
+        }
+        <div class="content-meta">
+          <span class="meta-tag">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M9 12h6M9 16h6M9 8h6M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            {{ t.steps.length }} {{ t.steps.length === 1 ? 'step' : 'steps' }}
+          </span>
+          <code class="meta-route">{{ t.routePath }}</code>
+        </div>
+      </div>
+
+      @if (hasApi()) {
+        <div class="reader-tabs" role="tablist" aria-label="View">
+          <button type="button" class="reader-tab" role="tab"
+                  [class.active]="activeTab() === 'manual'" (click)="setTab('manual')">
+            User Manual
+          </button>
+          <button type="button" class="reader-tab" role="tab"
+                  [class.active]="activeTab() === 'api'" (click)="setTab('api')">
+            API <span class="reader-tab-count">{{ apiEndpoints().length }}</span>
+          </button>
+        </div>
+      }
+
+      <hr class="section-rule" />
+
+      @if (activeTab() === 'manual') {
+      <!-- Step sections -->
+      @for (step of t.steps; track step.id; let last = $last) {
+        <section class="step-section" [id]="'step-' + step.id">
+
+          <div class="step-heading-row">
+            <span class="step-badge">{{ step.stepNumber }}</span>
+            <h2 class="step-title">{{ step.title }}</h2>
+          </div>
+
+          <div class="step-md" [innerHTML]="htmlFor(step.id)"></div>
+
+          @if (step.imageUrl) {
+            <figure class="doc-screenshot">
+              <div class="screenshot-chrome">
+                <span class="chrome-dot"></span>
+                <span class="chrome-dot"></span>
+                <span class="chrome-dot"></span>
+              </div>
+              <img [src]="step.imageUrl" [alt]="step.title" loading="lazy"
+                   class="zoomable" (click)="viewerSrc.set(step.imageUrl)"
+                   role="button" tabindex="0" (keydown.enter)="viewerSrc.set(step.imageUrl)"
+                   [attr.aria-label]="'View screenshot: ' + step.title" />
+              <figcaption>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+                  <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Screenshot — {{ step.title }}
+              </figcaption>
+            </figure>
+          }
+
+          @if (!last) { <hr class="step-rule" /> }
+        </section>
+      }
+
+      <!-- ── Prev / next tutorial pager ──────────────────────────────────── -->
+      @if (prevTutorial() || nextTutorial()) {
+        <nav class="tutorial-pager" aria-label="User manual navigation">
+          @if (prevTutorial(); as p) {
+            <a class="pager-card pager-card--prev" [routerLink]="['/manual', p.id]">
+              <span class="pager-dir">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Previous
+              </span>
+              <span class="pager-title">{{ p.title }}</span>
+              <span class="pager-meta">
+                <code>{{ p.routePath }}</code>
+                <span class="pager-dot" aria-hidden="true">·</span>
+                {{ p.steps.length }} {{ p.steps.length === 1 ? 'step' : 'steps' }}
+              </span>
+            </a>
+          } @else {
+            <span class="pager-spacer" aria-hidden="true"></span>
+          }
+
+          @if (nextTutorial(); as n) {
+            <a class="pager-card pager-card--next" [routerLink]="['/manual', n.id]">
+              <span class="pager-dir">
+                Next
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="pager-title">{{ n.title }}</span>
+              <span class="pager-meta">
+                <code>{{ n.routePath }}</code>
+                <span class="pager-dot" aria-hidden="true">·</span>
+                {{ n.steps.length }} {{ n.steps.length === 1 ? 'step' : 'steps' }}
+              </span>
+            </a>
+          }
+        </nav>
+      }
+      } @else {
+        <!-- ── API reference panel ────────────────────────────────────────── -->
+        <section class="api-panel" role="tabpanel" aria-label="API reference">
+          <p class="api-panel-intro">
+            Live API calls this screen makes, captured from the running application.
+          </p>
+          @for (e of apiEndpoints(); track e.id) {
+            <article class="api-row">
+              <header class="api-row-head">
+                <span [class]="methodClass(e.method)">{{ e.method }}</span>
+                <code class="api-path">{{ e.path }}</code>
+                @if (e.host) { <span class="api-host">{{ e.host }}</span> }
+                @if (e.status !== null) {
+                  <span class="api-status" [class.api-status--err]="e.status >= 400">{{ e.status }}</span>
+                }
+              </header>
+              @if (e.description) { <p class="api-desc">{{ e.description }}</p> }
+              @if (e.query) {
+                <div class="api-kv"><span class="api-kv-label">Query</span><code class="api-kv-val">{{ e.query }}</code></div>
+              }
+              @if (e.contentType) {
+                <div class="api-kv"><span class="api-kv-label">Type</span><code class="api-kv-val">{{ e.contentType }}</code></div>
+              }
+              @if (e.requestBody) {
+                <details class="api-blk"><summary>Request body</summary><pre class="api-pre">{{ e.requestBody }}</pre></details>
+              }
+              @if (e.responseSample) {
+                <details class="api-blk"><summary>Response sample</summary><pre class="api-pre">{{ e.responseSample }}</pre></details>
+              }
+            </article>
+          }
+        </section>
+      }
+
+    </main>
+  </div>
+}
+
+<!-- ── Not found ─────────────────────────────────────────────────────────── -->
+@if (!loading() && !tutorial()) {
+  <div class="not-found">
+    <p>User manual not found. <a routerLink="/">Back to all user manuals</a></p>
+  </div>
+}
+
+<!-- ── Full-screen screenshot viewer ─────────────────────────────────────── -->
+<ha-image-viewer [src]="viewerSrc()" [items]="stepImages()" alt="Screenshot"
+                 (closed)="viewerSrc.set(null)" />

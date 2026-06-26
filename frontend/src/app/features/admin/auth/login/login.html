@@ -1,0 +1,95 @@
+<div class="login-page">
+
+  <!-- Theme controls top-right -->
+  <div class="login-theme-controls">
+    <button mat-icon-button
+            (click)="theme.cycle()"
+            [matTooltip]="theme.label[theme.mode()]"
+            [attr.aria-label]="theme.label[theme.mode()]"
+            class="theme-btn">
+      <mat-icon>{{ theme.icon[theme.mode()] }}</mat-icon>
+    </button>
+  </div>
+
+  <!-- Card -->
+  <div class="login-card" role="main">
+
+    <!-- Brand -->
+    <div class="login-brand" aria-hidden="true">
+      <svg width="36" height="36" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="14" fill="var(--mat-sys-primary)"/>
+        <path d="M9 14h10M14 9v10" stroke="var(--mat-sys-on-primary)" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1 class="login-title">Admin Login</h1>
+    <p class="login-sub">Sign in to HelpAssistant</p>
+
+    <form (ngSubmit)="submit()" novalidate class="login-form">
+
+      <!-- Email -->
+      <div class="field-wrap">
+        <label class="field-label" for="login-email">Email</label>
+        <div class="field-input-wrap">
+          <mat-icon class="field-icon" aria-hidden="true">email</mat-icon>
+          <input id="login-email"
+                 class="field-input"
+                 type="email"
+                 [(ngModel)]="email"
+                 name="email"
+                 placeholder="admin@example.com"
+                 autocomplete="email"
+                 required />
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div class="field-wrap">
+        <label class="field-label" for="login-password">Password</label>
+        <div class="field-input-wrap">
+          <mat-icon class="field-icon" aria-hidden="true">lock</mat-icon>
+          <input id="login-password"
+                 class="field-input"
+                 [type]="hidePassword() ? 'password' : 'text'"
+                 [(ngModel)]="password"
+                 name="password"
+                 placeholder="Your password"
+                 autocomplete="current-password"
+                 required />
+          <button type="button"
+                  class="field-toggle"
+                  (click)="hidePassword.set(!hidePassword())"
+                  [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'">
+            <mat-icon>{{ hidePassword() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error -->
+      @if (error()) {
+        <div class="login-error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>
+          {{ error() }}
+        </div>
+      }
+
+      <!-- Submit -->
+      <button type="submit"
+              class="login-submit"
+              [disabled]="loading() || !email || !password"
+              [attr.aria-busy]="loading()">
+        @if (loading()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Signing in…
+        } @else {
+          Sign in
+        }
+      </button>
+
+    </form>
+
+    <p class="login-footer">
+      <a routerLink="/" class="back-link">← Back to home</a>
+    </p>
+
+  </div>
+</div>

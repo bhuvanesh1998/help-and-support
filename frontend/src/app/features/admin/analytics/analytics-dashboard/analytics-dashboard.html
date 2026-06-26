@@ -1,0 +1,225 @@
+<div class="analytics-page">
+
+  <!-- Header -->
+  <div class="page-top">
+    <div class="top-left">
+      <h1 class="page-title">Analytics</h1>
+      @if (summary()) {
+        <span class="period-label">{{ summary()!.period.since | date:'MMM d' }} – today</span>
+      }
+    </div>
+    <div class="top-right">
+      <!-- Period toggle -->
+      <div class="period-tabs" role="group" aria-label="Select time period">
+        @for (d of [7, 14, 30, 90]; track d) {
+          <button class="period-tab"
+                  [class.period-tab--active]="selectedDays() === d"
+                  (click)="setDays(d)"
+                  [attr.aria-pressed]="selectedDays() === d">
+            {{ d }}d
+          </button>
+        }
+      </div>
+      <button mat-icon-button class="refresh-btn"
+              aria-label="Refresh data"
+              matTooltip="Refresh"
+              (click)="load()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading skeletons -->
+  @if (loading()) {
+    <div class="kpi-row" aria-busy="true" aria-label="Loading analytics">
+      @for (_ of [1,2,3,4]; track $index) {
+        <div class="kpi-card kpi-card--skel" aria-hidden="true">
+          <div class="skel-icon"></div>
+          <div class="skel-body">
+            <div class="skel-line skel-line--value"></div>
+            <div class="skel-line skel-line--label"></div>
+          </div>
+        </div>
+      }
+    </div>
+    <div class="charts-row">
+      <div class="chart-card skel-card" aria-hidden="true"></div>
+      <div class="chart-card skel-card" aria-hidden="true"></div>
+    </div>
+  }
+
+  <!-- Dashboard content -->
+  @else if (summary(); as s) {
+
+    <!-- KPI cards -->
+    <div class="kpi-row">
+
+      <div class="kpi-card">
+        <span class="kpi-icon-wrap kpi-icon-wrap--primary" aria-hidden="true">
+          <mat-icon>analytics</mat-icon>
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ s.totalEvents | number }}</span>
+          <span class="kpi-label">Total Events</span>
+        </div>
+      </div>
+
+      @for (item of s.byType.slice(0, 3); track item.eventType) {
+        <div class="kpi-card">
+          <span class="kpi-icon-wrap" aria-hidden="true">
+            <mat-icon>{{ iconFor(item.eventType) }}</mat-icon>
+          </span>
+          <div class="kpi-body">
+            <span class="kpi-value">{{ item.count | number }}</span>
+            <span class="kpi-label">{{ item.eventType | titlecase }}</span>
+          </div>
+        </div>
+      }
+
+    </div>
+
+    <!-- Charts row -->
+    <div class="charts-row">
+
+      <!-- Daily views sparkline -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">Daily Views</span>
+          <span class="chart-sub">{{ selectedDays() }} day trend</span>
+        </div>
+        @if (s.dailyViews.length === 0) {
+          <div class="no-data" role="status">No data for this period</div>
+        } @else {
+          <div class="bar-chart" role="img" [attr.aria-label]="'Daily views trend for last ' + selectedDays() + ' days'">
+            @for (day of s.dailyViews; track day.day) {
+              <div class="bar-item"
+                   [matTooltip]="day.views + ' views on ' + (day.day | date:'MMM d')">
+                <div class="bar-fill" [style.height]="barHeight(day.views)"></div>
+              </div>
+            }
+          </div>
+          <div class="bar-axis">
+            <span>{{ s.dailyViews[0]?.day | date:'MMM d' }}</span>
+            <span>{{ s.dailyViews[s.dailyViews.length - 1]?.day | date:'MMM d' }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- Event type breakdown -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">Event Breakdown</span>
+          <span class="chart-sub">By type</span>
+        </div>
+        @if (s.byType.length === 0) {
+          <div class="no-data" role="status">No event data</div>
+        } @else {
+          <div class="breakdown-list">
+            @for (item of s.byType; track item.eventType) {
+              <div class="breakdown-row">
+                <span class="breakdown-dot" aria-hidden="true"></span>
+                <span class="breakdown-label">{{ item.eventType }}</span>
+                <div class="breakdown-bar-track" role="meter"
+                     [attr.aria-valuenow]="item.count"
+                     [attr.aria-valuemax]="s.totalEvents"
+                     [attr.aria-label]="item.eventType + ': ' + item.count">
+                  <div class="breakdown-bar-fill"
+                       [style.width.%]="(item.count / s.totalEvents) * 100"></div>
+                </div>
+                <span class="breakdown-count">{{ item.count | number }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+    </div>
+
+    <!-- Top routes -->
+    @if (s.topRoutes.length > 0) {
+      <div class="section-card">
+        <div class="chart-header">
+          <span class="chart-title">Top Routes</span>
+          <span class="chart-sub">By page views</span>
+        </div>
+        <div class="routes-list">
+          @for (route of s.topRoutes; track route.routePath; let i = $index) {
+            <div class="route-row">
+              <span class="route-rank" aria-hidden="true">{{ i + 1 }}</span>
+              <code class="route-path">{{ route.routePath ?? '(unknown)' }}</code>
+              <div class="route-bar-track">
+                <div class="route-bar-fill" [style.width]="routeBarWidth(route.views)"></div>
+              </div>
+              <span class="route-views">{{ route.views | number }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Recent events table -->
+    @if (events()?.data?.length) {
+      <div class="section-card events-section">
+        <div class="chart-header">
+          <span class="chart-title">Recent Events</span>
+          <span class="chart-sub">Latest {{ events()!.data.length }} of {{ events()!.meta.total | number }}</span>
+        </div>
+        <div class="events-table-wrap">
+          <table mat-table [dataSource]="events()!.data" class="events-table">
+
+            <ng-container matColumnDef="eventType">
+              <th mat-header-cell *matHeaderCellDef>Type</th>
+              <td mat-cell *matCellDef="let e">
+                <span class="event-badge" [class]="'event-badge--' + e.eventType.replace('_', '-')">
+                  {{ e.eventType }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="routePath">
+              <th mat-header-cell *matHeaderCellDef>Route</th>
+              <td mat-cell *matCellDef="let e">
+                <code class="route-code">{{ e.routePath ?? '—' }}</code>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="sessionId">
+              <th mat-header-cell *matHeaderCellDef>Session</th>
+              <td mat-cell *matCellDef="let e" class="mono-cell">
+                {{ e.sessionId ? e.sessionId.slice(0, 8) + '…' : '—' }}
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="durationMs">
+              <th mat-header-cell *matHeaderCellDef>Duration</th>
+              <td mat-cell *matCellDef="let e">
+                {{ e.durationMs ? e.durationMs + ' ms' : '—' }}
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="country">
+              <th mat-header-cell *matHeaderCellDef>Country</th>
+              <td mat-cell *matCellDef="let e">{{ e.country ?? '—' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="createdAt">
+              <th mat-header-cell *matHeaderCellDef>Time</th>
+              <td mat-cell *matCellDef="let e">{{ e.createdAt | date:'MMM d, HH:mm' }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="eventColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: eventColumns;"></tr>
+          </table>
+        </div>
+      </div>
+    }
+
+  } @else {
+    <div class="empty-state" role="status">
+      <mat-icon class="empty-icon" aria-hidden="true">bar_chart</mat-icon>
+      <p class="empty-title">No analytics data yet</p>
+      <p class="empty-sub">Events will appear once the help widget is installed and used</p>
+    </div>
+  }
+
+</div>

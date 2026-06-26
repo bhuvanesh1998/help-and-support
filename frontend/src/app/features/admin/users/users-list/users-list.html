@@ -1,0 +1,183 @@
+<div class="users-page">
+
+  <!-- Toolbar -->
+  <div class="users-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <mat-icon class="search-icon" aria-hidden="true">search</mat-icon>
+        <input class="search-input"
+               placeholder="Search by email or role…"
+               [value]="search()"
+               (input)="search.set($any($event.target).value)"
+               aria-label="Search users" />
+        @if (search()) {
+          <button class="search-clear" (click)="search.set('')" aria-label="Clear search">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+    </div>
+    <div class="toolbar-right">
+      <span class="stat-chip" aria-label="{{ users().length }} users">
+        <mat-icon aria-hidden="true">group</mat-icon>
+        {{ users().length }} user{{ users().length === 1 ? '' : 's' }}
+      </span>
+      @if (auth.isSuperAdmin()) {
+        <button mat-flat-button class="new-btn" (click)="openForm()" aria-label="Add new user">
+          <mat-icon aria-hidden="true">person_add</mat-icon>
+          New User
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Add User form -->
+  @if (showForm()) {
+    <div class="user-form-card" role="form" aria-label="Create new user">
+      <div class="form-head">
+        <mat-icon class="form-head-icon" aria-hidden="true">person_add</mat-icon>
+        <span class="form-head-title">New User</span>
+      </div>
+      <div class="form-body">
+        <div class="form-row">
+          <div class="form-field-wrap">
+            <label class="field-label" for="new-email">Email</label>
+            <input id="new-email" class="field-input" type="email"
+                   [(ngModel)]="newEmail" placeholder="user@example.com" autocomplete="off" />
+          </div>
+          <div class="form-field-wrap">
+            <label class="field-label" for="new-password">Password</label>
+            <input id="new-password" class="field-input" type="password"
+                   [(ngModel)]="newPassword" placeholder="Min. 8 characters" autocomplete="new-password" />
+          </div>
+          <div class="form-field-wrap">
+            <label class="field-label" for="new-role">Role</label>
+            <select id="new-role" class="field-select" [(ngModel)]="newRole">
+              <option value="ADMIN">Admin</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-foot">
+        <button mat-stroked-button class="cancel-btn" (click)="cancelForm()">Cancel</button>
+        <button mat-flat-button class="save-btn"
+                [disabled]="!newEmail || !newPassword || saving()"
+                (click)="createUser()">
+          @if (saving()) { Creating… } @else { Create User }
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Loading skeletons -->
+  @if (loading()) {
+    <div class="users-list" aria-busy="true" aria-label="Loading users">
+      @for (_ of [1,2,3,4]; track $index) {
+        <div class="user-row user-row--skel" aria-hidden="true">
+          <div class="skel-avatar"></div>
+          <div class="skel-info">
+            <div class="skel-line skel-line--wide"></div>
+            <div class="skel-line skel-line--narrow"></div>
+          </div>
+          <div class="skel-badge"></div>
+          <div class="skel-toggle"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Empty state -->
+  @else if (filtered().length === 0) {
+    <div class="empty-state" role="status">
+      @if (search()) {
+        <mat-icon class="empty-icon" aria-hidden="true">person_search</mat-icon>
+        <p class="empty-title">No users match "{{ search() }}"</p>
+        <p class="empty-sub">Try a different search term</p>
+      } @else {
+        <mat-icon class="empty-icon" aria-hidden="true">group</mat-icon>
+        <p class="empty-title">No users yet</p>
+        <p class="empty-sub">Create the first admin user to get started</p>
+      }
+    </div>
+  }
+
+  <!-- User list -->
+  @else {
+    <ul class="users-list" role="list" aria-label="Admin users">
+      @for (user of filtered(); track user.id) {
+        <li class="user-row" [class.user-row--self]="isSelf(user)" role="listitem">
+
+          <!-- Avatar -->
+          <span class="user-avatar" [class.user-avatar--super]="user.role === 'SUPER_ADMIN'"
+                aria-hidden="true">
+            {{ user.email[0].toUpperCase() }}
+          </span>
+
+          <!-- Info -->
+          <div class="user-info">
+            <span class="user-email">
+              {{ user.email }}
+              @if (isSelf(user)) {
+                <span class="self-badge">you</span>
+              }
+            </span>
+            <span class="user-meta">
+              Joined {{ user.createdAt | date:'mediumDate' }}
+              @if (user.lastLoginAt) {
+                · Last login {{ user.lastLoginAt | date:'mediumDate' }}
+              }
+            </span>
+          </div>
+
+          <!-- Role selector (super admin can change others' roles) -->
+          <div class="user-role">
+            @if (auth.isSuperAdmin() && !isSelf(user)) {
+              <select class="role-select"
+                      [value]="user.role"
+                      (change)="changeRole(user, $any($event.target).value)"
+                      [attr.aria-label]="'Role for ' + user.email">
+                <option value="ADMIN">Admin</option>
+                <option value="SUPER_ADMIN">Super Admin</option>
+              </select>
+            } @else {
+              <span class="role-badge"
+                    [class.role-badge--super]="user.role === 'SUPER_ADMIN'">
+                {{ user.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin' }}
+              </span>
+            }
+          </div>
+
+          <!-- Active toggle -->
+          <mat-slide-toggle
+            class="status-toggle"
+            [checked]="user.isActive"
+            [disabled]="isSelf(user)"
+            (change)="toggleActive(user)"
+            [attr.aria-label]="(user.isActive ? 'Deactivate' : 'Activate') + ' ' + user.email">
+          </mat-slide-toggle>
+
+          <!-- Status indicator -->
+          <span class="status-dot"
+                [class.status-dot--active]="user.isActive"
+                [attr.aria-label]="user.isActive ? 'Active' : 'Inactive'">
+          </span>
+
+          <!-- Delete -->
+          @if (auth.isSuperAdmin() && !isSelf(user)) {
+            <button mat-icon-button class="delete-btn"
+                    [attr.aria-label]="'Delete ' + user.email"
+                    matTooltip="Delete user"
+                    (click)="deleteUser(user)">
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          } @else {
+            <span class="delete-placeholder" aria-hidden="true"></span>
+          }
+
+        </li>
+      }
+    </ul>
+  }
+
+</div>

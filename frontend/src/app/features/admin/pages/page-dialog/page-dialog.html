@@ -1,0 +1,132 @@
+<h2 mat-dialog-title class="dialog-title">
+  <mat-icon class="dialog-icon" aria-hidden="true">{{ isEdit ? 'edit' : 'add_circle' }}</mat-icon>
+  {{ isEdit ? 'Edit Page' : 'New Page' }}
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <div class="form-grid">
+
+    <!-- Route Path -->
+    <div class="field full">
+      <label class="field-label" for="dp-route">
+        Route Path <span class="required" aria-hidden="true">*</span>
+      </label>
+      <input id="dp-route"
+             class="field-input"
+             type="text"
+             [(ngModel)]="routePath"
+             placeholder="/docs/getting-started"
+             required />
+      <span class="field-hint">URL path where this help widget appears</span>
+    </div>
+
+    <!-- Title -->
+    <div class="field full">
+      <label class="field-label" for="dp-title">
+        Title <span class="required" aria-hidden="true">*</span>
+      </label>
+      <input id="dp-title"
+             class="field-input"
+             type="text"
+             [(ngModel)]="title"
+             placeholder="Getting Started Guide"
+             required />
+    </div>
+
+    <!-- Description -->
+    <div class="field full">
+      <label class="field-label" for="dp-desc">Description</label>
+      <textarea id="dp-desc"
+                class="field-input field-textarea"
+                [(ngModel)]="description"
+                rows="3"
+                placeholder="Brief description of this help page…"></textarea>
+    </div>
+
+    <!-- Category -->
+    <div class="field full">
+      <label class="field-label" for="dp-category">Category</label>
+      <input id="dp-category"
+             class="field-input"
+             type="text"
+             list="dp-category-options"
+             [(ngModel)]="category"
+             placeholder="e.g. Chat, Campaigns, Configuration…" />
+      <datalist id="dp-category-options">
+        @for (c of categoryOptions(); track c) { <option [value]="c"></option> }
+      </datalist>
+      <span class="field-hint">Pick a managed category (or type a new one) — manage them under <strong>Categories</strong></span>
+    </div>
+
+    <!-- Slug + Meta Title -->
+    <div class="field">
+      <label class="field-label" for="dp-slug">Slug</label>
+      <input id="dp-slug"
+             class="field-input"
+             type="text"
+             [(ngModel)]="slug"
+             placeholder="getting-started" />
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="dp-meta-title">Meta Title</label>
+      <input id="dp-meta-title"
+             class="field-input"
+             type="text"
+             [(ngModel)]="metaTitle"
+             placeholder="SEO title override" />
+    </div>
+
+    <!-- Meta Description -->
+    <div class="field full">
+      <label class="field-label" for="dp-meta-desc">Meta Description</label>
+      <input id="dp-meta-desc"
+             class="field-input"
+             type="text"
+             [(ngModel)]="metaDescription"
+             placeholder="SEO description override" />
+    </div>
+
+    <!-- Keywords -->
+    <div class="field full">
+      <label class="field-label" for="dp-keywords">Keywords</label>
+      <input id="dp-keywords"
+             class="field-input"
+             type="text"
+             [(ngModel)]="keywords"
+             placeholder="getting started, user manual, guide" />
+      <span class="field-hint">Comma-separated values</span>
+    </div>
+
+    <!-- No Index checkbox -->
+    <div class="field full checkbox-row">
+      <label class="checkbox-label">
+        <input type="checkbox"
+               class="checkbox-input"
+               [(ngModel)]="noIndex"
+               id="dp-noindex" />
+        <span class="checkbox-box" aria-hidden="true"></span>
+        <span class="checkbox-text">
+          No Index
+          <span class="checkbox-sub">Hide this page from search engines</span>
+        </span>
+      </label>
+    </div>
+
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="dialog-actions">
+  <button mat-stroked-button mat-dialog-close class="cancel-btn">Cancel</button>
+  <button class="save-btn"
+          [disabled]="!routePath || !title || saving()"
+          (click)="save()">
+    @if (saving()) {
+      <span class="btn-spinner" aria-hidden="true"></span>
+      {{ isEdit ? 'Saving…' : 'Creating…' }}
+    } @else {
+      <mat-icon aria-hidden="true">{{ isEdit ? 'check' : 'add' }}</mat-icon>
+      {{ isEdit ? 'Save changes' : 'Create page' }}
+    }
+  </button>
+</mat-dialog-actions>

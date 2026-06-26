@@ -1,0 +1,285 @@
+<!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+<div class="list-toolbar">
+  <div class="toolbar-left">
+    <div class="search-box">
+      <mat-icon class="search-icon">search</mat-icon>
+      <input
+        class="search-input"
+        placeholder="Search pages…"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+        aria-label="Search pages"
+      />
+      @if (search()) {
+        <button mat-icon-button class="search-clear" (click)="search.set('')" aria-label="Clear search">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </div>
+
+    <!-- Category filter (Material menu — themed, dark-mode aware) -->
+    <button type="button" class="cat-filter" [matMenuTriggerFor]="catMenu" aria-label="Filter by category">
+      <mat-icon class="cat-filter-icon" aria-hidden="true">filter_list</mat-icon>
+      <span class="cat-filter-text">{{ categoryFilter() || 'All categories' }}</span>
+      <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+    </button>
+    <mat-menu #catMenu="matMenu">
+      <button mat-menu-item (click)="setCategory('')">
+        <mat-icon>{{ categoryFilter() ? 'remove' : 'check' }}</mat-icon>
+        <span>All categories</span>
+      </button>
+      @for (c of categoryNames(); track c) {
+        <button mat-menu-item (click)="setCategory(c)">
+          <mat-icon>{{ categoryFilter() === c ? 'check' : 'label_outline' }}</mat-icon>
+          <span>{{ c }}</span>
+        </button>
+      }
+    </mat-menu>
+  </div>
+
+  <div class="toolbar-right">
+    <div class="stat-chip">
+      <mat-icon>article</mat-icon>
+      <span>{{ data()?.meta?.total ?? 0 }} pages</span>
+    </div>
+
+    <!-- Select all + export -->
+    <label class="select-all" matTooltip="Select all visible">
+      <input type="checkbox" [checked]="allSelected()" (change)="toggleAll()" aria-label="Select all" />
+      <span class="check-box" aria-hidden="true"></span>
+      <span class="select-all-label">All</span>
+    </label>
+
+    @if (selectedCount() > 0) {
+      <button class="sel-clear" (click)="clearSelection()" matTooltip="Clear selection">
+        {{ selectedCount() }} selected ✕
+      </button>
+    }
+
+    <button mat-flat-button class="export-btn" [matMenuTriggerFor]="exportMenu" [disabled]="exporting()"
+            [matTooltip]="selectedCount() ? 'Export selected' : 'Export all user manuals'">
+      <mat-icon>download</mat-icon>
+      {{ selectedCount() ? 'Export (' + selectedCount() + ')' : 'Export all' }}
+    </button>
+    <mat-menu #exportMenu="matMenu">
+      <button mat-menu-item (click)="export('pdf')">
+        <mat-icon>picture_as_pdf</mat-icon> <span>PDF</span>
+      </button>
+      <button mat-menu-item (click)="export('doc')">
+        <mat-icon>description</mat-icon> <span>Word (.doc)</span>
+      </button>
+      <mat-divider></mat-divider>
+      <button mat-menu-item (click)="backup()" [disabled]="backingUp()">
+        <mat-icon>archive</mat-icon> <span>{{ backingUp() ? 'Preparing backup…' : 'Backup (.zip) — all data + images' }}</span>
+      </button>
+      <button mat-menu-item (click)="restoreInput.click()" [disabled]="restoring()">
+        <mat-icon>restore</mat-icon> <span>{{ restoring() ? 'Restoring…' : 'Restore from backup…' }}</span>
+      </button>
+    </mat-menu>
+
+    <!-- Hidden picker for backup restore (.zip) -->
+    <input #restoreInput type="file" accept=".zip,application/zip" hidden (change)="onRestoreFile($event)" />
+
+    <!-- View toggle -->
+    <div class="view-toggle" role="group" aria-label="View mode">
+      <button
+        mat-icon-button
+        class="view-btn"
+        [class.view-btn--active]="viewMode() === 'grid'"
+        (click)="setView('grid')"
+        matTooltip="Grid view"
+        aria-label="Grid view"
+      >
+        <mat-icon>grid_view</mat-icon>
+      </button>
+      <button
+        mat-icon-button
+        class="view-btn"
+        [class.view-btn--active]="viewMode() === 'list'"
+        (click)="setView('list')"
+        matTooltip="List view"
+        aria-label="List view"
+      >
+        <mat-icon>view_list</mat-icon>
+      </button>
+    </div>
+
+    <button mat-flat-button (click)="openCreate()" class="new-btn">
+      <mat-icon>add</mat-icon>
+      New page
+    </button>
+  </div>
+</div>
+
+<!-- ── Active filter chip ──────────────────────────────────────────────────── -->
+@if (categoryFilter()) {
+  <div class="active-filters">
+    <span class="filter-chip">
+      <mat-icon>filter_list</mat-icon>
+      Category: <strong>{{ categoryFilter() }}</strong>
+      <button class="filter-chip-x" (click)="setCategory('')" aria-label="Clear category filter">
+        <mat-icon>close</mat-icon>
+      </button>
+    </span>
+  </div>
+}
+
+<!-- ── Loading skeletons ───────────────────────────────────────────────────── -->
+@if (loading()) {
+  <div class="card-grid">
+    @for (n of [1,2,3,4,5,6]; track n) {
+      <div class="card-skeleton" aria-hidden="true"></div>
+    }
+  </div>
+}
+
+<!-- ── Empty state ─────────────────────────────────────────────────────────── -->
+@else if (!filtered().length) {
+  <div class="empty-state">
+    @if (search()) {
+      <mat-icon class="empty-icon">search_off</mat-icon>
+      <p class="empty-title">No results for "{{ search() }}"</p>
+      <p class="empty-sub">Try a different search term.</p>
+      <button mat-stroked-button (click)="search.set('')">Clear search</button>
+    } @else {
+      <mat-icon class="empty-icon">article</mat-icon>
+      <p class="empty-title">No user manual pages yet</p>
+      <p class="empty-sub">Create your first page to start building step-by-step guides.</p>
+      <button mat-flat-button (click)="openCreate()" class="new-btn">
+        <mat-icon>add</mat-icon> Create first page
+      </button>
+    }
+  </div>
+}
+
+<!-- ── Grid view (collapsible category sections) ────────────────────────────── -->
+@else if (viewMode() === 'grid') {
+  @for (g of grouped(); track g.name) {
+    <section class="cat-section">
+      <button type="button" class="cat-section-head" (click)="toggleCollapse(g.name)"
+              [attr.aria-expanded]="!isCollapsed(g.name)">
+        <mat-icon class="cat-section-chevron">{{ isCollapsed(g.name) ? 'chevron_right' : 'expand_more' }}</mat-icon>
+        <span class="cat-section-name">{{ g.name }}</span>
+        <span class="cat-section-count">{{ g.items.length }}</span>
+      </button>
+
+      @if (!isCollapsed(g.name)) {
+        <div class="card-grid">
+          @for (page of g.items; track page.id) {
+            <article
+              class="page-card"
+              [class.page-card--selected]="isSelected(page.id)"
+              (click)="openDetail(page)"
+              role="button"
+              tabindex="0"
+              (keydown.enter)="openDetail(page)"
+              (keydown.space)="openDetail(page)"
+              [attr.aria-label]="'Open ' + page.title"
+            >
+              <div class="card-top">
+                <label class="card-check" (click)="$event.stopPropagation()" matTooltip="Select for export">
+                  <input type="checkbox" [checked]="isSelected(page.id)" (change)="toggleSelect(page.id)"
+                         [attr.aria-label]="'Select ' + page.title" />
+                  <span class="check-box" aria-hidden="true"></span>
+                </label>
+                <code class="route-chip">{{ page.routePath }}</code>
+                <div class="card-actions" (click)="$event.stopPropagation()">
+                  <button mat-icon-button matTooltip="Edit steps"    (click)="openDetail(page)" aria-label="Edit steps"><mat-icon>edit_note</mat-icon></button>
+                  <button mat-icon-button matTooltip="Page settings" (click)="openEdit(page)"   aria-label="Edit page settings"><mat-icon>tune</mat-icon></button>
+                  <button mat-icon-button matTooltip="Delete page"   (click)="deletePage(page)" aria-label="Delete page" class="delete-btn"><mat-icon>delete_outline</mat-icon></button>
+                </div>
+              </div>
+
+              <h3 class="card-title">{{ page.title }}</h3>
+
+              @if (page.description) {
+                <p class="card-desc">{{ page.description }}</p>
+              }
+
+              <div class="card-footer">
+                <span class="step-badge">
+                  <mat-icon>format_list_numbered</mat-icon>
+                  {{ page._count?.steps ?? 0 }} {{ (page._count?.steps ?? 0) === 1 ? 'step' : 'steps' }}
+                </span>
+                <span class="card-date">{{ page.createdAt | date:'MMM d, y' }}</span>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if (data(); as res) {
+    <mat-paginator
+      class="paginator"
+      [length]="res.meta.total"
+      [pageSize]="res.meta.limit"
+      [pageSizeOptions]="[20, 50, 100]"
+      (page)="onPage($event)"
+      aria-label="Page navigation"
+      showFirstLastButtons
+    />
+  }
+}
+
+<!-- ── List view ─────────────────────────────────────────────────────────────── -->
+@else {
+  <div class="list-view" role="list">
+    @for (page of filtered(); track page.id) {
+      <div
+        class="list-row"
+        [class.list-row--selected]="isSelected(page.id)"
+        role="listitem"
+        tabindex="0"
+        (click)="openDetail(page)"
+        (keydown.enter)="openDetail(page)"
+        (keydown.space)="openDetail(page)"
+        [attr.aria-label]="'Open ' + page.title"
+      >
+        <label class="card-check" (click)="$event.stopPropagation()" matTooltip="Select for export">
+          <input type="checkbox" [checked]="isSelected(page.id)" (change)="toggleSelect(page.id)"
+                 [attr.aria-label]="'Select ' + page.title" />
+          <span class="check-box" aria-hidden="true"></span>
+        </label>
+
+        <code class="route-chip">{{ page.routePath }}</code>
+
+        <div class="list-info">
+          <span class="list-title">
+            {{ page.title }}
+            @if (page.category) { <span class="category-chip">{{ page.category }}</span> }
+          </span>
+          @if (page.description) {
+            <span class="list-desc">{{ page.description }}</span>
+          }
+        </div>
+
+        <span class="step-badge">
+          <mat-icon>format_list_numbered</mat-icon>
+          {{ page._count?.steps ?? 0 }} steps
+        </span>
+
+        <span class="card-date">{{ page.createdAt | date:'MMM d, y' }}</span>
+
+        <div class="card-actions" (click)="$event.stopPropagation()">
+          <button mat-icon-button matTooltip="Edit steps"    (click)="openDetail(page)" aria-label="Edit steps"><mat-icon>edit_note</mat-icon></button>
+          <button mat-icon-button matTooltip="Page settings" (click)="openEdit(page)"   aria-label="Edit page settings"><mat-icon>tune</mat-icon></button>
+          <button mat-icon-button matTooltip="Delete page"   (click)="deletePage(page)" aria-label="Delete page" class="delete-btn"><mat-icon>delete_outline</mat-icon></button>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (data(); as res) {
+    <mat-paginator
+      class="paginator"
+      [length]="res.meta.total"
+      [pageSize]="res.meta.limit"
+      [pageSizeOptions]="[20, 50, 100]"
+      (page)="onPage($event)"
+      aria-label="Page navigation"
+      showFirstLastButtons
+    />
+  }
+}

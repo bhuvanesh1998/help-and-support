@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: help-assistant-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-help_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-replace_with_a_strong_password}
+      POSTGRES_DB: ${POSTGRES_DB:-help_assistant}
+    ports:
+      - '5432:5432'
+    volumes:
+      - help_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-help_admin} -d ${POSTGRES_DB:-help_assistant}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  help_pgdata:

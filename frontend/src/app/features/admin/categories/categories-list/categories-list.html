@@ -1,0 +1,63 @@
+<div class="cats-page">
+  <div class="page-top">
+    <div>
+      <h1 class="page-title">Categories</h1>
+      <span class="page-sub">Module groups for the help-center landing page. Drag order with the arrows.</span>
+    </div>
+  </div>
+
+  <!-- Add new -->
+  <div class="add-card">
+    <mat-icon class="add-icon" aria-hidden="true">create_new_folder</mat-icon>
+    <input class="cat-input cat-input--name" [(ngModel)]="newName" placeholder="New category name" aria-label="Category name" (keydown.enter)="add()" />
+    <input class="cat-input cat-input--icon" [(ngModel)]="newIcon" placeholder="icon (e.g. chat)" aria-label="Material icon name" (keydown.enter)="add()" />
+    <input class="cat-input cat-input--desc" [(ngModel)]="newDesc" placeholder="Short description (optional)" aria-label="Description" (keydown.enter)="add()" />
+    <button mat-flat-button class="add-btn" [disabled]="!newName.trim()" (click)="add()">
+      <mat-icon>add</mat-icon> Add
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="center-spinner"><mat-spinner diameter="40" /></div>
+  } @else {
+    <div class="cat-list">
+      @for (c of cats(); track c.id; let first = $first; let last = $last) {
+        <div class="cat-row">
+          <div class="reorder">
+            <button mat-icon-button [disabled]="first" (click)="move(c, 'up')" matTooltip="Move up" aria-label="Move up"><mat-icon>arrow_upward</mat-icon></button>
+            <button mat-icon-button [disabled]="last" (click)="move(c, 'down')" matTooltip="Move down" aria-label="Move down"><mat-icon>arrow_downward</mat-icon></button>
+          </div>
+
+          <mat-icon class="cat-icon">{{ c.icon || 'folder' }}</mat-icon>
+
+          @if (editingId() === c.id) {
+            <div class="edit-fields">
+              <input class="cat-input" [(ngModel)]="editName" aria-label="Name" />
+              <input class="cat-input cat-input--icon" [(ngModel)]="editIcon" placeholder="icon" aria-label="Icon" />
+              <input class="cat-input cat-input--desc" [(ngModel)]="editDesc" placeholder="description" aria-label="Description" />
+            </div>
+            <div class="row-actions">
+              <button mat-flat-button class="save-btn" (click)="saveEdit(c)">Save</button>
+              <button mat-stroked-button (click)="cancelEdit()">Cancel</button>
+            </div>
+          } @else {
+            <div class="cat-info">
+              <span class="cat-name">{{ c.name }}</span>
+              @if (c.description) { <span class="cat-desc">{{ c.description }}</span> }
+            </div>
+            <span class="cat-count">{{ c.pageCount ?? 0 }} manual{{ (c.pageCount ?? 0) === 1 ? '' : 's' }}</span>
+            <div class="row-actions">
+              <button mat-icon-button (click)="startEdit(c)" matTooltip="Edit" aria-label="Edit category"><mat-icon>edit</mat-icon></button>
+              <button mat-icon-button class="delete-btn" (click)="remove(c)" matTooltip="Delete" aria-label="Delete category"><mat-icon>delete_outline</mat-icon></button>
+            </div>
+          }
+        </div>
+      } @empty {
+        <div class="empty-state">
+          <mat-icon>folder_off</mat-icon>
+          <p>No categories yet — add one above.</p>
+        </div>
+      }
+    </div>
+  }
+</div>

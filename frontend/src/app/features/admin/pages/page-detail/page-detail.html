@@ -1,0 +1,157 @@
+@if (loading()) {
+  <div class="center-spinner"><mat-spinner diameter="48" /></div>
+} @else if (page(); as pg) {
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <div class="detail-header">
+    <button mat-icon-button aria-label="Back to pages" (click)="goBack()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div class="title-group">
+      <h1>{{ pg.title }}</h1>
+      <code class="route-badge">{{ pg.routePath }}</code>
+    </div>
+    <button mat-flat-button class="add-btn" (click)="openNewStep()">
+      <mat-icon>add</mat-icon> Add step
+    </button>
+  </div>
+
+  <!-- ── Edit / New step form ────────────────────────────────────────── -->
+  @if (showStepForm()) {
+    <div class="step-form-card">
+      <div class="form-head">
+        <mat-icon class="form-head-icon">{{ editingStep() ? 'edit_note' : 'add_circle_outline' }}</mat-icon>
+        <span class="form-head-title">{{ editingStep() ? 'Edit step' : 'New step' }}</span>
+      </div>
+
+      <div class="form-body">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Step title</mat-label>
+          <input matInput [(ngModel)]="stepTitle" required />
+        </mat-form-field>
+
+        <div class="md-field full-width">
+          <label class="md-label" for="md-area">Instructions (Markdown)</label>
+          <div class="md-editor">
+            <div class="md-toolbar" role="toolbar" aria-label="Formatting">
+              <button type="button" class="md-btn" (click)="fmtBold()"    matTooltip="Bold — Ctrl+B"    aria-label="Bold"><strong>B</strong></button>
+              <button type="button" class="md-btn" (click)="fmtItalic()"  matTooltip="Italic — Ctrl+I"  aria-label="Italic"><em>I</em></button>
+              <span class="md-sep" aria-hidden="true"></span>
+              <button type="button" class="md-btn" (click)="fmtHeading()" matTooltip="Heading"            aria-label="Heading"><mat-icon>title</mat-icon></button>
+              <button type="button" class="md-btn" (click)="fmtBullet()"  matTooltip="Bullet list"        aria-label="Bullet list"><mat-icon>format_list_bulleted</mat-icon></button>
+              <button type="button" class="md-btn" (click)="fmtNumber()"  matTooltip="Numbered list"      aria-label="Numbered list"><mat-icon>format_list_numbered</mat-icon></button>
+              <span class="md-sep" aria-hidden="true"></span>
+              <button type="button" class="md-btn" (click)="fmtCode()"    matTooltip="Inline code"        aria-label="Code"><mat-icon>code</mat-icon></button>
+              <button type="button" class="md-btn" (click)="fmtLink()"    matTooltip="Link — Ctrl+K"      aria-label="Link"><mat-icon>link</mat-icon></button>
+            </div>
+            <textarea
+              #mdArea
+              id="md-area"
+              class="md-textarea"
+              [(ngModel)]="stepInstructions"
+              (keydown)="onMdKeydown($event)"
+              rows="7"
+              placeholder="Write step instructions in Markdown…"
+            ></textarea>
+          </div>
+          <p class="md-hint">
+            <mat-icon>keyboard</mat-icon>
+            Select text, then click a button — or use
+            <kbd>Ctrl/⌘+B</kbd> bold, <kbd>Ctrl/⌘+I</kbd> italic, <kbd>Ctrl/⌘+K</kbd> link.
+          </p>
+        </div>
+
+        <div class="img-field full-width">
+          <label class="md-label">Screenshot (optional)</label>
+          <div class="img-controls">
+            <button type="button" class="img-upload-btn" (click)="imgInput.click()" [disabled]="uploadingImage()">
+              @if (uploadingImage()) {
+                <span class="img-spinner" aria-hidden="true"></span> Uploading…
+              } @else {
+                <mat-icon>upload</mat-icon> Upload image
+              }
+            </button>
+            <input #imgInput type="file" accept="image/*" hidden (change)="onImageFile($event)" />
+            <input class="img-url-input" [(ngModel)]="stepImageUrl"
+                   placeholder="…or paste an image URL" aria-label="Image URL" />
+          </div>
+
+          @if (stepImageUrl) {
+            <div class="img-preview">
+              <img [src]="stepImageUrl" alt="Step screenshot preview" />
+              <button type="button" class="img-remove" (click)="clearImage()"
+                      matTooltip="Remove image" aria-label="Remove image">
+                <mat-icon>close</mat-icon>
+              </button>
+              <code class="img-link">{{ stepImageUrl }}</code>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="form-foot">
+        <button mat-stroked-button (click)="cancelForm()">Cancel</button>
+        <button
+          mat-flat-button
+          class="save-btn"
+          [disabled]="!stepTitle || !stepInstructions || saving()"
+          (click)="saveStep()"
+        >
+          @if (saving()) { <mat-spinner diameter="18" /> }
+          @else { {{ editingStep() ? 'Save' : 'Create' }} }
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- ── Steps list ──────────────────────────────────────────────────── -->
+  <div class="steps-list">
+    @for (step of pg.steps; track step.id) {
+      <div class="step-card">
+        <span class="step-num">{{ step.stepNumber }}</span>
+
+        <div class="step-body">
+          <strong class="step-title">{{ step.title }}</strong>
+          <div class="step-preview" [innerHTML]="htmlFor(step.id)"></div>
+        </div>
+
+        <div class="step-actions">
+          <button mat-icon-button matTooltip="Move up"   (click)="moveUp(step)"   [disabled]="step.stepNumber === 1" aria-label="Move up"><mat-icon>arrow_upward</mat-icon></button>
+          <button mat-icon-button matTooltip="Move down" (click)="moveDown(step)" [disabled]="step.stepNumber === pg.steps.length" aria-label="Move down"><mat-icon>arrow_downward</mat-icon></button>
+          <button mat-icon-button matTooltip="Edit"      (click)="openEditStep(step)" aria-label="Edit step"><mat-icon>edit</mat-icon></button>
+          <button mat-icon-button matTooltip="Delete"    (click)="deleteStep(step)"   aria-label="Delete step" class="delete-btn"><mat-icon>delete_outline</mat-icon></button>
+        </div>
+      </div>
+    } @empty {
+      <div class="empty-state">
+        <mat-icon>list_alt</mat-icon>
+        <p>No steps yet — click "Add step" to create the first one.</p>
+      </div>
+    }
+  </div>
+
+  <!-- ── API reference (auto-captured; shown in the manual's API tab) ───────── -->
+  @if (apiEndpoints().length) {
+    <div class="api-section">
+      <div class="api-section-head">
+        <mat-icon>api</mat-icon>
+        <span class="api-section-title">API reference</span>
+        <span class="api-section-count">{{ apiEndpoints().length }}</span>
+        <span class="api-section-sub">Auto-captured from the live app — shown in the manual's API tab.</span>
+      </div>
+
+      @for (e of apiEndpoints(); track e.id) {
+        <div class="api-item">
+          <span [class]="methodClass(e.method)">{{ e.method }}</span>
+          <code class="api-item-path">{{ e.path }}</code>
+          @if (e.status !== null) { <span class="api-item-status">{{ e.status }}</span> }
+          <span class="api-item-spacer"></span>
+          <button mat-icon-button matTooltip="Remove" aria-label="Remove endpoint"
+                  class="delete-btn" (click)="deleteApiEndpoint(e)">
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </div>
+      }
+    </div>
+  }
+}

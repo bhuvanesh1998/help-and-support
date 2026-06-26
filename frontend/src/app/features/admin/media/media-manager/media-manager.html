@@ -1,0 +1,187 @@
+<div class="media-page">
+
+  <!-- Upload progress bar -->
+  @if (uploading()) {
+    <mat-progress-bar mode="indeterminate" class="upload-bar"></mat-progress-bar>
+  }
+
+  <!-- Toolbar -->
+  <div class="media-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <mat-icon class="search-icon">search</mat-icon>
+        <input class="search-input"
+               placeholder="Search by name, type…"
+               [value]="search()"
+               (input)="search.set($any($event.target).value)"
+               aria-label="Search media" />
+        @if (search()) {
+          <button class="search-clear" (click)="search.set('')" [attr.aria-label]="'Clear search'">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+    </div>
+    <div class="toolbar-right">
+      @if (data()?.meta) {
+        <span class="stat-chip" aria-label="{{ data()!.meta.total }} files">
+          <mat-icon aria-hidden="true">photo_library</mat-icon>
+          {{ data()!.meta.total }} file{{ data()!.meta.total === 1 ? '' : 's' }}
+        </span>
+      }
+      <button mat-flat-button class="upload-btn"
+              (click)="triggerInput()"
+              [disabled]="uploading()"
+              aria-label="Upload images">
+        <mat-icon aria-hidden="true">cloud_upload</mat-icon>
+        Upload
+      </button>
+    </div>
+  </div>
+
+  <!-- Hidden file input -->
+  <input #fileInput type="file" accept="image/*" multiple
+         style="display:none" (change)="onFileChange($event)"
+         aria-label="Choose image files to upload" />
+
+  <!-- Drop zone -->
+  <div class="drop-zone"
+       [class.drop-zone--active]="dragOver()"
+       (dragover)="onDragOver($event)"
+       (dragleave)="onDragLeave()"
+       (drop)="onDrop($event)"
+       (click)="triggerInput()"
+       (keydown.enter)="triggerInput()"
+       (keydown.space)="triggerInput()"
+       role="button"
+       tabindex="0"
+       aria-label="Drop images here or click to browse">
+    <span class="drop-icon-wrap" aria-hidden="true">
+      <mat-icon class="drop-icon">upload_file</mat-icon>
+    </span>
+    <span class="drop-primary">Drag &amp; drop images here</span>
+    <span class="drop-secondary">or click to browse — PNG, JPG, GIF, WEBP</span>
+  </div>
+
+  <!-- Loading skeletons -->
+  @if (loading()) {
+    <div class="media-grid" aria-busy="true" aria-label="Loading media">
+      @for (_ of [1,2,3,4,5,6,7,8,9,10,11,12]; track $index) {
+        <div class="media-card media-card--skel" aria-hidden="true">
+          <div class="card-thumb skel-box"></div>
+          <div class="card-meta">
+            <div class="skel-line skel-line--wide"></div>
+            <div class="skel-line skel-line--narrow"></div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Empty state -->
+  @else if (filtered().length === 0) {
+    <div class="empty-state" role="status">
+      @if (search()) {
+        <mat-icon class="empty-icon" aria-hidden="true">image_search</mat-icon>
+        <p class="empty-title">No results for "{{ search() }}"</p>
+        <p class="empty-sub">Try a different search term</p>
+      } @else {
+        <mat-icon class="empty-icon" aria-hidden="true">photo_library</mat-icon>
+        <p class="empty-title">No images yet</p>
+        <p class="empty-sub">Upload images to use in your help guides</p>
+        <button mat-flat-button class="upload-btn" (click)="triggerInput()">
+          <mat-icon aria-hidden="true">cloud_upload</mat-icon>
+          Upload images
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Media grid -->
+  @else {
+    <div class="media-grid">
+      @for (asset of filtered(); track asset.id) {
+
+        <!-- Normal view -->
+        @if (editingId() !== asset.id) {
+          <div class="media-card" role="group" [attr.aria-label]="asset.originalName">
+            <div class="card-thumb">
+              <img [src]="asset.publicUrl"
+                   [alt]="asset.altText || asset.originalName"
+                   loading="lazy"
+                   (click)="openPreview(asset.publicUrl)" />
+              <span class="ext-badge" aria-hidden="true">{{ extBadge(asset.mimeType) }}</span>
+              <div class="thumb-overlay" role="toolbar" [attr.aria-label]="'Actions for ' + asset.originalName">
+                <button mat-icon-button class="overlay-btn"
+                        matTooltip="Copy URL"
+                        aria-label="Copy URL"
+                        (click)="copyUrl(asset)">
+                  <mat-icon>content_copy</mat-icon>
+                </button>
+                <button mat-icon-button class="overlay-btn"
+                        matTooltip="Edit alt text"
+                        aria-label="Edit alt text"
+                        (click)="startEdit(asset)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button class="overlay-btn overlay-btn--danger"
+                        matTooltip="Delete"
+                        aria-label="Delete image"
+                        (click)="delete(asset)">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+            </div>
+            <div class="card-meta">
+              <span class="card-name" [title]="asset.originalName">{{ asset.originalName }}</span>
+              <span class="card-size">{{ formatBytes(asset.sizeBytes) }}</span>
+            </div>
+          </div>
+        }
+
+        <!-- Alt text edit mode -->
+        @else {
+          <div class="media-card media-card--editing" role="group" [attr.aria-label]="'Editing alt text for ' + asset.originalName">
+            <div class="card-thumb">
+              <img [src]="asset.publicUrl"
+                   [alt]="asset.altText || asset.originalName"
+                   loading="lazy" />
+            </div>
+            <div class="alt-edit">
+              <label class="alt-label" [for]="'alt-' + asset.id">Alt text</label>
+              <input class="alt-input"
+                     [id]="'alt-' + asset.id"
+                     [(ngModel)]="altText"
+                     placeholder="Describe the image…"
+                     (keydown.enter)="saveAlt(asset)"
+                     (keydown.escape)="cancelEdit()" />
+              <div class="alt-actions">
+                <button mat-stroked-button class="alt-cancel" (click)="cancelEdit()">Cancel</button>
+                <button mat-flat-button class="alt-save" (click)="saveAlt(asset)">Save</button>
+              </div>
+            </div>
+          </div>
+        }
+
+      }
+    </div>
+
+    <!-- Paginator -->
+    @if ((data()?.meta?.pages ?? 1) > 1) {
+      <mat-paginator
+        class="paginator"
+        [length]="data()!.meta.total"
+        [pageSize]="24"
+        [pageIndex]="data()!.meta.page - 1"
+        [hidePageSize]="true"
+        (page)="onPage($event)"
+        aria-label="Media page navigation">
+      </mat-paginator>
+    }
+  }
+
+  <!-- Full-screen image viewer (zoom + gallery navigation) -->
+  <ha-image-viewer [src]="previewUrl()" [items]="galleryUrls()" alt="Image preview"
+                   (closed)="closePreview()" />
+
+</div>

@@ -1,0 +1,14 @@
+# Never copy host build output / deps / secrets into the image
+**/node_modules
+**/dist
+**/.angular
+**/.cache
+backend/uploads
+**/.env
+**/.env.*
+.git
+.gitignore
+extension
+**/*.log
+**/.DS_Store
+scratchpad

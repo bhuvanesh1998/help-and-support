@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.angular/
+.cache/
+backend/uploads/
+*.log
+.DS_Store
+scratchpad/
+
+# Secrets — never commit real env files (keep the example)
+**/.env
+**/.env.*
+!backend/.env.production.example

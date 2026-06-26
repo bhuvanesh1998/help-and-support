@@ -1,0 +1,23 @@
+{
+  "name": "screenshot-tool",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "AI-powered screen scraper and documentation pipeline for HelpAssistant",
+  "scripts": {
+    "pipeline":         "node run-pipeline.mjs",
+    "pipeline:dry":     "node run-pipeline.mjs --no-publish",
+    "pipeline:from2":   "node run-pipeline.mjs --from 2",
+    "pipeline:from3":   "node run-pipeline.mjs --from 3",
+    "scrape":           "node scraper.mjs",
+    "draft":            "node draft-content.mjs",
+    "publish":          "node publish.mjs",
+    "capture":          "node capture.mjs",
+    "install-browser":  "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

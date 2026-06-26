@@ -1,0 +1,384 @@
+<div class="ai-page">
+
+  <!-- Header -->
+  <div class="page-top">
+    <div class="top-left">
+      <h1 class="page-title">AI Pipeline</h1>
+      <span class="page-sub">Map an app's screens and let Claude draft step-by-step user manuals</span>
+    </div>
+    <div class="top-right">
+      @if (phase() === 'idle') {
+        <div class="mode-tabs" role="group" aria-label="Pipeline mode">
+          <button class="mode-tab" [class.mode-tab--active]="mode() === 'capture'"
+                  (click)="mode.set('capture')" [attr.aria-pressed]="mode() === 'capture'">
+            <mat-icon aria-hidden="true">travel_explore</mat-icon> Live capture
+          </button>
+          <button class="mode-tab" [class.mode-tab--active]="mode() === 'import'"
+                  (click)="mode.set('import')" [attr.aria-pressed]="mode() === 'import'">
+            <mat-icon aria-hidden="true">upload_file</mat-icon> Import JSON
+          </button>
+        </div>
+      } @else {
+        <button mat-stroked-button class="reset-btn" (click)="reset()">
+          <mat-icon>restart_alt</mat-icon> Start over
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ════════════════ IDLE — CAPTURE FORM ════════════════ -->
+  @if (phase() === 'idle' && mode() === 'capture') {
+    <div class="capture-grid">
+
+      <!-- Form -->
+      <div class="form-card">
+        <div class="form-head">
+          <mat-icon class="form-head-icon" aria-hidden="true">travel_explore</mat-icon>
+          <span class="form-head-title">Capture configuration</span>
+        </div>
+        <div class="form-body">
+
+          <div class="field full">
+            <label class="field-label" for="cap-url">App URL <span class="req">*</span></label>
+            <input id="cap-url" class="field-input" type="url" [(ngModel)]="baseUrl"
+                   placeholder="https://qa.twixor.digital" />
+            <span class="field-hint">The login page must be reachable at <code>/login</code></span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="cap-name">App name</label>
+            <input id="cap-name" class="field-input" type="text" [(ngModel)]="appName"
+                   placeholder="Twixor" />
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="cap-depth">Crawl depth</label>
+            <select id="cap-depth" class="field-input" [(ngModel)]="navDepth">
+              <option [ngValue]="0">Auth screens only</option>
+              <option [ngValue]="1">+ Dashboard (1 level)</option>
+              <option [ngValue]="2">+ Sub-pages (2 levels)</option>
+              <option [ngValue]="3">Deep crawl (3 levels)</option>
+            </select>
+          </div>
+
+          <label class="field full headed-toggle">
+            <input type="checkbox" [(ngModel)]="headed" />
+            <span class="headed-box" aria-hidden="true"></span>
+            <span class="headed-text">
+              Show browser for manual login
+              <span class="headed-sub">Opens a visible browser window so you can solve a captcha / 2FA by hand. The capture pauses until you finish login. (Browser appears on the server machine.)</span>
+            </span>
+          </label>
+
+          <div class="field full">
+            <label class="field-label" for="cap-session">Session (optional — skips login &amp; captcha)</label>
+            <textarea id="cap-session" class="field-input field-session"
+                      [(ngModel)]="sessionJson" rows="4"
+                      placeholder='{ "localStorage": { "accessToken": "eyJ…" }, "startPath": "/dashboard" }'></textarea>
+            <span class="field-hint">
+              Paste a session from a browser already logged into the target app — the scraper injects it and goes straight to the app, no login or captcha.
+              In that tab open <strong>DevTools → Application</strong>, then copy your auth token from <strong>Local Storage</strong> (or your session <strong>Cookies</strong>) into the JSON above. Sent in-memory only, never stored.
+            </span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="cap-email">Demo email</label>
+            <input id="cap-email" class="field-input" type="email" [(ngModel)]="email"
+                   placeholder="demo@example.com" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="cap-pass">Demo password</label>
+            <div class="field-secret">
+              <input id="cap-pass" class="field-input" [type]="showPass() ? 'text' : 'password'"
+                     [(ngModel)]="password" placeholder="••••••••" autocomplete="off" />
+              <button type="button" class="secret-toggle" (click)="showPass.set(!showPass())"
+                      [attr.aria-label]="showPass() ? 'Hide password' : 'Show password'">
+                <mat-icon>{{ showPass() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <!-- Claude connection -->
+          <div class="field full">
+            <label class="field-label">Claude</label>
+
+            @if (connected() && !showConnectPanel()) {
+              <!-- Connected status -->
+              <div class="claude-connected">
+                <span class="claude-dot" aria-hidden="true"></span>
+                <div class="claude-conn-text">
+                  <span class="claude-conn-title">Connected</span>
+                  <span class="claude-conn-sub">
+                    Key ····{{ credential()?.keyLast4 }} · {{ credential()?.model }}
+                  </span>
+                </div>
+                <button type="button" class="claude-link" (click)="openConnectPanel()">Change</button>
+                <button type="button" class="claude-link claude-link--danger" (click)="disconnectClaude()">Disconnect</button>
+              </div>
+            } @else {
+              <!-- Connect panel: paste key once, validate & save -->
+              <div class="claude-connect">
+                <div class="field-secret">
+                  <input class="field-input" [type]="showKey() ? 'text' : 'password'"
+                         [(ngModel)]="anthropicKey" placeholder="sk-ant-…" autocomplete="off"
+                         aria-label="Claude API key"
+                         (keydown.enter)="connectClaude()" />
+                  <button type="button" class="secret-toggle" (click)="showKey.set(!showKey())"
+                          [attr.aria-label]="showKey() ? 'Hide key' : 'Show key'">
+                    <mat-icon>{{ showKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
+                  </button>
+                </div>
+                <button type="button" class="connect-btn" (click)="connectClaude()" [disabled]="connecting()">
+                  @if (connecting()) {
+                    <span class="btn-spinner" aria-hidden="true"></span> Validating…
+                  } @else {
+                    <mat-icon aria-hidden="true">link</mat-icon> Test &amp; Connect
+                  }
+                </button>
+              </div>
+              <span class="field-hint">
+                Get a key at <code>console.anthropic.com</code> → API Keys. Stored encrypted, reused for every run.
+              </span>
+              @if (connectError()) {
+                <p class="form-error" role="alert">
+                  <mat-icon aria-hidden="true">error_outline</mat-icon> {{ connectError() }}
+                </p>
+              }
+            }
+          </div>
+
+          <div class="field full">
+            <label class="field-label" for="cap-model">Model</label>
+            <select id="cap-model" class="field-input" [(ngModel)]="model">
+              @for (m of models; track m.id) {
+                <option [value]="m.id">{{ m.label }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="security-note full">
+            <mat-icon aria-hidden="true">lock</mat-icon>
+            <span>Your Claude key is validated, then stored encrypted on the server. The demo password is used in-memory for this run only — never written to disk or the database.</span>
+          </div>
+
+          @if (startError()) {
+            <p class="form-error full" role="alert">
+              <mat-icon aria-hidden="true">error_outline</mat-icon> {{ startError() }}
+            </p>
+          }
+        </div>
+        <div class="form-foot">
+          <button class="run-btn" (click)="startCapture()"
+                  [disabled]="!baseUrl || !connected()">
+            <mat-icon aria-hidden="true">rocket_launch</mat-icon>
+            Start capture
+          </button>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="info-card">
+        <h3 class="info-title"><mat-icon aria-hidden="true">auto_awesome</mat-icon> How it works</h3>
+        <ol class="info-steps">
+          <li><strong>Map</strong> — a headless browser visits login, signup, forgot-password, then logs in and crawls the app.</li>
+          <li><strong>Draft</strong> — each screen group is sent to Claude vision, which writes a titled, step-by-step guide.</li>
+          <li><strong>Review</strong> — you see every screen and draft below, pick what to keep, and publish.</li>
+        </ol>
+        <div class="info-setup">
+          <span class="setup-label">One-time backend setup</span>
+          <code class="setup-cmd">cd backend &amp;&amp; npx playwright install chromium</code>
+          <span class="setup-note">Installs the headless browser the scraper drives.</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ════════════════ IDLE — IMPORT JSON ════════════════ -->
+  @if (phase() === 'idle' && mode() === 'import') {
+    <div class="import-card">
+      <mat-icon class="import-icon" aria-hidden="true">upload_file</mat-icon>
+      <h2 class="import-title">Import content_draft.json</h2>
+      <p class="import-sub">Generated by the CLI pipeline at <code>screenshot-tool/output/content_draft.json</code></p>
+      <button mat-flat-button class="run-btn" (click)="triggerFile()">
+        <mat-icon>folder_open</mat-icon> Choose file
+      </button>
+      <input #fileInput type="file" accept=".json,application/json" style="display:none" (change)="onFile($event)" />
+      <div class="paste-section">
+        <p class="paste-label">Or paste JSON directly:</p>
+        <textarea class="paste-area" [value]="jsonText()"
+                  (input)="jsonText.set($any($event.target).value)"
+                  placeholder='{ "tutorials": [...] }' rows="6"></textarea>
+        @if (jsonError()) {
+          <p class="form-error" role="alert"><mat-icon>error_outline</mat-icon> {{ jsonError() }}</p>
+        }
+        <button mat-flat-button class="parse-btn" [disabled]="!jsonText()" (click)="parseJson()">
+          <mat-icon>play_arrow</mat-icon> Parse &amp; Preview
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- ════════════════ PROGRESS ════════════════ -->
+  @if (phase() !== 'idle') {
+
+    <!-- Phase banner -->
+    <div class="phase-banner"
+         [class.phase-banner--done]="phase() === 'done'"
+         [class.phase-banner--error]="phase() === 'error' || phase() === 'cancelled'">
+      <div class="phase-left">
+        @if (running() || phase() === 'pending') {
+          <span class="phase-spinner" aria-hidden="true"></span>
+        } @else if (phase() === 'done') {
+          <mat-icon class="phase-ico" aria-hidden="true">check_circle</mat-icon>
+        } @else {
+          <mat-icon class="phase-ico" aria-hidden="true">error_outline</mat-icon>
+        }
+        <div class="phase-text">
+          <span class="phase-name">{{ phaseLabel() }}</span>
+          @if (doneStats(); as d) {
+            <span class="phase-meta">{{ d.screens }} screens · {{ d.tutorials }} user manuals drafted</span>
+          } @else {
+            <span class="phase-meta">{{ screens().length }} screens captured</span>
+          }
+        </div>
+      </div>
+      @if (running() || phase() === 'pending') {
+        <button mat-stroked-button class="cancel-btn" (click)="cancel()">
+          <mat-icon>stop</mat-icon> Cancel
+        </button>
+      }
+    </div>
+
+    @if (startError() && (phase() === 'error')) {
+      <p class="form-error" role="alert"><mat-icon>error_outline</mat-icon> {{ startError() }}</p>
+    }
+
+    <!-- Discovered screens -->
+    @if (screens().length > 0) {
+      <div class="section-block">
+        <div class="block-head">
+          <mat-icon aria-hidden="true">photo_library</mat-icon>
+          <span>Screens discovered</span>
+          <span class="block-count">{{ screens().length }}</span>
+        </div>
+        <div class="screen-grid">
+          @for (s of screens(); track s.id) {
+            <div class="screen-thumb" [matTooltip]="s.name + ' — ' + s.url">
+              @if (s.imageUrl) {
+                <img [src]="s.imageUrl" [alt]="s.name" loading="lazy" />
+              } @else {
+                <div class="thumb-fallback"><mat-icon>image</mat-icon></div>
+              }
+              <div class="thumb-meta">
+                <span class="thumb-id">{{ s.id }}</span>
+                <span class="thumb-name">{{ s.name }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Live log -->
+    @if (running() || phase() === 'pending') {
+      <div class="section-block">
+        <div class="block-head">
+          <mat-icon aria-hidden="true">terminal</mat-icon>
+          <span>Activity</span>
+        </div>
+        <div class="log-console">
+          @for (l of logs(); track $index) {
+            <div class="log-line" [class]="'log-line--' + l.level">
+              <span class="log-dot" aria-hidden="true"></span>{{ l.message }}
+            </div>
+          } @empty {
+            <div class="log-line log-line--info"><span class="log-dot"></span>Starting…</div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Review & publish -->
+    @if (states().length > 0) {
+      <div class="section-block">
+        <div class="review-toolbar">
+          <div class="block-head block-head--inline">
+            <mat-icon aria-hidden="true">menu_book</mat-icon>
+            <span>Drafted user manuals</span>
+            <span class="block-count">{{ states().length }}</span>
+          </div>
+          <div class="review-actions">
+            <button mat-stroked-button class="sel-btn" (click)="toggleAll(true)">Select all</button>
+            <button mat-stroked-button class="sel-btn" (click)="toggleAll(false)">Deselect all</button>
+            <button class="publish-btn"
+                    [disabled]="selectedCount() === 0"
+                    (click)="publishSelected()">
+              <mat-icon aria-hidden="true">rocket_launch</mat-icon>
+              Publish {{ selectedCount() }} selected
+            </button>
+          </div>
+        </div>
+
+        <div class="tutorial-list">
+          @for (s of states(); track s.tutorial.groupId; let i = $index) {
+            <div class="tutorial-card"
+                 [class.tutorial-card--selected]="s.selected"
+                 [class.tutorial-card--done]="s.status === 'done'"
+                 [class.tutorial-card--error]="s.status === 'error'"
+                 [class.tutorial-card--pending]="s.status === 'pending'">
+
+              <label class="tcard-check" [for]="'tc-' + i">
+                <input type="checkbox" [id]="'tc-' + i" [checked]="s.selected"
+                       [disabled]="s.status !== 'idle'" (change)="toggleOne(i)" class="sr-only" />
+                <span class="check-box" aria-hidden="true">
+                  @if (s.selected) { <mat-icon>check</mat-icon> }
+                </span>
+              </label>
+
+              <div class="tcard-body">
+                <div class="tcard-head">
+                  <code class="tcard-route">{{ s.tutorial.page.routePath }}</code>
+                  <span class="tcard-step-count">{{ s.tutorial.steps.length }} step{{ s.tutorial.steps.length === 1 ? '' : 's' }}</span>
+                </div>
+                <h3 class="tcard-title">{{ s.tutorial.page.title }}</h3>
+                @if (s.tutorial.page.description) {
+                  <p class="tcard-desc">{{ s.tutorial.page.description }}</p>
+                }
+                <ol class="tcard-steps">
+                  @for (step of s.tutorial.steps.slice(0, 4); track step.stepNumber) {
+                    <li class="tcard-step">
+                      <span class="step-num">{{ step.stepNumber }}</span>
+                      <span class="step-title">{{ step.title }}</span>
+                    </li>
+                  }
+                  @if (s.tutorial.steps.length > 4) {
+                    <li class="tcard-step tcard-step--more">+ {{ s.tutorial.steps.length - 4 }} more steps</li>
+                  }
+                </ol>
+              </div>
+
+              <div class="tcard-status">
+                @if (s.status === 'pending') {
+                  <span class="status-badge status-badge--pending">
+                    <span class="phase-spinner phase-spinner--sm" aria-hidden="true"></span> Publishing
+                  </span>
+                } @else if (s.status === 'done') {
+                  <span class="status-badge status-badge--done">
+                    <mat-icon aria-hidden="true">check_circle</mat-icon> Published
+                  </span>
+                } @else if (s.status === 'error') {
+                  <span class="status-badge status-badge--error" [matTooltip]="s.error ?? 'Error'">
+                    <mat-icon aria-hidden="true">error_outline</mat-icon> Failed
+                  </span>
+                }
+              </div>
+
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+
+</div>

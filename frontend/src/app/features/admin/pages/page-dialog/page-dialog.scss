@@ -1,0 +1,217 @@
+// ── Dialog title ──────────────────────────────────────────────────────────────
+
+.dialog-title {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.125rem !important;
+  font-weight: 700 !important;
+  color: var(--mat-sys-on-surface) !important;
+  padding: 20px 24px 0 !important;
+  margin: 0 !important;
+}
+
+.dialog-icon {
+  color: var(--mat-sys-primary);
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+// ── Dialog content ────────────────────────────────────────────────────────────
+
+.dialog-content {
+  padding: 16px 24px !important;
+  overflow-y: auto;
+  max-height: 72vh;
+}
+
+// ── Form grid ─────────────────────────────────────────────────────────────────
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+  min-width: 480px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  &.full { grid-column: 1 / -1; }
+}
+
+// ── Field label ───────────────────────────────────────────────────────────────
+
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface);
+  letter-spacing: 0.01em;
+}
+
+.required {
+  color: var(--mat-sys-error);
+  margin-left: 2px;
+}
+
+// ── Field input ───────────────────────────────────────────────────────────────
+
+.field-input {
+  height: 40px;
+  background: var(--mat-sys-surface-container);
+  border: 1.5px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--mat-sys-on-surface);
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  width: 100%;
+  box-sizing: border-box;
+
+  &::placeholder { color: var(--mat-sys-on-surface-variant); opacity: 0.6; }
+
+  &:focus {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-surface);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mat-sys-primary) 15%, transparent);
+  }
+}
+
+.field-textarea {
+  height: auto;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.55;
+}
+
+// ── Field hint ────────────────────────────────────────────────────────────────
+
+.field-hint {
+  font-size: 0.75rem;
+  color: var(--mat-sys-on-surface-variant);
+  line-height: 1.4;
+}
+
+// ── Custom checkbox ───────────────────────────────────────────────────────────
+
+.checkbox-row { padding: 4px 0 2px; }
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+
+  &:checked + .checkbox-box {
+    background: var(--mat-sys-primary);
+    border-color: var(--mat-sys-primary);
+
+    &::after {
+      content: '';
+      display: block;
+      width: 5px;
+      height: 9px;
+      border: 2px solid var(--mat-sys-on-primary);
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg) translate(-1px, -1px);
+    }
+  }
+
+  &:focus-visible + .checkbox-box {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mat-sys-primary) 25%, transparent);
+  }
+}
+
+.checkbox-box {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--mat-sys-outline);
+  border-radius: 4px;
+  background: var(--mat-sys-surface-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  transition: background 120ms, border-color 120ms;
+}
+
+.checkbox-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--mat-sys-on-surface);
+}
+
+.checkbox-sub {
+  font-size: 0.775rem;
+  font-weight: 400;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// ── Dialog actions ────────────────────────────────────────────────────────────
+
+.dialog-actions {
+  padding: 12px 24px 20px !important;
+  gap: 10px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.cancel-btn {
+  border-radius: 8px !important;
+  font-size: 0.875rem !important;
+  border-color: var(--mat-sys-outline-variant) !important;
+  color: var(--mat-sys-on-surface-variant) !important;
+}
+
+.save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 18px;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 150ms;
+
+  &:hover:not(:disabled) { opacity: 0.88; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--mat-sys-on-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }

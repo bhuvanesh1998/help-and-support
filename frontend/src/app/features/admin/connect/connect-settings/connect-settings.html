@@ -1,0 +1,167 @@
+<div class="connect-page">
+  <div class="page-top">
+    <div class="page-top-text">
+      <h1 class="page-title">Connect — Embed the Help Widget</h1>
+      <span class="page-sub">Configure the floating Help launcher, then save. Changes go live on <code>/widget.js</code> and the demo page.</span>
+    </div>
+    <div class="actions">
+      <a mat-stroked-button [href]="demoUrl" target="_blank" rel="noopener">
+        <mat-icon>open_in_new</mat-icon> Open demo
+      </a>
+      <button mat-flat-button class="save-btn" (click)="save()" [disabled]="loading() || !dirty() || saving()">
+        @if (saving()) {
+          <mat-spinner diameter="18" />
+        } @else {
+          <mat-icon>{{ dirty() ? 'save' : 'check' }}</mat-icon>
+        }
+        {{ saving() ? 'Saving…' : (dirty() ? 'Save changes' : 'Saved') }}
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-state"><mat-spinner diameter="36" /></div>
+  } @else {
+    <div class="layout">
+      <!-- Controls -->
+      <div class="controls">
+        <!-- Launcher style -->
+        <div class="card">
+          <div class="card-head"><span class="step-dot">1</span><h2 class="card-title">Launcher style</h2></div>
+          <div class="opts">
+            <div class="opt">
+              <span class="opt-label">Style</span>
+              <div class="seg">
+                @for (l of launcherOptions; track l.key) {
+                  <button type="button" [class.active]="launcher() === l.key" (click)="setLauncher(l.key)">
+                    <mat-icon>{{ l.icon }}</mat-icon>{{ l.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="opt opt--top">
+              <span class="opt-label">Icon</span>
+              <div class="icon-grid">
+                @for (ic of iconOptions; track ic.key) {
+                  <button type="button" class="icon-btn" [class.active]="icon() === ic.key"
+                          (click)="setIcon(ic.key)" [matTooltip]="ic.label" [attr.aria-label]="ic.label">
+                    @if (ic.key === 'none') { <span class="icon-none">—</span> }
+                    @else { <mat-icon>{{ ic.mat }}</mat-icon> }
+                  </button>
+                }
+              </div>
+            </div>
+
+            @if (showLabel()) {
+              <div class="opt">
+                <span class="opt-label">Label</span>
+                <input class="text-input" type="text" [value]="label()"
+                       (input)="label.set($any($event.target).value)"
+                       placeholder="Need some help?" aria-label="Launcher label" maxlength="40" />
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Appearance -->
+        <div class="card">
+          <div class="card-head"><span class="step-dot">2</span><h2 class="card-title">Appearance &amp; behaviour</h2></div>
+          <div class="opts">
+            <div class="opt">
+              <span class="opt-label">Side</span>
+              <div class="seg">
+                <button type="button" [class.active]="position() === 'right'" (click)="position.set('right')">Right</button>
+                <button type="button" [class.active]="position() === 'left'" (click)="position.set('left')">Left</button>
+              </div>
+            </div>
+
+            <div class="opt">
+              <span class="opt-label">Open animation</span>
+              <div class="seg">
+                @for (a of animationOptions; track a.key) {
+                  <button type="button" [class.active]="animation() === a.key" (click)="setAnimation(a.key)">{{ a.label }}</button>
+                }
+              </div>
+            </div>
+
+            <div class="opt">
+              <span class="opt-label">Theme</span>
+              <div class="seg">
+                @for (t of themeOptions; track t.key) {
+                  <button type="button" [class.active]="theme() === t.key" (click)="setTheme(t.key)">
+                    <mat-icon>{{ t.icon }}</mat-icon>{{ t.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="opt">
+              <span class="opt-label">Accent color</span>
+              <span class="color-pick">
+                <input type="color" [value]="color()" (input)="color.set($any($event.target).value)" aria-label="Accent color" />
+                <code>{{ color() }}</code>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Snippet -->
+        <div class="card">
+          <div class="card-head"><span class="step-dot">3</span><h2 class="card-title">Install snippet</h2></div>
+          <p class="hint">Paste this once, just before <code>&lt;/body&gt;</code> on every page of your app. Omitted attributes use your saved defaults above.</p>
+          <div class="code-block">
+            <pre>{{ snippet() }}</pre>
+            <button mat-icon-button class="copy-btn" (click)="copy()" aria-label="Copy snippet"><mat-icon>content_copy</mat-icon></button>
+          </div>
+          <p class="hint">Your app's own theme toggle can sync the panel live via <code>window.haWidget.setTheme('light'|'dark'|'auto')</code> — also <code>open()</code>, <code>close()</code>, <code>toggle()</code>.</p>
+        </div>
+
+        <!-- How it works -->
+        <div class="card callout">
+          <mat-icon aria-hidden="true">info</mat-icon>
+          <div>
+            <p>The widget shows the manual whose <strong>route path</strong> matches the visitor's current page (e.g. <code>/chat/conversation</code>), and follows SPA navigation automatically.</p>
+            <p class="hint">For production, make sure the help app is reachable from your site and that the <code>/embed</code> route is allowed to be framed by your domain (CSP <code>frame-ancestors</code>).</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live preview (sticky, fills the right side) -->
+      <aside class="preview-col">
+        <div class="card preview-card">
+          <div class="card-head"><mat-icon class="pv-eye">visibility</mat-icon><h2 class="card-title">Live preview</h2></div>
+          <div class="preview" [class.preview--left]="position() === 'left'" [attr.data-theme]="theme()">
+            <span class="pv-window">app screen</span>
+            @switch (launcher()) {
+              @case ('tab') {
+                <span class="pv-tab" [style.background]="color()" [style.color]="onColor()">
+                  @if (icon() !== 'none') { <mat-icon>{{ iconMat() }}</mat-icon> }
+                  <span class="pv-tab-text">{{ label() || 'Need some help?' }}</span>
+                </span>
+              }
+              @case ('pill') {
+                <span class="pv-pill" [style.background]="color()" [style.color]="onColor()">
+                  @if (icon() !== 'none') { <mat-icon>{{ iconMat() }}</mat-icon> }
+                  <span>{{ label() || 'Help' }}</span>
+                </span>
+              }
+              @default {
+                <span class="pv-fab" [style.background]="color()" [style.color]="onColor()">
+                  @if (icon() !== 'none') { <mat-icon>{{ iconMat() }}</mat-icon> }
+                </span>
+              }
+            }
+          </div>
+          <dl class="pv-meta">
+            <div><dt>Style</dt><dd>{{ launcher() }}</dd></div>
+            <div><dt>Animation</dt><dd>{{ animation() }}</dd></div>
+            <div><dt>Theme</dt><dd>{{ theme() }}</dd></div>
+            <div><dt>Side</dt><dd>{{ position() }}</dd></div>
+          </dl>
+          <p class="hint pv-hint">Save to apply, then <a [href]="demoUrl" target="_blank" rel="noopener">open the demo</a> to try the animation for real.</p>
+        </div>
+      </aside>
+    </div>
+  }
+</div>

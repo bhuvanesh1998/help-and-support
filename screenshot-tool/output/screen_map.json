@@ -1,0 +1,207 @@
+{
+  "appName": "Twixor",
+  "baseUrl": "https://qa.twixor.digital",
+  "capturedAt": "2026-06-23T02:41:49.323Z",
+  "totalScreens": 4,
+  "groups": [
+    {
+      "id": "group-01",
+      "name": "Authentication",
+      "screenIds": [
+        "001",
+        "002",
+        "003",
+        "004"
+      ],
+      "routePath": "/login"
+    }
+  ],
+  "screens": [
+    {
+      "id": "001",
+      "name": "Login — Enter Email",
+      "group": "Authentication",
+      "url": "https://qa.twixor.digital/login",
+      "filename": "001-login-enter-email.png",
+      "screenshotPath": "F:\\twixor_docs\\inapp-help-assistant\\screenshot-tool\\output\\screenshots\\001-login-enter-email.png",
+      "dom": {
+        "url": "https://qa.twixor.digital/login",
+        "title": "Twixor",
+        "heading": "Whats New",
+        "inputs": [
+          {
+            "type": "text",
+            "id": "email",
+            "name": "",
+            "placeholder": "Email",
+            "label": ""
+          }
+        ],
+        "buttons": [
+          {
+            "id": "proceed-btn",
+            "text": "Proceed",
+            "class": "btn-login w-100 page-top-margin"
+          }
+        ],
+        "links": [],
+        "navLinks": [],
+        "bodyText": "Whats New\nMessaging solutions test to scale your business\n\nBuild your customer’s test communication lifecycle with multi-channel solution to Converse, create Campaigns, define Bot streams and much more.\n\nLogin\nEmail Id\nProceed\nDon't have an account ? Sign Up"
+      },
+      "capturedAt": "2026-06-23T02:41:40.784Z"
+    },
+    {
+      "id": "002",
+      "name": "Login — Enter Password",
+      "group": "Authentication",
+      "url": "https://qa.twixor.digital/login",
+      "filename": "002-login-enter-password.png",
+      "screenshotPath": "F:\\twixor_docs\\inapp-help-assistant\\screenshot-tool\\output\\screenshots\\002-login-enter-password.png",
+      "dom": {
+        "url": "https://qa.twixor.digital/login",
+        "title": "Twixor",
+        "heading": "Whats New",
+        "inputs": [
+          {
+            "type": "password",
+            "id": "email",
+            "name": "",
+            "placeholder": "Password",
+            "label": ""
+          }
+        ],
+        "buttons": [
+          {
+            "id": "proceed-btn",
+            "text": "Sign In",
+            "class": "btn-login w-100 page-top-margin"
+          }
+        ],
+        "links": [
+          {
+            "text": "Forgot password?",
+            "href": "https://qa.twixor.digital/#",
+            "class": ""
+          }
+        ],
+        "navLinks": [],
+        "bodyText": "Whats New\nMessaging solutions test to scale your business\n\nBuild your customer’s test communication lifecycle with multi-channel solution to Converse, create Campaigns, define Bot streams and much more.\n\nLogin\nEmail Id\nForgot password?\nSign In\nDon't have an account ? Sign Up"
+      },
+      "capturedAt": "2026-06-23T02:41:41.423Z"
+    },
+    {
+      "id": "003",
+      "name": "Sign Up",
+      "group": "Authentication",
+      "url": "https://qa.twixor.digital/signup",
+      "filename": "003-sign-up.png",
+      "screenshotPath": "F:\\twixor_docs\\inapp-help-assistant\\screenshot-tool\\output\\screenshots\\003-sign-up.png",
+      "dom": {
+        "url": "https://qa.twixor.digital/signup",
+        "title": "Twixor",
+        "heading": "Whats New",
+        "inputs": [
+          {
+            "type": "text",
+            "id": "",
+            "name": "",
+            "placeholder": "Full Name",
+            "label": ""
+          },
+          {
+            "type": "text",
+            "id": "",
+            "name": "",
+            "placeholder": "Email Address",
+            "label": ""
+          },
+          {
+            "type": "password",
+            "id": "",
+            "name": "",
+            "placeholder": "Password",
+            "label": ""
+          },
+          {
+            "type": "password",
+            "id": "",
+            "name": "",
+            "placeholder": "Confirm Password",
+            "label": ""
+          },
+          {
+            "type": "text",
+            "id": "",
+            "name": "",
+            "placeholder": "Please type a captcha",
+            "label": ""
+          },
+          {
+            "type": "checkbox",
+            "id": "",
+            "name": "",
+            "placeholder": "",
+            "label": ""
+          }
+        ],
+        "buttons": [
+          {
+            "id": "",
+            "text": "Proceed",
+            "class": "btn-login w-100 page-top-margin"
+          }
+        ],
+        "links": [
+          {
+            "text": "Terms and Conditions",
+            "href": "https://qa.twixor.digital/#",
+            "class": "signin-text"
+          }
+        ],
+        "navLinks": [],
+        "bodyText": "Whats New\nMessaging solutions test to scale your business\n\nBuild your customer’s test communication lifecycle with multi-channel solution to Converse, create Campaigns, define Bot streams and much more.\n\nCreate Account\n\nTo Continue, Please type the character above:\n\nBy Signing Up you Agree to our Terms and Conditions\n\nProceed\nOr\n\nHave an Account ? Sign in"
+      },
+      "capturedAt": "2026-06-23T02:41:45.366Z"
+    },
+    {
+      "id": "004",
+      "name": "Forgot Password",
+      "group": "Authentication",
+      "url": "https://qa.twixor.digital/forgot-password",
+      "filename": "004-forgot-password.png",
+      "screenshotPath": "F:\\twixor_docs\\inapp-help-assistant\\screenshot-tool\\output\\screenshots\\004-forgot-password.png",
+      "dom": {
+        "url": "https://qa.twixor.digital/forgot-password",
+        "title": "Twixor",
+        "heading": "Whats New",
+        "inputs": [
+          {
+            "type": "text",
+            "id": "",
+            "name": "",
+            "placeholder": "Email Address",
+            "label": ""
+          },
+          {
+            "type": "text",
+            "id": "",
+            "name": "",
+            "placeholder": "Please type a captcha",
+            "label": ""
+          }
+        ],
+        "buttons": [
+          {
+            "id": "",
+            "text": "Proceed",
+            "class": "btn-login w-100"
+          }
+        ],
+        "links": [],
+        "navLinks": [],
+        "bodyText": "Whats New\nForgot Password\n\nTo Continue, Please type the character above:\n\nProceed\nGo Back"
+      },
+      "capturedAt": "2026-06-23T02:41:49.247Z"
+    }
+  ]
+}

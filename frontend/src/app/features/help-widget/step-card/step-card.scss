@@ -1,0 +1,54 @@
+.step-card__screenshot {
+  margin: 16px 0 0;
+  padding: 0;
+
+  img {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+    display: block;
+  }
+
+  figcaption {
+    font-size: 0.75rem;
+    color: var(--mat-sys-on-surface-variant);
+    text-align: center;
+    margin-top: 6px;
+    font-style: italic;
+  }
+}
+
+.step-card__title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface);
+}
+
+.step-card__content {
+  font-size: .875rem;
+  line-height: 1.6;
+  color: var(--mat-sys-on-surface-variant);
+
+  p { margin: 0 0 8px; }
+  ul, ol { padding-left: 1.25rem; margin: 0 0 8px; }
+  li { margin-bottom: 4px; }
+  code {
+    background: var(--mat-sys-outline-variant);
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-size: .8125rem;
+  }
+  pre {
+    background: var(--mat-sys-outline-variant);
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    code { background: none; padding: 0; }
+  }
+  img {
+    max-width: 100%;
+    border-radius: 6px;
+  }
+}

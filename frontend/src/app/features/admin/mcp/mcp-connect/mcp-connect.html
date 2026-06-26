@@ -1,0 +1,222 @@
+<div class="mcp-page">
+
+  <!-- Header -->
+  <div class="page-top">
+    <div class="top-left">
+      <h1 class="page-title">Claude MCP Connect</h1>
+      <span class="page-sub">Drive the pipeline from your own Claude plan — no API key, inference runs on your seat</span>
+    </div>
+    @if (configured()) {
+      <div class="status-pill" [class.status-pill--on]="enabled()" [class.status-pill--off]="!enabled()">
+        <span class="status-dot" aria-hidden="true"></span>
+        {{ enabled() ? 'Active' : 'Disabled' }}
+      </div>
+    }
+  </div>
+
+  <!-- How it differs banner -->
+  <div class="compare-banner">
+    <div class="compare-col">
+      <span class="compare-tag compare-tag--v1">AI Pipeline (v1)</span>
+      <p>Your <strong>Claude API key</strong> is stored here; the server calls Claude. One-click in-app, billed per token to your API account.</p>
+    </div>
+    <mat-icon class="compare-vs" aria-hidden="true">swap_horiz</mat-icon>
+    <div class="compare-col">
+      <span class="compare-tag compare-tag--v2">MCP Connect (v2)</span>
+      <p>This app becomes an <strong>MCP server</strong>. Your Claude client (Code / Desktop / claude.ai) does the AI work on <strong>your existing plan</strong> and calls these tools to scrape &amp; publish.</p>
+    </div>
+  </div>
+
+  @if (!loading()) {
+    <!-- Step 1 — token -->
+    <div class="card">
+      <div class="card-head">
+        <span class="step-num" aria-hidden="true">1</span>
+        <div class="card-head-text">
+          <h2 class="card-title">Connection token</h2>
+          <span class="card-desc">A bearer token your Claude host presents to reach this MCP server.</span>
+        </div>
+        @if (configured()) {
+          <mat-slide-toggle [checked]="enabled()" (change)="toggleEnabled()"
+                            matTooltip="Enable / disable the connector"
+                            aria-label="Enable connector">
+          </mat-slide-toggle>
+        }
+      </div>
+
+      <div class="card-body">
+        @if (!configured()) {
+          <p class="empty-note">No token yet. Generate one to expose the MCP server.</p>
+          <button class="btn-primary" (click)="generate()" [disabled]="busy()">
+            <mat-icon aria-hidden="true">vpn_key</mat-icon> Generate token
+          </button>
+        } @else {
+          <div class="token-row">
+            <code class="token-box">
+              {{ showToken() && token() ? token() : maskedToken() }}
+            </code>
+            <button mat-icon-button (click)="reveal()" [matTooltip]="showToken() ? 'Hide' : 'Reveal'"
+                    aria-label="Reveal token">
+              <mat-icon>{{ showToken() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            @if (token()) {
+              <button mat-icon-button (click)="copy(token()!, 'Token copied')" matTooltip="Copy token" aria-label="Copy token">
+                <mat-icon>content_copy</mat-icon>
+              </button>
+            }
+          </div>
+          <div class="token-actions">
+            <button mat-stroked-button class="ghost-btn" (click)="generate()" [disabled]="busy()">
+              <mat-icon>autorenew</mat-icon> Rotate
+            </button>
+            <button mat-stroked-button class="ghost-btn ghost-btn--danger" (click)="revoke()">
+              <mat-icon>link_off</mat-icon> Revoke
+            </button>
+          </div>
+          @if (!token()) {
+            <p class="hint">Reveal the token to fill it into the snippets below.</p>
+          }
+        }
+      </div>
+    </div>
+
+    <!-- Step 2 — connect a client -->
+    <div class="card">
+      <div class="card-head">
+        <span class="step-num" aria-hidden="true">2</span>
+        <div class="card-head-text">
+          <h2 class="card-title">Connect a Claude client</h2>
+          <span class="card-desc">Server URL: <code class="inline-url">{{ serverUrl() }}</code></span>
+        </div>
+        <button mat-icon-button (click)="copy(serverUrl(), 'URL copied')" matTooltip="Copy server URL" aria-label="Copy server URL">
+          <mat-icon>content_copy</mat-icon>
+        </button>
+      </div>
+
+      <div class="card-body">
+        <!-- client tabs -->
+        <div class="client-tabs" role="tablist">
+          <button class="client-tab" role="tab" [class.client-tab--active]="clientTab() === 'code'"
+                  [attr.aria-selected]="clientTab() === 'code'" (click)="clientTab.set('code')">
+            <mat-icon aria-hidden="true">terminal</mat-icon> Claude Code
+          </button>
+          <button class="client-tab" role="tab" [class.client-tab--active]="clientTab() === 'desktop'"
+                  [attr.aria-selected]="clientTab() === 'desktop'" (click)="clientTab.set('desktop')">
+            <mat-icon aria-hidden="true">desktop_windows</mat-icon> Desktop
+          </button>
+          <button class="client-tab" role="tab" [class.client-tab--active]="clientTab() === 'web'"
+                  [attr.aria-selected]="clientTab() === 'web'" (click)="clientTab.set('web')">
+            <mat-icon aria-hidden="true">public</mat-icon> claude.ai
+          </button>
+        </div>
+
+        @if (clientTab() === 'code') {
+          <p class="tab-lead">Recommended — works against <code>localhost</code> with header auth. Run in your terminal:</p>
+          <div class="code-block">
+            <pre>{{ codeSnippet() }}</pre>
+            <button mat-icon-button class="code-copy" (click)="copy(codeSnippet(), 'Command copied')" aria-label="Copy command">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+          </div>
+          <p class="hint">Then in a Claude Code session: <em>"Use the helpassistant tools to map https://qa.twixor.digital and draft user manuals for each screen."</em></p>
+        }
+
+        @if (clientTab() === 'desktop') {
+          <p class="tab-lead">Add to <code>claude_desktop_config.json</code> → <strong>mcpServers</strong>, then restart Claude Desktop:</p>
+          <div class="code-block">
+            <pre>{{ desktopSnippet() }}</pre>
+            <button mat-icon-button class="code-copy" (click)="copy(desktopSnippet(), 'Config copied')" aria-label="Copy config">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+          </div>
+          <p class="hint">Remote-URL MCP support requires a recent Claude Desktop build. For a localhost server, Claude Desktop must run on this machine.</p>
+        }
+
+        @if (clientTab() === 'web') {
+          <div class="callout">
+            <mat-icon aria-hidden="true">info</mat-icon>
+            <div>
+              <p><strong>claude.ai custom connectors</strong> (Team / Enterprise) require a <strong>public HTTPS</strong> URL and <strong>OAuth</strong> — they can't reach <code>localhost</code> or authenticate with a bearer token.</p>
+              <p class="hint">To use claude.ai: deploy this backend behind HTTPS (or tunnel via ngrok), add an OAuth layer in front of <code>/mcp</code>, then add it under <em>Settings → Connectors</em>. For local/dev use, <strong>Claude Code</strong> is the path that works today.</p>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Step 3 — tools + activity -->
+    <div class="card">
+      <div class="card-head">
+        <span class="step-num" aria-hidden="true">3</span>
+        <div class="card-head-text">
+          <h2 class="card-title">Exposed tools &amp; activity</h2>
+          <span class="card-desc">What Claude can call once connected.</span>
+        </div>
+        <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </div>
+
+      <div class="card-body">
+        <ul class="tool-list" role="list">
+          @for (t of status()?.tools ?? []; track t.name) {
+            <li class="tool-item">
+              <code class="tool-name">{{ t.name }}</code>
+              <span class="tool-desc">{{ t.description }}</span>
+            </li>
+          }
+        </ul>
+
+        <div class="activity">
+          <span class="activity-label">Recent calls</span>
+          @if ((status()?.recentCalls ?? []).length === 0) {
+            <p class="activity-empty">No tool calls yet. They'll appear here when a connected Claude client uses the tools.</p>
+          } @else {
+            <ul class="call-list" role="list">
+              @for (c of status()?.recentCalls ?? []; track $index) {
+                <li class="call-row" [class.call-row--err]="!c.ok">
+                  <mat-icon class="call-icon" aria-hidden="true">{{ c.ok ? 'check_circle' : 'error' }}</mat-icon>
+                  <code class="call-tool">{{ c.tool }}</code>
+                  <span class="call-detail">{{ c.detail }}</span>
+                  <span class="call-time">{{ c.at | date:'HH:mm:ss' }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Browser extension — live, high-fidelity capture -->
+    <div class="card">
+      <div class="card-head">
+        <span class="step-num" aria-hidden="true">4</span>
+        <div class="card-head-text">
+          <h2 class="card-title">Browser extension <span class="opt-tag">optional</span></h2>
+          <span class="card-desc">Capture your real logged-in browser — pixel-perfect screenshots, live API calls &amp; flows, no token copying.</span>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <button class="btn-primary" (click)="downloadExtension()" [disabled]="downloading()">
+          <mat-icon aria-hidden="true">download</mat-icon>
+          {{ downloading() ? 'Preparing…' : 'Download extension (.zip)' }}
+        </button>
+        <ol class="ext-steps">
+          <li>Unzip the download.</li>
+          <li>Open <code>chrome://extensions</code> → enable <strong>Developer mode</strong> → <strong>Load unpacked</strong> → pick the folder.</li>
+          <li>Open the extension, paste the server URL + the token above, and <strong>Connect</strong> the tab you're logged into.</li>
+          <li>In Claude: <code>list_connected_browsers</code> → <code>capture_live_screen</code> → <code>drive_action</code>.</li>
+        </ol>
+        <p class="hint">⚠ Operator/staging use only — a connected tab is remotely controllable and its screens &amp; API calls are captured. Revoking the token above instantly cuts it off.</p>
+      </div>
+    </div>
+
+    <!-- Setup note -->
+    <div class="setup-note">
+      <mat-icon aria-hidden="true">build</mat-icon>
+      <span>One-time backend setup: <code>cd backend &amp;&amp; npx playwright install chromium</code> (the MCP <code>capture_screens</code> tool drives this browser).</span>
+    </div>
+  }
+
+</div>

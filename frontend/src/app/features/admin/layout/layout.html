@@ -1,0 +1,158 @@
+<div class="shell" [class.sidenav-collapsed]="!sidenavOpen()">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <aside class="sidenav" [class.open]="sidenavOpen()">
+
+    <div class="brand">
+      <div class="brand-icon"><mat-icon>help_outline</mat-icon></div>
+      @if (sidenavOpen()) {
+        <div class="brand-text">
+          <span class="brand-name">HelpAssistant</span>
+          <span class="brand-badge">Admin</span>
+        </div>
+      }
+    </div>
+
+    <nav class="nav" role="navigation" aria-label="Admin navigation">
+      @for (item of navItems; track item.route) {
+        <a
+          class="nav-item"
+          [routerLink]="item.route"
+          routerLinkActive="nav-item--active"
+          [matTooltip]="sidenavOpen() ? '' : item.label"
+          matTooltipPosition="right"
+          [attr.aria-label]="item.label"
+          matRipple
+        >
+          <mat-icon class="nav-icon">{{ item.icon }}</mat-icon>
+          @if (sidenavOpen()) {
+            <span class="nav-label">{{ item.label }}</span>
+          }
+        </a>
+      }
+    </nav>
+
+    <div class="sidenav-footer">
+      <button
+        class="user-card"
+        [matMenuTriggerFor]="userMenu"
+        [matTooltip]="sidenavOpen() ? '' : (auth.currentUser()?.email ?? '')"
+        matTooltipPosition="right"
+        aria-label="User menu"
+        matRipple
+      >
+        <div class="avatar">{{ userInitials() }}</div>
+        @if (sidenavOpen()) {
+          <div class="user-info">
+            <span class="user-email">{{ auth.currentUser()?.email }}</span>
+            <span class="user-role">{{ auth.currentUser()?.role }}</span>
+          </div>
+          <mat-icon class="user-chevron">unfold_more</mat-icon>
+        }
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main area ─────────────────────────────────────────────────────────── -->
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button
+          mat-icon-button
+          (click)="toggleSidenav()"
+          [attr.aria-label]="sidenavOpen() ? 'Collapse sidebar' : 'Expand sidebar'"
+          [matTooltip]="sidenavOpen() ? 'Collapse sidebar' : 'Expand sidebar'"
+        >
+          <mat-icon>{{ sidenavOpen() ? 'menu_open' : 'menu' }}</mat-icon>
+        </button>
+        <h1 class="page-title">{{ pageTitle() }}</h1>
+      </div>
+
+      <div class="topbar-right">
+        <!-- Palette picker -->
+        <button
+          mat-icon-button
+          [matMenuTriggerFor]="paletteMenu"
+          matTooltip="Color theme"
+          aria-label="Color theme"
+          class="palette-btn"
+        >
+          <mat-icon>palette</mat-icon>
+        </button>
+
+        <div class="topbar-divider"></div>
+
+        <!-- Light / dark / system toggle -->
+        <button
+          mat-icon-button
+          (click)="theme.cycle()"
+          [matTooltip]="theme.label[theme.mode()]"
+          aria-label="Toggle color mode"
+        >
+          <mat-icon>{{ theme.icon[theme.mode()] }}</mat-icon>
+        </button>
+
+        <!-- Avatar / user menu -->
+        <button
+          mat-icon-button
+          [matMenuTriggerFor]="userMenu"
+          aria-label="Open user menu"
+          [matTooltip]="auth.currentUser()?.email ?? ''"
+        >
+          <div class="avatar avatar--sm">{{ userInitials() }}</div>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+      <router-outlet />
+    </main>
+  </div>
+</div>
+
+<!-- ── Palette menu ────────────────────────────────────────────────────────── -->
+<mat-menu #paletteMenu="matMenu" class="palette-menu-panel">
+  <div class="palette-menu-title" (click)="$event.stopPropagation()">Color theme</div>
+
+  @for (p of theme.paletteOptions; track p.key) {
+    <button
+      mat-menu-item
+      class="palette-item"
+      [class.palette-item--active]="theme.palette() === p.key"
+      (click)="theme.setPalette(p.key)"
+      [attr.aria-pressed]="theme.palette() === p.key"
+    >
+      <span class="palette-radio" [class.palette-radio--checked]="theme.palette() === p.key" aria-hidden="true"></span>
+      <span class="palette-item-label">{{ p.label }}</span>
+      <span class="palette-item-swatch" aria-hidden="true">
+        <span class="swatch-half" [style.background]="p.primaryColor"></span>
+        <span class="swatch-half" [style.background]="p.tertiaryColor"></span>
+      </span>
+    </button>
+  }
+</mat-menu>
+
+<!-- ── User dropdown ──────────────────────────────────────────────────────── -->
+<mat-menu #userMenu="matMenu">
+  <div class="menu-user-header" (click)="$event.stopPropagation()">
+    <div class="avatar avatar--lg">{{ userInitials() }}</div>
+    <div class="menu-user-text">
+      <p class="menu-email">{{ auth.currentUser()?.email }}</p>
+      <p class="menu-role">{{ auth.currentUser()?.role }}</p>
+    </div>
+  </div>
+
+  <mat-divider />
+
+  <button mat-menu-item (click)="theme.cycle()">
+    <mat-icon>{{ theme.icon[theme.mode()] }}</mat-icon>
+    <span>Switch to {{ theme.mode() === 'light' ? 'dark' : theme.mode() === 'dark' ? 'system' : 'light' }}</span>
+  </button>
+
+  <mat-divider />
+
+  <button mat-menu-item (click)="logout()" class="logout-item">
+    <mat-icon>logout</mat-icon>
+    <span>Sign out</span>
+  </button>
+</mat-menu>

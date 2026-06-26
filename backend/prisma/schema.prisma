@@ -1,0 +1,301 @@
+// ============================================================================
+//  In-App Tutorial & Help Assistant — Prisma Schema
+//  Database: PostgreSQL  |  Client: Prisma ORM 7 (Rust-free)
+//
+//  Phase 1 ships the full relational core. The Analytics, Media, and SEO
+//  surfaces are modelled now (not retrofitted later) so the admin analytics,
+//  media server, and SEO/AI-SEO features in Phases 2-4 require no destructive
+//  migrations.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+//  Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum AnalyticsEventType {
+  PAGE_VIEW
+  HELP_OPENED
+  HELP_CLOSED
+  STEP_VIEWED
+  STEP_COMPLETED
+  TUTORIAL_COMPLETED
+  SEARCH
+  LINK_CLICK
+}
+
+// ---------------------------------------------------------------------------
+//  Identity & Access (Backoffice)
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(ADMIN)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  uploadedMedia MediaAsset[] @relation("UploadedByUser")
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+//  Content: a Page maps a front-end route to an ordered set of tutorial steps
+// ---------------------------------------------------------------------------
+
+model Page {
+  id          String  @id @default(uuid()) @db.Uuid
+  routePath   String  @unique // e.g. '/dashboard/settings'
+  slug        String? @unique // public help-center URL segment (SEO)
+  title       String
+  description String?
+
+  // Module grouping for the help-center landing & admin list.
+  category      String? // e.g. 'Chat', 'Campaigns', 'Configuration'
+  categoryOrder Int     @default(99) // section order on the landing page
+
+  // --- SEO / AI-SEO metadata (consumed by SSR + JSON-LD in Phase 3/4) ---
+  metaTitle       String?
+  metaDescription String?
+  keywords        String[] @default([])
+  canonicalUrl    String?
+  ogImageUrl      String?
+  noIndex         Boolean  @default(false)
+  structuredData  Json? // JSON-LD payload for rich results & answer engines
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps        TutorialStep[]
+  apiEndpoints ApiEndpoint[]
+  events       AnalyticsEvent[]
+
+  @@index([slug])
+  @@map("pages")
+}
+
+// ---------------------------------------------------------------------------
+//  Module categories — manage the help-center groupings from the admin.
+//  Pages reference a category by name (Page.category); renames cascade.
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  order       Int      @default(99)
+  icon        String? // Material icon name shown on the landing summary card
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("categories")
+}
+
+model TutorialStep {
+  id             String   @id @default(uuid()) @db.Uuid
+  pageId         String   @db.Uuid
+  stepNumber     Int
+  title          String
+  instructionsMd String   @db.Text // Markdown source
+  imageUrl       String? // resolved public URL (denormalised for fast reads)
+  mediaAssetId   String?  @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  page       Page             @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset?      @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  events     AnalyticsEvent[]
+
+  // Prevents two steps claiming the same position within one page.
+  @@unique([pageId, stepNumber])
+  @@index([pageId])
+  @@map("tutorial_steps")
+}
+
+// ---------------------------------------------------------------------------
+//  API reference for a screen. Auto-captured from the live network traffic the
+//  screen makes during a browser capture (method/path/status/response sample),
+//  then curatable in the admin. Rendered in the "API" tab of each user manual.
+// ---------------------------------------------------------------------------
+
+model ApiEndpoint {
+  id             String   @id @default(uuid()) @db.Uuid
+  pageId         String   @db.Uuid
+  method         String // GET, POST, PUT, PATCH, DELETE, WS, ...
+  path           String // e.g. /api/chat/active
+  query          String? // raw query string, without leading '?'
+  host           String? // origin host when cross-origin; null = same as the app
+  requestBody    String?  @db.Text // captured request payload (truncated)
+  status         Int? // response status code
+  contentType    String? // response content-type
+  responseSample String?  @db.Text // truncated response body sample
+  description    String? // optional curation note authored in the admin
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@map("api_endpoints")
+}
+
+// ---------------------------------------------------------------------------
+//  AI provider credentials (e.g. Anthropic) — set once, reused for every run.
+//  The API key is stored encrypted at rest (AES-256-GCM); only a masked
+//  last-4 preview and the validation timestamp are ever returned to clients.
+// ---------------------------------------------------------------------------
+
+model AiCredential {
+  id           String    @id @default(uuid()) @db.Uuid
+  provider     String    @unique // 'anthropic'
+  encryptedKey String    // AES-256-GCM ciphertext (base64)
+  iv           String    // base64 nonce
+  authTag      String    // base64 GCM auth tag
+  keyLast4     String    // masked preview for the UI, e.g. 'ab12'
+  model        String    @default("claude-sonnet-4-6")
+  validatedAt  DateTime? // last time the key passed an Anthropic check
+  updatedById  String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("ai_credentials")
+}
+
+// ---------------------------------------------------------------------------
+//  MCP connector: a bearer token a Claude host (Claude Code / Desktop /
+//  claude.ai) uses to reach the in-app MCP server. The token is stored
+//  encrypted at rest (AES-256-GCM); only a masked last-4 is returned in status.
+// ---------------------------------------------------------------------------
+
+model McpConnector {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @unique // 'default'
+  encryptedToken  String   // AES-256-GCM ciphertext (base64)
+  iv              String   // base64 nonce
+  authTag         String   // base64 GCM auth tag
+  tokenLast4      String   // masked preview for the UI
+  enabled         Boolean  @default(true)
+  updatedById     String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("mcp_connectors")
+}
+
+// ---------------------------------------------------------------------------
+//  Embeddable Help widget configuration — the saved defaults used by /widget.js
+//  and the demo page. A single row ("default"); not secret, stored in clear.
+// ---------------------------------------------------------------------------
+
+model WidgetConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @default("default")
+  launcher    String   @default("fab")           // fab | tab | pill
+  icon        String   @default("question")      // question | chat | book | bulb | info | none
+  label       String   @default("Need some help?")
+  animation   String   @default("slide")         // slide | slide-side | scale | fade | none
+  position    String   @default("right")         // right | left
+  color       String   @default("#2e6f6a")
+  theme       String   @default("auto")           // auto | light | dark
+  updatedById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("widget_configs")
+}
+
+// ---------------------------------------------------------------------------
+//  Document exports: server-generated Word/PDF bundles of selected tutorials,
+//  produced asynchronously and downloaded from the admin "Exports" screen.
+// ---------------------------------------------------------------------------
+
+model Export {
+  id            String    @id @default(uuid()) @db.Uuid
+  format        String    // 'pdf' | 'doc'
+  status        String    @default("pending") // pending | ready | error
+  title         String    // human label, e.g. "2 tutorials"
+  pageCount     Int       @default(0)
+  progress      Int       @default(0) // tutorials whose content has been assembled
+  filename      String?   // stored file name on disk
+  sizeBytes     Int?
+  error         String?
+  requestedById String?   @db.Uuid
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([createdAt])
+  @@map("exports")
+}
+
+// ---------------------------------------------------------------------------
+//  Media server: every uploaded screenshot is a first-class, addressable asset
+// ---------------------------------------------------------------------------
+
+model MediaAsset {
+  id           String   @id @default(uuid()) @db.Uuid
+  filename     String   @unique // server-side stored name (collision-safe)
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  width        Int?
+  height       Int?
+  storagePath  String // path on disk / object-store key
+  publicUrl    String // absolute URL served to clients
+  altText      String?
+  checksum     String? // sha-256 for de-duplication & integrity
+  uploadedById String?  @db.Uuid
+  createdAt    DateTime @default(now())
+
+  uploadedBy User?          @relation("UploadedByUser", fields: [uploadedById], references: [id], onDelete: SetNull)
+  steps      TutorialStep[]
+
+  @@index([uploadedById])
+  @@map("media_assets")
+}
+
+// ---------------------------------------------------------------------------
+//  Analytics & user tracing (privacy-first: IPs are stored only as salted hash)
+// ---------------------------------------------------------------------------
+
+model AnalyticsEvent {
+  id             String             @id @default(uuid()) @db.Uuid
+  eventType      AnalyticsEventType
+  routePath      String?
+  pageId         String?            @db.Uuid
+  tutorialStepId String?            @db.Uuid
+  sessionId      String? // rotating client session identifier
+  anonymousId    String? // stable pseudonymous visitor id
+  userAgent      String?
+  referrer       String?
+  ipHash         String? // salted SHA-256 of IP — never the raw address
+  country        String?
+  durationMs     Int?
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+
+  page         Page?         @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  tutorialStep TutorialStep? @relation(fields: [tutorialStepId], references: [id], onDelete: SetNull)
+
+  @@index([eventType])
+  @@index([routePath])
+  @@index([pageId])
+  @@index([createdAt])
+  @@map("analytics_events")
+}

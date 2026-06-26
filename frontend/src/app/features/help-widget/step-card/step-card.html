@@ -1,0 +1,14 @@
+<h3 class="step-card__title">{{ step().title }}</h3>
+
+<div class="step-card__content" [innerHTML]="bodyHtml()"></div>
+
+@if (step().imageUrl) {
+  <figure class="step-card__screenshot">
+    <img
+      [src]="step().imageUrl"
+      [alt]="step().title"
+      loading="lazy"
+    />
+    <figcaption>{{ step().title }}</figcaption>
+  </figure>
+}

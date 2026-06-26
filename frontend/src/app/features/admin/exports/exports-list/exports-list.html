@@ -1,0 +1,96 @@
+<div class="exports-page">
+
+  <!-- Header -->
+  <div class="page-top">
+    <div class="top-left">
+      <h1 class="page-title">Downloads</h1>
+      <span class="page-sub">Word &amp; PDF exports generated on the server. Large batches take a moment — they appear here when ready.</span>
+    </div>
+    <button mat-icon-button class="refresh-btn" (click)="load()" matTooltip="Refresh" aria-label="Refresh">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </div>
+
+  <!-- Loading skeletons -->
+  @if (loading()) {
+    <div class="export-list" aria-busy="true">
+      @for (_ of [1,2,3]; track $index) {
+        <div class="export-row export-row--skel" aria-hidden="true">
+          <div class="skel-icon"></div>
+          <div class="skel-body"><div class="skel-line skel-line--w"></div><div class="skel-line skel-line--n"></div></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Empty -->
+  @else if (exports().length === 0) {
+    <div class="empty-state" role="status">
+      <mat-icon class="empty-icon" aria-hidden="true">download_for_offline</mat-icon>
+      <p class="empty-title">No exports yet</p>
+      <p class="empty-sub">Go to <strong>Pages</strong>, select user manuals (or none for all), and choose <strong>Export → PDF / Word</strong>.</p>
+    </div>
+  }
+
+  <!-- List -->
+  @else {
+    <ul class="export-list" role="list">
+      @for (exp of exports(); track exp.id) {
+        <li class="export-row" role="listitem">
+          <span class="fmt-icon" [class.fmt-icon--pdf]="exp.format === 'pdf'" [class.fmt-icon--doc]="exp.format === 'doc'"
+                aria-hidden="true">
+            <mat-icon>{{ exp.format === 'pdf' ? 'picture_as_pdf' : 'description' }}</mat-icon>
+          </span>
+
+          <div class="export-info">
+            <span class="export-title">
+              {{ exp.title }}
+              <span class="fmt-tag">{{ exp.format === 'pdf' ? 'PDF' : 'Word' }}</span>
+            </span>
+            <span class="export-meta">
+              {{ exp.createdAt | date:'MMM d, y · HH:mm' }}
+              @if (exp.status === 'ready') { · {{ formatBytes(exp.sizeBytes) }} }
+            </span>
+          </div>
+
+          <!-- Status -->
+          @if (exp.status === 'pending') {
+            <span class="status status--pending">
+              <span class="spinner" aria-hidden="true"></span>
+              @if (exp.progress >= exp.pageCount && exp.pageCount > 0) {
+                Finalizing…
+              } @else {
+                Generating {{ exp.progress }}/{{ exp.pageCount }}
+              }
+            </span>
+          } @else if (exp.status === 'error') {
+            <span class="status status--error" [matTooltip]="exp.error ?? 'Error'">
+              <mat-icon>error_outline</mat-icon> Failed
+            </span>
+          } @else {
+            <span class="status status--ready"><mat-icon>check_circle</mat-icon> Ready</span>
+          }
+
+          <!-- Actions -->
+          <div class="export-actions">
+            <button mat-flat-button class="dl-btn"
+                    [disabled]="exp.status !== 'ready' || downloading() === exp.id"
+                    (click)="download(exp)">
+              <span class="btn-content">
+                @if (downloading() === exp.id) {
+                  <span class="spinner spinner--dark" aria-hidden="true"></span> Downloading…
+                } @else {
+                  <mat-icon>download</mat-icon> Download
+                }
+              </span>
+            </button>
+            <button mat-icon-button class="del-btn" (click)="remove(exp)" matTooltip="Delete" aria-label="Delete export">
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+</div>

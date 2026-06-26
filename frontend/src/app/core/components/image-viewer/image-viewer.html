@@ -1,0 +1,28 @@
+@if (current(); as img) {
+  <div #overlay class="iv-overlay" role="dialog" aria-modal="true" aria-label="Image viewer"
+       tabindex="-1" (click)="close()" (keydown.escape)="close()">
+
+    <button class="iv-btn iv-close" (click)="close()" aria-label="Close viewer">
+      <mat-icon>close</mat-icon>
+    </button>
+
+    @if (hasNav()) {
+      <button class="iv-btn iv-prev" (click)="prev($event)" aria-label="Previous image">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <button class="iv-btn iv-next" (click)="next($event)" aria-label="Next image">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    }
+
+    <div class="iv-stage" [class.iv-stage--zoom]="zoomed()">
+      <img class="iv-img" [class.iv-img--zoom]="zoomed()" [src]="img" [alt]="alt()"
+           (click)="toggleZoom($event)" />
+    </div>
+
+    <div class="iv-bar" (click)="$event.stopPropagation()">
+      @if (caption()) { <span class="iv-caption">{{ caption() }}</span> }
+      <span class="iv-hint">Click image to {{ zoomed() ? 'zoom out' : 'zoom in' }} · Esc to close</span>
+    </div>
+  </div>
+}
