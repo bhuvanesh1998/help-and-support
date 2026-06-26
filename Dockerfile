@@ -11,7 +11,7 @@
 FROM node:24-alpine AS frontend
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --include=dev
 COPY frontend/ ./
 RUN npm run build            # → dist/help-assistant-ui/browser (production config)
 
@@ -19,7 +19,7 @@ RUN npm run build            # → dist/help-assistant-ui/browser (production co
 FROM node:24-alpine AS backend
 WORKDIR /app/backend
 COPY backend/package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --include=dev
 COPY backend/ ./
 RUN npx prisma generate && npm run build   # → dist/
 
