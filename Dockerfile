@@ -33,6 +33,7 @@ COPY --from=backend /app/backend/node_modules ./node_modules
 COPY --from=backend /app/backend/dist ./dist
 COPY --from=backend /app/backend/package*.json ./
 COPY --from=backend /app/backend/prisma ./prisma
+COPY --from=backend /app/backend/prisma.config.ts ./
 
 # The server resolves the SPA at ../frontend/dist/help-assistant-ui/browser.
 COPY --from=frontend /app/frontend/dist ../frontend/dist
@@ -41,4 +42,7 @@ COPY --from=frontend /app/frontend/dist ../frontend/dist
 RUN mkdir -p /app/backend/uploads
 
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+# On a fresh DB (set RUN_DB_PUSH=true), sync the schema and seed the super admin
+# before starting. Both steps are idempotent, so they are safe on every boot.
+# Leave RUN_DB_PUSH unset in environments whose schema you manage manually.
+CMD ["sh","-c","if [ \"$RUN_DB_PUSH\" = \"true\" ]; then npx prisma db push --skip-generate && (npx prisma db seed || true); fi; exec node dist/server.js"]
