@@ -258,9 +258,14 @@ function applyCfg(){
   app.use('/api/admin/mcp', mcpAdminRouter);
   app.use('/api/admin/exports', exportsRouter);
 
-  // SPA fallback in production — serve index.html for any unmatched GET
+  // SPA fallback in production — serve index.html for any unmatched non-API GET.
+  // Express 5 / path-to-regexp v8 rejects a bare '*' route, so use middleware
+  // (and let API/upload/asset misses fall through to the JSON 404 handler).
   if (env.isProduction) {
-    app.get('*', (_req: Request, res: Response) => {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+        return next();
+      }
       res.sendFile(path.join(angularDist, 'index.html'));
     });
   }
