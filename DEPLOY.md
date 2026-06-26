@@ -1,37 +1,42 @@
-# Deploying to Easypanel (182.156.249.170)
+# Deploying to Easypanel — QA (182.156.249.170)
 
-The app deploys as **one service**: the Express backend serves both the REST API
-and the built Angular SPA on a single domain. Postgres already runs on this
+QA deploy on Easypanel's **built-in wildcard domain** `*.3mnqpo.easypanel.host`,
+which already resolves to this server and gets **automatic HTTPS** — no registrar
+DNS needed. The app runs as **one service**: the Express backend serves the REST
+API *and* the built Angular SPA on a single origin. Postgres already runs on this
 server, so no new database is needed.
 
-## 1. Get the source to Easypanel
+Chosen QA hostname (any label under the wildcard works):
 
-Easypanel builds from a **Git repo** or a **Docker image**. Pick one:
+    https://help-qa.3mnqpo.easypanel.host
+
+## 1. Get the source to Easypanel
 
 - **Git (recommended):** push this `inapp-help-assistant/` folder to a repo
   (GitHub/GitLab). In Easypanel, create an **App** service → Source = Git →
   Build = **Dockerfile** (path `Dockerfile`, context `/`).
-- **Docker image:** build & push the image to a registry, then create an App
-  service → Source = Image.
+- **Docker image:** build & push to a registry, then App service → Source = Image.
 
-> The `Dockerfile` and `.dockerignore` in this folder are ready for either path.
+> The `Dockerfile` and `.dockerignore` here are ready for either path.
 
 ## 2. Create the App service
 
 - **Build:** Dockerfile (root of this folder).
-- **Port:** `3000` (the container listens here).
-- **Domain:** assign your hostname (e.g. `help.twixor.com`) and enable HTTPS.
+- **Container port:** `3000`.
+- **Domain:** App service → **Domains** → Add `help-qa.3mnqpo.easypanel.host`,
+  target port `3000`, **HTTPS on**. TLS is issued automatically (wildcard cert).
+  No host port mapping needed — the proxy routes 443 → container 3000.
 
 ## 3. Environment variables
 
-Set these on the service (see `backend/.env.production.example`). The critical ones:
+Set these on the service (see `backend/.env.production.example`):
 
 | Variable | Value |
 |---|---|
 | `NODE_ENV` | `production` |
 | `PORT` | `3000` |
-| `PUBLIC_BASE_URL` | your domain, e.g. `https://help.twixor.com` |
-| `CORS_ORIGIN` | your domain (comma-separated if multiple) |
+| `PUBLIC_BASE_URL` | `https://help-qa.3mnqpo.easypanel.host` |
+| `CORS_ORIGIN` | `https://help-qa.3mnqpo.easypanel.host` |
 | `EMBED_ALLOWED_ORIGINS` | client sites allowed to embed the widget (space-separated) or `*` |
 | `DATABASE_URL` | the existing `…@HOST:5565/twixordocs` connection string |
 | `JWT_SECRET` | a 64+ char hex secret (generated for you — paste from chat) |
@@ -44,60 +49,32 @@ images are lost on every redeploy.
 ## 5. First deploy — seed content + images
 
 The database already has the content rows, but the **image files** live only on
-the dev machine and the stored URLs point at `localhost`. Fix both in one step:
+the dev machine and the stored URLs point at `localhost`. Because
+`PUBLIC_BASE_URL` is already the final QA domain, restoring fixes both at once:
 
-1. Deploy the service and open `https://<your-domain>/admin`.
-2. Go to **Pages → Export → Restore from backup…** and upload the backup
-   `.zip` (Pages → Export → *Backup (.zip)* on the dev machine first).
-3. Restore writes all images into the uploads volume **and rewrites every image
-   URL to the production domain** — so screenshots resolve correctly.
+1. Open `https://help-qa.3mnqpo.easypanel.host/admin`.
+2. On the **dev** machine: Pages → Export → **Backup (.zip)**.
+3. On QA: Pages → Export → **Restore from backup…** and upload that `.zip`.
+   Restore writes every image into the uploads volume **and rewrites all image
+   URLs to the QA domain** — screenshots resolve over HTTPS immediately.
 
 ## 6. Schema changes (later)
 
-The current DB is already in sync. If the Prisma schema changes in future, run
-`npx prisma db push` (or add migrations) against `DATABASE_URL` before/▶ during
-deploy. The container does **not** auto-migrate, to avoid surprising prod data.
+The current DB is already in sync. If the Prisma schema changes, run
+`npx prisma db push` (or add migrations) against `DATABASE_URL` before deploy.
+The container does **not** auto-migrate, to avoid surprising data.
 
-## 7. Custom domain + HTTPS (required for the embeddable widget)
+## 7. Custom domain later (optional)
 
-The widget is blocked on secure (`https`) client sites when served over plain
-`http`. Put the app behind a subdomain with TLS — Easypanel's built-in proxy
-(Traefik) auto-issues a Let's Encrypt certificate.
-
-**A. DNS** — at your domain registrar, add an **A record**:
-
-| Type | Name | Value | TTL |
-|---|---|---|---|
-| A | `help` (→ `help.twixor.com`) | `182.156.249.170` | default |
-
-Wait for it to resolve (`nslookup help.twixor.com` returns the IP). Ensure the
-server's ports **80 and 443** are open — Let's Encrypt validates over port 80.
-
-**B. Easypanel** — App service → **Domains** → Add domain:
-- Host: `help.twixor.com`
-- Container port: `3000`
-- HTTPS: **on** (Let's Encrypt). The cert is issued automatically once DNS resolves.
-
-With the domain attached via the proxy, the raw `8080→3000` published port is no
-longer needed and can be removed.
-
-**C. Update env to the HTTPS origin, then redeploy:**
-
-| Var | Value |
-|---|---|
-| `PUBLIC_BASE_URL` | `https://help.twixor.com` |
-| `CORS_ORIGIN` | `https://help.twixor.com` |
-| `EMBED_ALLOWED_ORIGINS` | space-separated client sites, e.g. `https://app.acme.com` (or `*`) |
-
-**D. Re-seed image URLs.** Stored image URLs are absolute and were written with
-the *previous* origin. After switching the domain, just run **Pages → Export →
-Restore from backup…** again — restore re-points every image URL to the current
-`PUBLIC_BASE_URL`. (Tip: set the final domain *before* the first restore to skip
-this step.)
-
-Verify: `https://help.twixor.com/api/health` → 200, and the green padlock shows.
+To move off the QA hostname to e.g. `help.twixor.com`: add an A record
+`help → 182.156.249.170` at your registrar, add that host in the service's
+**Domains** tab (port 3000, HTTPS on), update `PUBLIC_BASE_URL`/`CORS_ORIGIN`,
+redeploy, and re-run **Restore** once to re-point image URLs.
 
 ## Notes
+- **QA shares the production database** (`twixordocs`). Edits/restores on QA hit
+  the same data the dev app uses. For an isolated QA, create a separate database
+  and point `DATABASE_URL` at it (then run `prisma db push` to create the schema).
 - The image bundles dev dependencies for build reliability; it can be slimmed
   later with a prod-only `npm ci --omit=dev` + selective Prisma client copy.
 - After setup, **rotate the Easypanel API token** that was shared.
