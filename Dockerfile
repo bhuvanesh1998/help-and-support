@@ -25,6 +25,9 @@ RUN cd backend && npm ci --legacy-peer-deps --include=dev --fetch-retries=6 --fe
 COPY backend/ ./backend/
 RUN cd backend && npx prisma generate && npm run build   # → backend/dist
 
+# ---- Browser extension (static files, no build step needed) ----
+COPY extension/ ./extension/
+
 # ---- Runtime ----
 # Use Debian-based slim (not Alpine) — Playwright/Chromium needs glibc and
 # system libs that Alpine cannot satisfy even with --with-deps.
@@ -41,6 +44,10 @@ COPY --from=build /app/backend/prisma.config.ts ./
 
 # The server resolves the SPA at ../frontend/dist/help-assistant-ui/browser.
 COPY --from=build /app/frontend/dist ../frontend/dist
+
+# Browser extension served at /app/extension — extension-pack.ts resolves
+# path.resolve('..', 'extension') from CWD /app/backend → /app/extension.
+COPY --from=build /app/extension /app/extension
 
 # Install Chromium + all OS-level deps required by Playwright.
 # PLAYWRIGHT_BROWSERS_PATH is unset so it defaults to ~/.cache/ms-playwright
