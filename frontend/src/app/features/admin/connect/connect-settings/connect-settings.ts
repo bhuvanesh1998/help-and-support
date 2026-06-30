@@ -14,7 +14,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminApiService } from '../../../../core/services/admin-api';
 import type { WidgetConfig } from '../../../../core/models/admin';
-import { environment } from '../../../../../environments/environment';
+import { AppConfigService } from '../../../../core/config/app-config.service';
 
 type Launcher = WidgetConfig['launcher'];
 type IconKey = WidgetConfig['icon'];
@@ -117,7 +117,7 @@ export class ConnectSettings implements OnInit {
   // (and demo link) absolute — external host sites need an absolute src.
   private readonly frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   private readonly backendOrigin =
-    environment.apiBaseUrl.replace(/\/api\/?$/, '') || this.frontendOrigin;
+    inject(AppConfigService).apiBaseUrl.replace(/\/api\/?$/, '') || this.frontendOrigin;
   readonly scriptSrc = `${this.backendOrigin}/widget.js`;
   readonly demoUrl = `${this.backendOrigin}/embed-demo`;
 

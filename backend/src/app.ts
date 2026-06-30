@@ -3,6 +3,7 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'node:path';
+import fs from 'node:fs';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { uploadDir } from './lib/upload.js';
@@ -92,10 +93,14 @@ export function createApp(): Express {
   );
 
   // ── Angular SPA (production) / dev redirect ──────────────────────────────
+  // Only when the built SPA is actually colocated (single-image deploy). When the
+  // frontend is deployed as a separate app (e.g. Coolify), this dir is absent and
+  // the backend serves the API only — unmatched GETs fall through to the 404 handler.
   const angularDist = path.resolve('..', 'frontend', 'dist', 'help-assistant-ui', 'browser');
-  if (env.isProduction) {
+  const spaAvailable = fs.existsSync(path.join(angularDist, 'index.html'));
+  if (env.isProduction && spaAvailable) {
     app.use(express.static(angularDist));
-  } else {
+  } else if (!env.isProduction) {
     const frontendOrigin = env.corsOrigin.split(',')[0]?.trim() ?? 'http://localhost:4200';
     app.get('/', (_req: Request, res: Response) => {
       res.redirect(frontendOrigin);
@@ -261,7 +266,7 @@ function applyCfg(){
   // SPA fallback in production — serve index.html for any unmatched non-API GET.
   // Express 5 / path-to-regexp v8 rejects a bare '*' route, so use middleware
   // (and let API/upload/asset misses fall through to the JSON 404 handler).
-  if (env.isProduction) {
+  if (env.isProduction && spaAvailable) {
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
         return next();

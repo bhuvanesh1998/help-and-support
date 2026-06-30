@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
+import { AppConfigService } from '../config/app-config.service';
 import type {
   AdminCategory,
   AdminPage,
@@ -24,7 +24,7 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private readonly http = inject(HttpClient);
-  private readonly b = `${environment.apiBaseUrl}/admin`;
+  private readonly b = `${inject(AppConfigService).apiBaseUrl}/admin`;
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   login(email: string, password: string) {

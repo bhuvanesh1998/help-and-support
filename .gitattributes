@@ -1,0 +1,13 @@
+# Normalize text to LF in the repo; let Git handle working-copy EOL.
+* text=auto
+
+# Files executed inside Linux containers MUST stay LF regardless of host OS.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.Dockerfile    text eol=lf
+nginx.conf      text eol=lf
+
+# Binaries
+*.png  binary
+*.jpg  binary
+*.ico  binary

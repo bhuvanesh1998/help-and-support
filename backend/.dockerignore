@@ -1,0 +1,8 @@
+# Never copy host build output / deps / secrets into the image
+node_modules
+dist
+uploads
+.env
+.env.*
+*.log
+.DS_Store

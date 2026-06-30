@@ -1,12 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
+import { AppConfigService } from '../config/app-config.service';
 import type { AnalyticsEventPayload } from '../models/page';
 
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiBaseUrl;
+  private readonly base = inject(AppConfigService).apiBaseUrl;
 
   private readonly sessionId = crypto.randomUUID();
   private readonly anonymousId = this.loadAnonymousId();
