@@ -26,7 +26,9 @@ COPY backend/ ./backend/
 RUN cd backend && npx prisma generate && npm run build   # → backend/dist
 
 # ---- Runtime ----
-FROM node:24-alpine AS runtime
+# Use Debian-based slim (not Alpine) — Playwright/Chromium needs glibc and
+# system libs that Alpine cannot satisfy even with --with-deps.
+FROM node:24-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/backend
 
@@ -39,6 +41,11 @@ COPY --from=build /app/backend/prisma.config.ts ./
 
 # The server resolves the SPA at ../frontend/dist/help-assistant-ui/browser.
 COPY --from=build /app/frontend/dist ../frontend/dist
+
+# Install Chromium + all OS-level deps required by Playwright.
+# PLAYWRIGHT_BROWSERS_PATH is unset so it defaults to ~/.cache/ms-playwright
+# which is fine for a single-container image.
+RUN npx playwright install chromium --with-deps
 
 # Uploads live here; mount a persistent volume at this path.
 RUN mkdir -p /app/backend/uploads
