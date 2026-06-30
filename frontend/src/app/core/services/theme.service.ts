@@ -78,7 +78,8 @@ export class ThemeService {
       const v = localStorage.getItem(MODE_KEY);
       if (v === 'light' || v === 'dark' || v === 'system') return v;
     } catch { /* noop */ }
-    return 'system';
+    // Default to light across all apps when the user has no saved preference.
+    return 'light';
   }
 
   private loadSavedPalette(): ThemePalette {

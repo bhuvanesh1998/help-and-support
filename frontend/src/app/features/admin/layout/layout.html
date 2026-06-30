@@ -111,7 +111,7 @@
 </div>
 
 <!-- ── Palette menu ────────────────────────────────────────────────────────── -->
-<mat-menu #paletteMenu="matMenu" class="palette-menu-panel">
+<mat-menu #paletteMenu="matMenu" class="palette-menu-panel" xPosition="before" yPosition="below">
   <div class="palette-menu-title" (click)="$event.stopPropagation()">Color theme</div>
 
   @for (p of theme.paletteOptions; track p.key) {

@@ -101,6 +101,10 @@ html {
 // ── Palette picker menu panel ─────────────────────────────────────────────────
 .palette-menu-panel {
   min-width: 228px !important;
+  // Never exceed the viewport — scroll within the panel if space is tight
+  // (prevents the menu being clipped when opened near a screen edge).
+  max-height: min(70vh, 420px) !important;
+  overflow-y: auto !important;
 
   .mat-mdc-menu-content {
     padding: 4px 0 8px !important;

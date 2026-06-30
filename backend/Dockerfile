@@ -30,6 +30,9 @@ COPY --from=build /app/backend/dist ./dist
 COPY --from=build /app/backend/package*.json ./
 COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/prisma.config.ts ./
+# Browser-extension files served by the MCP Connect "Download extension" button
+# (zipped on demand by services/connector/extension-pack.ts).
+COPY --from=build /app/backend/extension ./extension
 
 # Chromium + OS deps for Playwright (defaults to ~/.cache/ms-playwright).
 RUN npx playwright install chromium --with-deps
