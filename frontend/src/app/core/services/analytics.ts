@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { AppConfigService } from '../config/app-config.service';
+import { safeUUID } from '../utils/uuid';
 import type { AnalyticsEventPayload } from '../models/page';
 
 @Injectable({ providedIn: 'root' })
@@ -8,7 +9,7 @@ export class AnalyticsService {
   private readonly http = inject(HttpClient);
   private readonly base = inject(AppConfigService).apiBaseUrl;
 
-  private readonly sessionId = crypto.randomUUID();
+  private readonly sessionId = safeUUID();
   private readonly anonymousId = this.loadAnonymousId();
 
   fire(payload: Omit<AnalyticsEventPayload, 'sessionId' | 'anonymousId'>) {
@@ -26,7 +27,7 @@ export class AnalyticsService {
     const key = 'ha_anon_id';
     let id = localStorage.getItem(key);
     if (!id) {
-      id = crypto.randomUUID();
+      id = safeUUID();
       localStorage.setItem(key, id);
     }
     return id;
