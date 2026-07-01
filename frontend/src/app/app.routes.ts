@@ -24,6 +24,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/admin/auth/login/login').then((m) => m.Login),
   },
+  // Full-screen image editor — top-level (no admin chrome) but guarded.
+  {
+    path: 'admin/media/:id/edit',
+    loadComponent: () =>
+      import('./core/components/image-annotator/image-annotator').then((m) => m.ImageAnnotator),
+    canActivate: [authGuard],
+  },
   {
     path: 'admin',
     loadComponent: () =>

@@ -89,6 +89,7 @@ export interface AdminStep {
 
 /** A single annotation shape drawn over an image (coords in natural pixels). */
 export interface ImageAnnotation {
+  id?: string;
   type: 'rect' | 'ellipse' | 'arrow' | 'pen' | 'text' | 'badge' | 'blur';
   color: string;
   thickness: number;
@@ -102,6 +103,14 @@ export interface ImageAnnotation {
   text?: string;
   fontSize?: number;
   number?: number;
+  /** Layer state. */
+  hidden?: boolean;
+  groupId?: string | null;
+  /** Auto/edited caption shown around the shape. */
+  label?: string;
+  labelPos?: 'top' | 'bottom' | 'left' | 'right' | 'none';
+  /** Blur strength (px) for blur shapes; falls back to thickness when absent. */
+  blurRadius?: number;
 }
 
 export interface MediaAsset {

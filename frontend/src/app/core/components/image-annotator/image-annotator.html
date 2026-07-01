@@ -1,79 +1,184 @@
-<div class="ann-head">
-  <mat-icon>edit</mat-icon>
-  <span class="ann-title">Edit image — {{ asset.originalName }}</span>
-  <span class="ann-spacer"></span>
-  <button mat-icon-button (click)="cancel()" aria-label="Close"><mat-icon>close</mat-icon></button>
-</div>
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<div class="ed-head">
+  <button mat-icon-button class="back-btn" (click)="back()" matTooltip="Back" aria-label="Back"><mat-icon>arrow_back</mat-icon></button>
+  <span class="ed-title">Edit image — {{ asset()?.originalName || 'Loading…' }}</span>
+  <span class="ed-spacer"></span>
 
-<!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
-<div class="ann-toolbar">
-  <div class="tool-group">
-    @for (t of tools; track t.id) {
-      <button type="button" class="tool-btn" [class.tool-btn--active]="tool() === t.id"
-              (click)="setTool(t.id)" [matTooltip]="t.label" [attr.aria-label]="t.label">
-        <mat-icon>{{ t.icon }}</mat-icon>
-      </button>
-    }
+  <div class="zoom-ctl">
+    <button mat-icon-button (click)="zoomOut()" matTooltip="Zoom out" aria-label="Zoom out"><mat-icon>remove</mat-icon></button>
+    <button class="zoom-val" (click)="zoomReset()" matTooltip="Reset to 100%">{{ (zoom() * 100) | number:'1.0-0' }}%</button>
+    <button mat-icon-button (click)="zoomIn()" matTooltip="Zoom in" aria-label="Zoom in"><mat-icon>add</mat-icon></button>
+    <button mat-icon-button (click)="fitZoom()" matTooltip="Fit" aria-label="Fit"><mat-icon>fit_screen</mat-icon></button>
   </div>
 
+  <button mat-stroked-button (click)="back()">Cancel</button>
+  <button mat-flat-button class="ed-save" (click)="save()" [disabled]="saving() || loading()">
+    {{ saving() ? 'Saving…' : 'Save' }}
+  </button>
+</div>
+
+<!-- ── Toolbar ─────────────────────────────────────────────────────────────── -->
+<div class="ed-toolbar">
+  <button type="button" class="tool-btn" [class.tool-btn--active]="mediaOpen()" (click)="toggleMedia()" matTooltip="Media library" aria-label="Media"><mat-icon>photo_library</mat-icon></button>
+  <span class="tool-sep"></span>
+
+  <div class="tool-group">
+    @for (t of tools; track t.id) {
+      <button type="button" class="tool-btn" [class.tool-btn--active]="tool() === t.id" (click)="setTool(t.id)" [matTooltip]="t.label"><mat-icon>{{ t.icon }}</mat-icon></button>
+    }
+  </div>
   <span class="tool-sep"></span>
 
   <div class="tool-group colors">
     @for (c of palette; track c) {
-      <button type="button" class="swatch" [class.swatch--active]="color() === c"
-              [style.background]="c" (click)="setColor(c)" [attr.aria-label]="'Color ' + c"></button>
+      <button type="button" class="swatch" [class.swatch--active]="color() === c" [style.background]="c" (click)="setColor(c)" [attr.aria-label]="'Colour ' + c"></button>
     }
     <label class="swatch swatch--custom" matTooltip="Custom colour">
       <input type="color" [value]="color()" (input)="setColor($any($event.target).value)" aria-label="Custom colour" />
       <mat-icon>colorize</mat-icon>
     </label>
   </div>
-
   <span class="tool-sep"></span>
 
-  <label class="thickness">
+  <label class="slider">
     <mat-icon>line_weight</mat-icon>
-    <input type="range" min="2" max="48" [value]="thickness()"
-           (input)="onThickness(+$any($event.target).value)" aria-label="Thickness" />
-    <span class="thickness-val">{{ thickness() }}</span>
+    <input type="range" min="2" max="48" [value]="thickness()" (input)="onThickness(+$any($event.target).value)" aria-label="Thickness" />
+    <span class="slider-val">{{ thickness() }}</span>
   </label>
 
+  @if (tool() === 'blur' || selectedShape()?.type === 'blur') {
+    <label class="slider">
+      <mat-icon>blur_on</mat-icon>
+      <input type="range" min="4" max="60" [value]="blurRadius()" (input)="onBlurRadius(+$any($event.target).value)" aria-label="Blur radius" />
+      <span class="slider-val">{{ blurRadius() }}</span>
+    </label>
+  }
   <span class="tool-sep"></span>
 
-  <div class="tool-group">
-    <button type="button" class="tool-btn" (click)="undo()" [disabled]="!canUndo()" matTooltip="Undo" aria-label="Undo"><mat-icon>undo</mat-icon></button>
-    <button type="button" class="tool-btn" (click)="deleteSelected()" [disabled]="!hasSelection()" matTooltip="Delete selected" aria-label="Delete selected"><mat-icon>delete_outline</mat-icon></button>
-    <button type="button" class="tool-btn" (click)="clearAll()" matTooltip="Clear all" aria-label="Clear all"><mat-icon>layers_clear</mat-icon></button>
-  </div>
+  <button type="button" class="tool-btn" (click)="undo()" [disabled]="!canUndo()" matTooltip="Undo"><mat-icon>undo</mat-icon></button>
+  <button type="button" class="tool-btn" (click)="deleteSelected()" [disabled]="!selectedIds().size" matTooltip="Delete selected"><mat-icon>delete_outline</mat-icon></button>
+  <button type="button" class="tool-btn" (click)="clearAll()" matTooltip="Clear all"><mat-icon>layers_clear</mat-icon></button>
+
+  <span class="ed-spacer"></span>
+  <button type="button" class="tool-btn" [class.tool-btn--active]="layersOpen()" (click)="layersOpen.set(!layersOpen())" matTooltip="Layers panel"><mat-icon>layers</mat-icon></button>
 </div>
 
-<!-- ── Canvas ───────────────────────────────────────────────────────────── -->
-<div class="ann-stage">
-  @if (loading()) {
-    <div class="ann-loading">Loading image…</div>
+<!-- ── Body ────────────────────────────────────────────────────────────────── -->
+<div class="ed-body">
+  <!-- Media library -->
+  @if (mediaOpen()) {
+    <aside class="ed-media">
+      <div class="panel-head">
+        <span>Media</span>
+        <label class="mini-btn" matTooltip="Upload image">
+          <input type="file" accept="image/*" hidden (change)="onUpload($event)" />
+          <mat-icon>upload</mat-icon>
+        </label>
+      </div>
+      <div class="media-grid">
+        @for (m of mediaList(); track m.id) {
+          <button type="button" class="media-thumb" [class.media-thumb--active]="m.id === asset()?.id" (click)="switchTo(m)" [matTooltip]="m.originalName">
+            <img [src]="m.publicUrl" [alt]="m.altText || m.originalName" loading="lazy" />
+          </button>
+        }
+      </div>
+    </aside>
   }
-  <canvas #canvas
-          class="ann-canvas"
-          [class.ann-canvas--select]="tool() === 'select'"
-          (pointerdown)="onPointerDown($event)"
-          (pointermove)="onPointerMove($event)"
-          (pointerup)="onPointerUp()"
-          (pointercancel)="onPointerUp()"></canvas>
+
+  <!-- Canvas stage -->
+  <div class="ed-stage" (wheel)="onWheel($event)">
+    @if (loading()) { <div class="ed-loading">Loading image…</div> }
+    <canvas #canvas class="ed-canvas" [class.ed-canvas--select]="tool() === 'select'"
+            [style.width.px]="canvasCssWidth"
+            (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)"
+            (pointerup)="onPointerUp()" (pointercancel)="onPointerUp()"></canvas>
+  </div>
+
+  <!-- Layers + Properties -->
+  @if (layersOpen()) {
+    <aside class="ed-layers">
+      <div class="panel-head">
+        <span>Layers ({{ shapes().length }})</span>
+        <span class="panel-head-actions">
+          <button class="mini-btn" [disabled]="!canGroup()" (click)="group()" matTooltip="Group selected"><mat-icon>library_add</mat-icon></button>
+          <button class="mini-btn" [disabled]="!canUngroup()" (click)="ungroup()" matTooltip="Ungroup"><mat-icon>library_add_check</mat-icon></button>
+        </span>
+      </div>
+
+      <div class="layer-list">
+        @for (row of layerRows(); track row.kind === 'group' ? row.groupId : row.shape.id) {
+          @if (row.kind === 'group') {
+            <div class="layer-row layer-row--group">
+              <button class="row-caret" (click)="toggleCollapse(row.groupId)"><mat-icon>{{ isCollapsed(row.groupId) ? 'chevron_right' : 'expand_more' }}</mat-icon></button>
+              <mat-icon class="row-icon">folder</mat-icon>
+              <span class="row-name" (click)="selectGroup(row.groupId)">Group ({{ row.members.length }})</span>
+              <button class="row-eye" (click)="toggleGroupHidden(row.groupId)" [matTooltip]="groupVisible(row.groupId) ? 'Hide group' : 'Show group'">
+                <mat-icon>{{ groupVisible(row.groupId) ? 'visibility' : 'visibility_off' }}</mat-icon>
+              </button>
+            </div>
+            @if (!isCollapsed(row.groupId)) {
+              @for (m of row.members; track m.id) {
+                <div class="layer-row layer-row--child" [class.layer-row--sel]="isSelected(m.id)" (click)="selectLayer(m.id, $event.ctrlKey || $event.shiftKey)">
+                  <mat-icon class="row-icon">{{ layerIcon(m.type) }}</mat-icon>
+                  <span class="row-name" [class.row-name--hidden]="m.hidden">{{ layerName(m) }}</span>
+                  <button class="row-eye" (click)="$event.stopPropagation(); toggleHidden(m)" [matTooltip]="m.hidden ? 'Show' : 'Hide'"><mat-icon>{{ m.hidden ? 'visibility_off' : 'visibility' }}</mat-icon></button>
+                </div>
+              }
+            }
+          } @else {
+            <div class="layer-row" [class.layer-row--sel]="isSelected(row.shape.id)" (click)="selectLayer(row.shape.id, $event.ctrlKey || $event.shiftKey)">
+              <mat-icon class="row-icon">{{ layerIcon(row.shape.type) }}</mat-icon>
+              <span class="row-name" [class.row-name--hidden]="row.shape.hidden">{{ layerName(row.shape) }}</span>
+              <button class="row-eye" (click)="$event.stopPropagation(); toggleHidden(row.shape)" [matTooltip]="row.shape.hidden ? 'Show' : 'Hide'"><mat-icon>{{ row.shape.hidden ? 'visibility_off' : 'visibility' }}</mat-icon></button>
+            </div>
+          }
+        } @empty {
+          <p class="layer-empty">No markings yet. Pick a tool and draw on the image.</p>
+        }
+      </div>
+
+      <!-- Properties for the single selected layer -->
+      @if (selectedShape(); as sel) {
+        <div class="props">
+          <div class="panel-head"><span>Properties</span></div>
+
+          <label class="prop-field">
+            <span>Caption</span>
+            <input [ngModel]="sel.label ?? ''" (ngModelChange)="setLabelText($event)" placeholder="Caption text" />
+          </label>
+
+          <div class="prop-field">
+            <span>Caption position</span>
+            <div class="pos-btns">
+              @for (p of labelPositions; track p.id) {
+                <button type="button" class="tool-btn" [class.tool-btn--active]="(sel.labelPos ?? 'none') === p.id" (click)="setLabelPos(p.id)" [matTooltip]="p.label"><mat-icon>{{ p.icon }}</mat-icon></button>
+              }
+            </div>
+          </div>
+
+          <div class="prop-field">
+            <span>Order</span>
+            <div class="pos-btns">
+              <button type="button" class="tool-btn" (click)="toFront()" matTooltip="Bring to front"><mat-icon>flip_to_front</mat-icon></button>
+              <button type="button" class="tool-btn" (click)="forward()" matTooltip="Bring forward"><mat-icon>arrow_upward</mat-icon></button>
+              <button type="button" class="tool-btn" (click)="backward()" matTooltip="Send backward"><mat-icon>arrow_downward</mat-icon></button>
+              <button type="button" class="tool-btn" (click)="toBack()" matTooltip="Send to back"><mat-icon>flip_to_back</mat-icon></button>
+            </div>
+          </div>
+        </div>
+      }
+    </aside>
+  }
 </div>
 
-<!-- ── Footer ───────────────────────────────────────────────────────────── -->
-<div class="ann-foot">
-  <label class="ann-alt">
-    <span class="ann-alt-label">Alt text</span>
+<!-- ── Footer ──────────────────────────────────────────────────────────────── -->
+<div class="ed-foot">
+  <label class="ed-alt">
+    <span class="ed-alt-label">Alt text</span>
     <input [(ngModel)]="altText" placeholder="Describe the image (accessibility & SEO)" aria-label="Alt text" />
   </label>
-  <span class="ann-meta">
-    @if (asset.width && asset.height) { {{ asset.width }}×{{ asset.height }} · }
-    {{ (asset.mimeType || '').split('/')[1] | uppercase }}
+  <span class="ed-meta">
+    @if (asset()?.width && asset()?.height) { {{ asset()?.width }}×{{ asset()?.height }} · }
+    {{ (asset()?.mimeType || '').split('/')[1] | uppercase }}
   </span>
-  <span class="ann-spacer"></span>
-  <button mat-stroked-button (click)="cancel()">Cancel</button>
-  <button mat-flat-button class="ann-save" (click)="save()" [disabled]="saving() || loading()">
-    {{ saving() ? 'Saving…' : 'Save' }}
-  </button>
 </div>

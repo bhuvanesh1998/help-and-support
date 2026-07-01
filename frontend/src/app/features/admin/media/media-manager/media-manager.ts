@@ -17,10 +17,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { Router } from '@angular/router';
 import { AdminApiService } from '../../../../core/services/admin-api';
 import { ImageViewer } from '../../../../core/components/image-viewer/image-viewer';
-import { ImageAnnotator, type ImageAnnotatorData } from '../../../../core/components/image-annotator/image-annotator';
 import type { MediaAsset, PaginatedResponse } from '../../../../core/models/admin';
 
 @Component({
@@ -29,7 +28,7 @@ import type { MediaAsset, PaginatedResponse } from '../../../../core/models/admi
     FormsModule,
     MatButtonModule, MatIconModule, MatProgressBarModule,
     MatSnackBarModule, MatTooltipModule, MatFormFieldModule,
-    MatInputModule, MatPaginatorModule, MatDialogModule, ImageViewer,
+    MatInputModule, MatPaginatorModule, ImageViewer,
   ],
   templateUrl: './media-manager.html',
   styleUrl: './media-manager.scss',
@@ -38,7 +37,7 @@ import type { MediaAsset, PaginatedResponse } from '../../../../core/models/admi
 export class MediaManager implements OnInit {
   private readonly api    = inject(AdminApiService);
   private readonly snack  = inject(MatSnackBar);
-  private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
 
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
 
@@ -161,17 +160,9 @@ export class MediaManager implements OnInit {
   openPreview(url: string): void  { this.previewUrl.set(url); }
   closePreview(): void            { this.previewUrl.set(null); }
 
-  /** Open the annotation editor for an image; refresh the grid if it was saved. */
+  /** Open the full-screen annotation editor for an image. */
   editImage(asset: MediaAsset): void {
-    const ref = this.dialog.open<ImageAnnotator, ImageAnnotatorData, boolean>(ImageAnnotator, {
-      data: { asset },
-      panelClass: 'annotator-dialog',
-      width: '96vw',
-      maxWidth: '96vw',
-      height: '92vh',
-      autoFocus: false,
-    });
-    ref.afterClosed().subscribe((saved) => { if (saved) this.load(this.currentPage); });
+    void this.router.navigate(['/admin/media', asset.id, 'edit']);
   }
 
   formatBytes(bytes: number): string {
