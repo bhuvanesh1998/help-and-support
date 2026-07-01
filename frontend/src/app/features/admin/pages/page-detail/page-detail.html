@@ -107,7 +107,15 @@
 
           @if (st.imageUrl) {
             <div class="step-view-image">
-              <img [src]="st.imageUrl" [alt]="st.title + ' screenshot'" />
+              <img [src]="st.imageUrl" [alt]="st.title + ' screenshot'" (click)="viewImage(st.imageUrl)" />
+              <div class="step-image-actions">
+                <button mat-stroked-button (click)="viewImage(st.imageUrl)">
+                  <mat-icon>zoom_in</mat-icon> View
+                </button>
+                <button mat-flat-button class="save-btn" (click)="editStepImage(st)">
+                  <mat-icon>brush</mat-icon> Edit image
+                </button>
+              </div>
             </div>
           }
 
@@ -213,5 +221,10 @@
         </div>
       </div>
     </div>
+  }
+
+  <!-- Zoom viewer for a step screenshot -->
+  @if (previewUrl(); as url) {
+    <ha-image-viewer [src]="url" alt="Step screenshot" (closed)="closePreview()" />
   }
 }

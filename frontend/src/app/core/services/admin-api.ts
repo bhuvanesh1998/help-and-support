@@ -117,8 +117,28 @@ export class AdminApiService {
     fd.append('file', file);
     return this.http.post<{ asset: MediaAsset }>(`${this.b}/media`, fd);
   }
+  getMedia(id: string) {
+    return this.http.get<{ asset: MediaAsset }>(`${this.b}/media/${id}`);
+  }
   updateMedia(id: string, altText: string) {
     return this.http.patch<{ asset: MediaAsset }>(`${this.b}/media/${id}`, { altText });
+  }
+  /** Save an annotated render (non-destructive): rendered PNG + editable shapes. */
+  annotateMedia(
+    id: string,
+    rendered: Blob,
+    annotations: unknown,
+    width: number,
+    height: number,
+    altText?: string,
+  ) {
+    const fd = new FormData();
+    fd.append('file', rendered, 'annotated.png');
+    fd.append('annotations', JSON.stringify(annotations ?? []));
+    fd.append('width', String(width));
+    fd.append('height', String(height));
+    if (altText !== undefined) fd.append('altText', altText);
+    return this.http.post<{ asset: MediaAsset }>(`${this.b}/media/${id}/annotate`, fd);
   }
   deleteMedia(id: string) {
     return this.http.delete(`${this.b}/media/${id}`);

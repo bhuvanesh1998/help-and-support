@@ -20,8 +20,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AdminApiService } from '../../../../core/services/admin-api';
-import type { AdminApiEndpoint, AdminPage, AdminStep } from '../../../../core/models/admin';
+import { ImageViewer } from '../../../../core/components/image-viewer/image-viewer';
+import { ImageAnnotator, type ImageAnnotatorData } from '../../../../core/components/image-annotator/image-annotator';
+import type { AdminApiEndpoint, AdminPage, AdminStep, MediaAsset } from '../../../../core/models/admin';
 
 @Component({
   selector: 'ha-page-detail',
@@ -29,6 +32,7 @@ import type { AdminApiEndpoint, AdminPage, AdminStep } from '../../../../core/mo
     FormsModule,
     MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatCardModule, MatProgressSpinnerModule, MatSnackBarModule, MatChipsModule, MatTooltipModule,
+    MatDialogModule, ImageViewer,
   ],
   templateUrl: './page-detail.html',
   styleUrl: './page-detail.scss',
@@ -39,6 +43,10 @@ export class PageDetail implements OnInit {
   private readonly snack = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
+
+  /** URL shown in the zoom viewer (null = closed). */
+  readonly previewUrl = signal<string | null>(null);
 
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -292,5 +300,36 @@ export class PageDetail implements OnInit {
 
   goBack(): void {
     void this.router.navigate(['/admin/pages']);
+  }
+
+  // ── Step image: view (zoom) + annotate ──────────────────────────────────────
+  viewImage(url: string): void { this.previewUrl.set(url); }
+  closePreview(): void { this.previewUrl.set(null); }
+
+  /** Open the annotation editor for a step's screenshot; reload on save. */
+  editStepImage(step: AdminStep): void {
+    if (!step.mediaAssetId) {
+      this.snack.open('This image has no stored asset to edit', 'OK', { duration: 3000 });
+      return;
+    }
+    const asset: MediaAsset = {
+      id: step.mediaAssetId,
+      publicUrl: step.imageUrl ?? '',
+      originalName: step.title,
+      mimeType: 'image/png',
+      filename: '',
+      sizeBytes: 0,
+      altText: null,
+      createdAt: '',
+    };
+    const ref = this.dialog.open<ImageAnnotator, ImageAnnotatorData, boolean>(ImageAnnotator, {
+      data: { asset },
+      panelClass: 'annotator-dialog',
+      width: '96vw',
+      maxWidth: '96vw',
+      height: '92vh',
+      autoFocus: false,
+    });
+    ref.afterClosed().subscribe((saved) => { if (saved) this.load(); });
   }
 }

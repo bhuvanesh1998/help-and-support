@@ -618,3 +618,13 @@
   }
   img { max-width: 100%; height: auto; border-radius: 8px; }
 }
+
+/* ── Step image: view/edit actions (added) ─────────────────────────────────── */
+.step-view-image {
+  img { cursor: zoom-in; }
+  .step-image-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+}

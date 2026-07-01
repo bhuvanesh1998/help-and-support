@@ -87,15 +87,40 @@ export interface AdminStep {
   createdAt: string;
 }
 
+/** A single annotation shape drawn over an image (coords in natural pixels). */
+export interface ImageAnnotation {
+  type: 'rect' | 'ellipse' | 'arrow' | 'pen' | 'text' | 'badge' | 'blur';
+  color: string;
+  thickness: number;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  x2?: number;
+  y2?: number;
+  points?: Array<{ x: number; y: number }>;
+  text?: string;
+  fontSize?: number;
+  number?: number;
+}
+
 export interface MediaAsset {
   id: string;
   filename: string;
   originalName: string;
   mimeType: string;
   sizeBytes: number;
+  width?: number | null;
+  height?: number | null;
   publicUrl: string;
   altText: string | null;
   createdAt: string;
+  /** Set when the image has been edited in the annotator. */
+  editedAt?: string | null;
+  /** Editable annotation shapes (present on the detail endpoint). */
+  annotations?: ImageAnnotation[] | null;
+  /** Untouched base image the annotations are composited over. */
+  originalUrl?: string | null;
 }
 
 export interface PaginatedResponse<T> {

@@ -1,0 +1,79 @@
+<div class="ann-head">
+  <mat-icon>edit</mat-icon>
+  <span class="ann-title">Edit image — {{ asset.originalName }}</span>
+  <span class="ann-spacer"></span>
+  <button mat-icon-button (click)="cancel()" aria-label="Close"><mat-icon>close</mat-icon></button>
+</div>
+
+<!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+<div class="ann-toolbar">
+  <div class="tool-group">
+    @for (t of tools; track t.id) {
+      <button type="button" class="tool-btn" [class.tool-btn--active]="tool() === t.id"
+              (click)="setTool(t.id)" [matTooltip]="t.label" [attr.aria-label]="t.label">
+        <mat-icon>{{ t.icon }}</mat-icon>
+      </button>
+    }
+  </div>
+
+  <span class="tool-sep"></span>
+
+  <div class="tool-group colors">
+    @for (c of palette; track c) {
+      <button type="button" class="swatch" [class.swatch--active]="color() === c"
+              [style.background]="c" (click)="setColor(c)" [attr.aria-label]="'Color ' + c"></button>
+    }
+    <label class="swatch swatch--custom" matTooltip="Custom colour">
+      <input type="color" [value]="color()" (input)="setColor($any($event.target).value)" aria-label="Custom colour" />
+      <mat-icon>colorize</mat-icon>
+    </label>
+  </div>
+
+  <span class="tool-sep"></span>
+
+  <label class="thickness">
+    <mat-icon>line_weight</mat-icon>
+    <input type="range" min="2" max="48" [value]="thickness()"
+           (input)="onThickness(+$any($event.target).value)" aria-label="Thickness" />
+    <span class="thickness-val">{{ thickness() }}</span>
+  </label>
+
+  <span class="tool-sep"></span>
+
+  <div class="tool-group">
+    <button type="button" class="tool-btn" (click)="undo()" [disabled]="!canUndo()" matTooltip="Undo" aria-label="Undo"><mat-icon>undo</mat-icon></button>
+    <button type="button" class="tool-btn" (click)="deleteSelected()" [disabled]="!hasSelection()" matTooltip="Delete selected" aria-label="Delete selected"><mat-icon>delete_outline</mat-icon></button>
+    <button type="button" class="tool-btn" (click)="clearAll()" matTooltip="Clear all" aria-label="Clear all"><mat-icon>layers_clear</mat-icon></button>
+  </div>
+</div>
+
+<!-- ── Canvas ───────────────────────────────────────────────────────────── -->
+<div class="ann-stage">
+  @if (loading()) {
+    <div class="ann-loading">Loading image…</div>
+  }
+  <canvas #canvas
+          class="ann-canvas"
+          [class.ann-canvas--select]="tool() === 'select'"
+          (pointerdown)="onPointerDown($event)"
+          (pointermove)="onPointerMove($event)"
+          (pointerup)="onPointerUp()"
+          (pointercancel)="onPointerUp()"></canvas>
+</div>
+
+<!-- ── Footer ───────────────────────────────────────────────────────────── -->
+<div class="ann-foot">
+  <label class="ann-alt">
+    <span class="ann-alt-label">Alt text</span>
+    <input [(ngModel)]="altText" placeholder="Describe the image (accessibility & SEO)" aria-label="Alt text" />
+  </label>
+  <span class="ann-meta">
+    @if (asset.width && asset.height) { {{ asset.width }}×{{ asset.height }} · }
+    {{ (asset.mimeType || '').split('/')[1] | uppercase }}
+  </span>
+  <span class="ann-spacer"></span>
+  <button mat-stroked-button (click)="cancel()">Cancel</button>
+  <button mat-flat-button class="ann-save" (click)="save()" [disabled]="saving() || loading()">
+    {{ saving() ? 'Saving…' : 'Save' }}
+  </button>
+</div>

@@ -17,8 +17,10 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AdminApiService } from '../../../../core/services/admin-api';
 import { ImageViewer } from '../../../../core/components/image-viewer/image-viewer';
+import { ImageAnnotator, type ImageAnnotatorData } from '../../../../core/components/image-annotator/image-annotator';
 import type { MediaAsset, PaginatedResponse } from '../../../../core/models/admin';
 
 @Component({
@@ -27,15 +29,16 @@ import type { MediaAsset, PaginatedResponse } from '../../../../core/models/admi
     FormsModule,
     MatButtonModule, MatIconModule, MatProgressBarModule,
     MatSnackBarModule, MatTooltipModule, MatFormFieldModule,
-    MatInputModule, MatPaginatorModule, ImageViewer,
+    MatInputModule, MatPaginatorModule, MatDialogModule, ImageViewer,
   ],
   templateUrl: './media-manager.html',
   styleUrl: './media-manager.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MediaManager implements OnInit {
-  private readonly api   = inject(AdminApiService);
-  private readonly snack = inject(MatSnackBar);
+  private readonly api    = inject(AdminApiService);
+  private readonly snack  = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
 
@@ -157,6 +160,19 @@ export class MediaManager implements OnInit {
 
   openPreview(url: string): void  { this.previewUrl.set(url); }
   closePreview(): void            { this.previewUrl.set(null); }
+
+  /** Open the annotation editor for an image; refresh the grid if it was saved. */
+  editImage(asset: MediaAsset): void {
+    const ref = this.dialog.open<ImageAnnotator, ImageAnnotatorData, boolean>(ImageAnnotator, {
+      data: { asset },
+      panelClass: 'annotator-dialog',
+      width: '96vw',
+      maxWidth: '96vw',
+      height: '92vh',
+      autoFocus: false,
+    });
+    ref.afterClosed().subscribe((saved) => { if (saved) this.load(this.currentPage); });
+  }
 
   formatBytes(bytes: number): string {
     if (bytes < 1024)         return `${bytes} B`;

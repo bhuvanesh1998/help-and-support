@@ -119,6 +119,12 @@
                   <mat-icon>content_copy</mat-icon>
                 </button>
                 <button mat-icon-button class="overlay-btn"
+                        matTooltip="Edit image (annotate)"
+                        aria-label="Edit image"
+                        (click)="editImage(asset)">
+                  <mat-icon>brush</mat-icon>
+                </button>
+                <button mat-icon-button class="overlay-btn"
                         matTooltip="Edit alt text"
                         aria-label="Edit alt text"
                         (click)="startEdit(asset)">
