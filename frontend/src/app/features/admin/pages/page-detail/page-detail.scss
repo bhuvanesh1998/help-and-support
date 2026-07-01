@@ -542,3 +542,79 @@
 .api-method--patch  { background: #6a1b9a; }
 .api-method--delete { background: #c62828; }
 .api-method--ws     { background: #00838f; }
+
+/* ── View → Edit step screen (added) ───────────────────────────────────────── */
+.step-card--clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  &:hover {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-surface-container-high);
+  }
+  &:focus-visible {
+    outline: none;
+    border-color: var(--mat-sys-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mat-sys-primary) 18%, transparent);
+  }
+}
+
+.step-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.step-screen-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.step-screen-crumb {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface-variant);
+}
+.step-screen-spacer { flex: 1 1 auto; }
+
+.step-view-card {
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 14px;
+  padding: 24px;
+}
+.step-view-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+}
+.step-view-image {
+  margin: 0 0 20px;
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    display: block;
+  }
+}
+.step-view-body {
+  color: var(--mat-sys-on-surface);
+  line-height: 1.65;
+  font-size: 15px;
+
+  h1, h2, h3 { margin: 1em 0 0.4em; }
+  p { margin: 0 0 0.8em; }
+  ul, ol { margin: 0 0 0.8em; padding-left: 1.4em; }
+  code {
+    background: var(--mat-sys-surface-container-high);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 0.9em;
+  }
+  img { max-width: 100%; height: auto; border-radius: 8px; }
+}

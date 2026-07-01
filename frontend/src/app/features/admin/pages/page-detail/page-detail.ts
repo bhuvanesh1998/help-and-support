@@ -44,8 +44,14 @@ export class PageDetail implements OnInit {
   readonly saving = signal(false);
   readonly uploadingImage = signal(false);
   readonly page = signal<(AdminPage & { steps: AdminStep[] }) | null>(null);
-  readonly editingStep = signal<AdminStep | null>(null);
-  readonly showStepForm = signal(false);
+
+  /** Which screen is showing: the step list, a single read-only step, or the editor. */
+  readonly mode = signal<'list' | 'view' | 'edit'>('list');
+  /** The step currently opened in view/edit. Null in edit means a brand-new step. */
+  readonly selectedStepId = signal<string | null>(null);
+  readonly selectedStep = computed<AdminStep | null>(
+    () => this.page()?.steps.find((s) => s.id === this.selectedStepId()) ?? null,
+  );
 
   stepTitle = '';
   stepInstructions = '';
@@ -176,25 +182,46 @@ export class PageDetail implements OnInit {
     });
   }
 
+  /** Open a step as a read-only screen. */
+  openView(step: AdminStep): void {
+    this.selectedStepId.set(step.id);
+    this.mode.set('view');
+  }
+
+  /** Open the blank editor for a brand-new step. */
   openNewStep(): void {
-    this.editingStep.set(null);
+    this.selectedStepId.set(null);
     this.stepTitle = '';
     this.stepInstructions = '';
     this.stepImageUrl = '';
-    this.showStepForm.set(true);
+    this.mode.set('edit');
   }
 
-  openEditStep(step: AdminStep): void {
-    this.editingStep.set(step);
+  /** Switch the current step from view into the editor. */
+  startEdit(step: AdminStep): void {
+    this.selectedStepId.set(step.id);
     this.stepTitle = step.title;
     this.stepInstructions = step.instructionsMd;
     this.stepImageUrl = step.imageUrl ?? '';
-    this.showStepForm.set(true);
+    this.mode.set('edit');
   }
 
+  /** Cancel the editor: return to the step's view, or the list for a new step. */
   cancelForm(): void {
-    this.showStepForm.set(false);
-    this.editingStep.set(null);
+    if (this.selectedStepId()) this.mode.set('view');
+    else this.backToList();
+  }
+
+  /** Return to the step list. */
+  backToList(): void {
+    this.mode.set('list');
+    this.selectedStepId.set(null);
+  }
+
+  /** Header back arrow: leaves to Pages from the list, else back to the step list. */
+  headerBack(): void {
+    if (this.mode() === 'list') this.goBack();
+    else this.backToList();
   }
 
   saveStep(): void {
@@ -205,16 +232,17 @@ export class PageDetail implements OnInit {
       imageUrl: this.stepImageUrl || undefined,
     };
 
-    const existing = this.editingStep();
-    const req = existing
-      ? this.api.updateStep(this.pageId(), existing.id, data)
+    const existingId = this.selectedStepId();
+    const req = existingId
+      ? this.api.updateStep(this.pageId(), existingId, data)
       : this.api.createStep(this.pageId(), data);
 
     req.subscribe({
-      next: () => {
+      next: (res) => {
         this.saving.set(false);
-        this.showStepForm.set(false);
-        this.editingStep.set(null);
+        // Land on the read-only view of the just-saved step.
+        this.selectedStepId.set(res.step.id);
+        this.mode.set('view');
         this.load();
       },
       error: (err) => {
@@ -227,7 +255,11 @@ export class PageDetail implements OnInit {
   deleteStep(step: AdminStep): void {
     if (!confirm(`Delete step "${step.title}"?`)) return;
     this.api.deleteStep(this.pageId(), step.id).subscribe({
-      next: () => { this.snack.open('Step deleted', 'OK', { duration: 2500 }); this.load(); },
+      next: () => {
+        this.snack.open('Step deleted', 'OK', { duration: 2500 });
+        if (this.selectedStepId() === step.id) this.backToList();
+        this.load();
+      },
       error: () => { this.snack.open('Delete failed', 'OK', { duration: 3000 }); },
     });
   }
