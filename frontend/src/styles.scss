@@ -100,7 +100,7 @@ html {
 
 // ── Palette picker menu panel ─────────────────────────────────────────────────
 .palette-menu-panel {
-  min-width: 228px !important;
+  min-width: 240px !important;
   // Never exceed the viewport — scroll within the panel if space is tight
   // (prevents the menu being clipped when opened near a screen edge).
   max-height: min(70vh, 420px) !important;
@@ -108,5 +108,83 @@ html {
 
   .mat-mdc-menu-content {
     padding: 4px 0 8px !important;
+  }
+
+  // ── Item layout (global, because the menu renders in a CDK overlay where
+  // component-scoped styles don't apply — this is what fixes the clumsy,
+  // stacked label/swatch and the thin-bar radio) ──────────────────────────────
+  .palette-menu-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mat-sys-on-surface-variant);
+    padding: 10px 16px 6px;
+    user-select: none;
+  }
+
+  button.palette-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    min-height: 44px !important;
+    padding: 0 14px !important;
+
+    // Newer Angular Material wraps projected content in this span.
+    .mat-mdc-menu-item-text {
+      display: flex !important;
+      align-items: center;
+      gap: 12px;
+      flex: 1 1 auto;
+      width: 100%;
+    }
+
+    &.palette-item--active {
+      background: var(--mat-sys-secondary-container) !important;
+    }
+  }
+
+  .palette-radio {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--mat-sys-outline);
+    position: relative;
+    transition: border-color 150ms ease;
+
+    &.palette-radio--checked {
+      border-color: var(--mat-sys-primary);
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--mat-sys-primary);
+      }
+    }
+  }
+
+  .palette-item-label {
+    flex: 1 1 auto;
+    font-size: 0.875rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--mat-sys-on-surface);
+  }
+
+  .palette-item-swatch {
+    flex: 0 0 auto;
+    display: flex;
+    width: 40px;
+    height: 22px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  .swatch-half {
+    flex: 1 1 50%;
+    min-width: 0;
   }
 }
