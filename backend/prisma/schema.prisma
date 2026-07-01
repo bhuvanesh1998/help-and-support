@@ -70,6 +70,11 @@ model Page {
   category      String? // e.g. 'Chat', 'Campaigns', 'Configuration'
   categoryOrder Int     @default(99) // section order on the landing page
 
+  // Publish state. Off (false) hides the manual from the end-user help center
+  // (public API) while keeping it fully editable in the admin so it can be
+  // reworked and switched back on. Defaults to live for backward compatibility.
+  isPublished Boolean @default(true)
+
   // --- SEO / AI-SEO metadata (consumed by SSR + JSON-LD in Phase 3/4) ---
   metaTitle       String?
   metaDescription String?

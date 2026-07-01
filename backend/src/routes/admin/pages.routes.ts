@@ -51,6 +51,7 @@ pagesRouter.post('/', async (req: Request, res: Response) => {
     canonicalUrl?: unknown;
     ogImageUrl?: unknown;
     noIndex?: unknown;
+    isPublished?: unknown;
     structuredData?: unknown;
   };
 
@@ -77,6 +78,7 @@ pagesRouter.post('/', async (req: Request, res: Response) => {
       canonicalUrl: typeof body.canonicalUrl === 'string' ? body.canonicalUrl : null,
       ogImageUrl: typeof body.ogImageUrl === 'string' ? body.ogImageUrl : null,
       noIndex: typeof body.noIndex === 'boolean' ? body.noIndex : false,
+      isPublished: typeof body.isPublished === 'boolean' ? body.isPublished : true,
       structuredData:
         body.structuredData != null
           ? (body.structuredData as Prisma.InputJsonValue)
@@ -128,6 +130,7 @@ pagesRouter.patch('/:id', async (req: Request, res: Response) => {
       ...(typeof body['canonicalUrl'] === 'string' && { canonicalUrl: body['canonicalUrl'] }),
       ...(typeof body['ogImageUrl'] === 'string' && { ogImageUrl: body['ogImageUrl'] }),
       ...(typeof body['noIndex'] === 'boolean' && { noIndex: body['noIndex'] }),
+      ...(typeof body['isPublished'] === 'boolean' && { isPublished: body['isPublished'] }),
       ...('structuredData' in body && {
         structuredData:
           body['structuredData'] === null

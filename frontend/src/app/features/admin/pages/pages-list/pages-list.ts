@@ -47,6 +47,18 @@ export class PagesList implements OnInit {
   readonly restoring = signal(false);
   readonly categoryFilter = signal<string>(''); // '' = all categories
   readonly categoryNames  = signal<string[]>([]);
+  readonly newOnly        = signal(false); // show only recently-added pages
+
+  /** A page counts as "new" for this many days after it is created. */
+  static readonly NEW_DAYS = 14;
+
+  /** True when the page was created within the NEW_DAYS window. */
+  isNew(page: AdminPage): boolean {
+    const created = new Date(page.createdAt).getTime();
+    if (Number.isNaN(created)) return false;
+    const ageMs = Date.now() - created;
+    return ageMs >= 0 && ageMs <= PagesList.NEW_DAYS * 24 * 60 * 60 * 1000;
+  }
 
   readonly filtered = computed(() => {
     const q = this.search().toLowerCase().trim();
@@ -59,6 +71,9 @@ export class PagesList implements OnInit {
           (p.category ?? '').toLowerCase().includes(q) ||
           (p.description ?? '').toLowerCase().includes(q),
       );
+    }
+    if (this.newOnly()) {
+      pages = pages.filter((p) => this.isNew(p));
     }
     // Cluster by module category, then title.
     return [...pages].sort(
@@ -119,6 +134,40 @@ export class PagesList implements OnInit {
   setView(m: 'grid' | 'list'): void {
     this.viewMode.set(m);
     try { localStorage.setItem('ha-pages-view', m); } catch { /* noop */ }
+  }
+
+  toggleNewOnly(): void {
+    this.newOnly.update((v) => !v);
+  }
+
+  /** Open the live, end-user view of this manual in a new tab. */
+  viewLive(page: AdminPage): void {
+    if (typeof window === 'undefined') return;
+    if (!page.isPublished) {
+      this.snack.open('This page is Off — turn it On to make the live view visible to users.', 'OK', { duration: 4000 });
+    }
+    window.open(`/manual/${page.id}`, '_blank', 'noopener');
+  }
+
+  /** Flip a page between Live (published) and Off; optimistic with rollback. */
+  togglePublished(page: AdminPage): void {
+    const next = !page.isPublished;
+    this.patchLocalPublished(page.id, next); // optimistic
+    this.api.updatePage(page.id, { isPublished: next }).subscribe({
+      next: () => {
+        this.snack.open(next ? `"${page.title}" is now Live` : `"${page.title}" turned Off`, 'OK', { duration: 3000 });
+      },
+      error: () => {
+        this.patchLocalPublished(page.id, page.isPublished); // rollback
+        this.snack.open('Could not change publish state', 'OK', { duration: 3000 });
+      },
+    });
+  }
+
+  private patchLocalPublished(id: string, isPublished: boolean): void {
+    const cur = this.data();
+    if (!cur) return;
+    this.data.set({ ...cur, data: cur.data.map((p) => (p.id === id ? { ...p, isPublished } : p)) });
   }
 
   load(): void {

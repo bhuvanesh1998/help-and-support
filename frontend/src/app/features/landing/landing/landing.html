@@ -88,7 +88,13 @@
 <!-- ── Tutorials ─────────────────────────────────────────────────────────── -->
 <section class="tutorials-section" id="tutorials">
   <div class="section-inner">
-    @if (activeCategory()) {
+    @if (newOnly()) {
+      <button type="button" class="cat-back" (click)="backToCategories()">
+        <mat-icon>arrow_back</mat-icon> All categories
+      </button>
+      <h2 class="section-title">Recently Added</h2>
+      <p class="section-sub">User manuals added in the last 14 days.</p>
+    } @else if (activeCategory()) {
       <button type="button" class="cat-back" (click)="backToCategories()">
         <mat-icon>arrow_back</mat-icon> All categories
       </button>
@@ -99,6 +105,15 @@
     } @else {
       <h2 class="section-title">Browse User Manuals by Module</h2>
       <p class="section-sub">Pick a module to see its guides.</p>
+      @if (newCount()) {
+        <div class="landing-filters">
+          <button type="button" class="new-chip" (click)="showNew()"
+                  [attr.aria-label]="'Show ' + newCount() + ' recently added manuals'">
+            <mat-icon>fiber_new</mat-icon>
+            New <span class="new-chip-count">{{ newCount() }}</span>
+          </button>
+        </div>
+      }
     }
 
     @if (loading()) {
@@ -110,6 +125,44 @@
     } @else if (tutorials().length === 0) {
       <div class="empty-state" role="status">
         <p>No user manuals yet. <a routerLink="/admin/login">Add one in the admin &rarr;</a></p>
+      </div>
+    } @else if (newOnly()) {
+      <!-- New view: recently-added manuals across all modules -->
+      <div class="tutorial-grid">
+        @for (t of newManuals(); track t.id) {
+          <article
+            class="tutorial-card"
+            (click)="open(t.id)"
+            role="button"
+            tabindex="0"
+            (keydown.enter)="open(t.id)"
+            (keydown.space)="open(t.id)"
+            [attr.aria-label]="'Open user manual: ' + t.title"
+          >
+            <div class="card-inner">
+              <code class="route-pill">{{ t.routePath }}</code>
+              <h3 class="card-title">{{ t.title }} <span class="new-badge">New</span></h3>
+              @if (t.description) {
+                <p class="card-desc">{{ preview(t.description) }}{{ t.description.length > 120 ? '…' : '' }}</p>
+              }
+              <div class="card-footer">
+                <span class="step-count">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M9 12h6M9 16h6M9 8h6M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  {{ t.steps.length }} {{ t.steps.length === 1 ? 'step' : 'steps' }}
+                </span>
+                <span class="read-link">
+                  Read guide
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+              </div>
+            </div>
+          </article>
+        }
       </div>
     } @else if (activeCategory()) {
       <!-- Level 2: manuals inside the open category -->
@@ -126,7 +179,7 @@
           >
             <div class="card-inner">
               <code class="route-pill">{{ t.routePath }}</code>
-              <h3 class="card-title">{{ t.title }}</h3>
+              <h3 class="card-title">{{ t.title }} @if (isNew(t)) { <span class="new-badge">New</span> }</h3>
               @if (t.description) {
                 <p class="card-desc">{{ preview(t.description) }}{{ t.description.length > 120 ? '…' : '' }}</p>
               }

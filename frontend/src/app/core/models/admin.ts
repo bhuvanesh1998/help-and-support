@@ -46,6 +46,7 @@ export interface AdminPage {
   metaDescription: string | null;
   keywords: string[];
   noIndex: boolean;
+  isPublished: boolean;
   createdAt: string;
   updatedAt: string;
   _count?: { steps: number };
