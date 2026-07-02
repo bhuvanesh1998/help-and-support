@@ -140,8 +140,23 @@ export class AdminApiService {
     if (altText !== undefined) fd.append('altText', altText);
     return this.http.post<{ asset: MediaAsset }>(`${this.b}/media/${id}/annotate`, fd);
   }
+  /** Move an asset to the trash (soft delete). */
   deleteMedia(id: string) {
     return this.http.delete(`${this.b}/media/${id}`);
+  }
+  /** List trashed assets (soft-deleted, awaiting restore or 30-day purge). */
+  listTrash(page = 1, limit = 20) {
+    return this.http.get<PaginatedResponse<MediaAsset>>(`${this.b}/media/trash`, {
+      params: { page, limit },
+    });
+  }
+  /** Restore a trashed asset back to the library. */
+  restoreMedia(id: string) {
+    return this.http.post<{ asset: MediaAsset }>(`${this.b}/media/${id}/restore`, {});
+  }
+  /** Permanently delete a trashed asset (removes DB record + files). */
+  purgeMedia(id: string) {
+    return this.http.delete(`${this.b}/media/${id}/permanent`);
   }
 
   // ── Analytics ─────────────────────────────────────────────────────────────

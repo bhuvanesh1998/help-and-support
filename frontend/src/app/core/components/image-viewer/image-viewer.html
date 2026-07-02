@@ -22,6 +22,22 @@
 
     <div class="iv-bar" (click)="$event.stopPropagation()">
       @if (caption()) { <span class="iv-caption">{{ caption() }}</span> }
+
+      @if (allowAltEdit()) {
+        <div class="iv-alt">
+          <input class="iv-alt-input"
+                 [value]="altDraft()"
+                 (input)="altDraft.set($any($event.target).value)"
+                 (keydown.enter)="saveAlt()"
+                 (keydown.escape)="$event.stopPropagation()"
+                 placeholder="Describe this image (alt text)…"
+                 aria-label="Alt text" />
+          <button class="iv-alt-save" (click)="saveAlt()" [disabled]="altDraft() === altText()">
+            Save
+          </button>
+        </div>
+      }
+
       <span class="iv-hint">Click image to {{ zoomed() ? 'zoom out' : 'zoom in' }} · Esc to close</span>
     </div>
   </div>

@@ -130,11 +130,13 @@ export interface MediaAsset {
   annotations?: ImageAnnotation[] | null;
   /** Untouched base image the annotations are composited over. */
   originalUrl?: string | null;
+  /** Set when the asset is in the trash (soft-deleted). */
+  deletedAt?: string | null;
 }
 
 export interface PaginatedResponse<T> {
   data: T[];
-  meta: { total: number; page: number; limit: number; pages: number };
+  meta: { total: number; page: number; limit: number; pages: number; retentionDays?: number };
 }
 
 export interface AnalyticsSummary {

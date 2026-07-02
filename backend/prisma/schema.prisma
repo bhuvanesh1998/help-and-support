@@ -276,10 +276,16 @@ model MediaAsset {
   originalUrl         String?   // public URL of the untouched base
   editedAt            DateTime? // last annotation save
 
+  // --- Trash (soft delete) ---
+  // When set, the asset is in the trash; a lazy sweep purges rows whose
+  // deletedAt is older than the 30-day retention window on the next list load.
+  deletedAt DateTime? // moved-to-trash timestamp; null = live
+
   uploadedBy User?          @relation("UploadedByUser", fields: [uploadedById], references: [id], onDelete: SetNull)
   steps      TutorialStep[]
 
   @@index([uploadedById])
+  @@index([deletedAt])
   @@map("media_assets")
 }
 

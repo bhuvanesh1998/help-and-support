@@ -8,7 +8,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -22,10 +21,11 @@ import { AdminApiService } from '../../../../core/services/admin-api';
 import { ImageViewer } from '../../../../core/components/image-viewer/image-viewer';
 import type { MediaAsset, PaginatedResponse } from '../../../../core/models/admin';
 
+const PAGE_SIZE = 24;
+
 @Component({
   selector: 'ha-media-manager',
   imports: [
-    FormsModule,
     MatButtonModule, MatIconModule, MatProgressBarModule,
     MatSnackBarModule, MatTooltipModule, MatFormFieldModule,
     MatInputModule, MatPaginatorModule, ImageViewer,
@@ -41,20 +41,29 @@ export class MediaManager implements OnInit {
 
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
 
+  readonly pageSize = PAGE_SIZE;
+
   readonly loading    = signal(true);
   readonly uploading  = signal(false);
   readonly dragOver   = signal(false);
   readonly data       = signal<PaginatedResponse<MediaAsset> | null>(null);
+  readonly trash      = signal<PaginatedResponse<MediaAsset> | null>(null);
   readonly search     = signal('');
-  readonly editingId  = signal<string | null>(null);
-  readonly previewUrl = signal<string | null>(null);
+  readonly showTrash  = signal(false);
 
-  altText  = '';
-  private currentPage = 1;
+  /** Full-screen viewer state. */
+  readonly previewUrl = signal<string | null>(null);
+  readonly viewerUrl  = signal<string | null>(null);
+
+  private livePage  = 1;
+  private trashPage = 1;
+
+  /** The paginated response backing whichever view is active. */
+  readonly active = computed(() => (this.showTrash() ? this.trash() : this.data()));
 
   readonly filtered = computed(() => {
     const q      = this.search().toLowerCase().trim();
-    const assets = this.data()?.data ?? [];
+    const assets = this.active()?.data ?? [];
     if (!q) return assets;
     return assets.filter(
       a =>
@@ -67,19 +76,53 @@ export class MediaManager implements OnInit {
   /** All visible image URLs — lets the viewer page through the gallery. */
   readonly galleryUrls = computed(() => this.filtered().map((a) => a.publicUrl));
 
+  /** The asset currently shown in the viewer (matched by URL for prev/next). */
+  readonly viewerAsset = computed(
+    () => this.filtered().find((a) => a.publicUrl === this.viewerUrl()) ?? null,
+  );
+
+  /** Days a trashed item is kept before automatic permanent deletion. */
+  readonly retentionDays = computed(() => this.trash()?.meta.retentionDays ?? 30);
+
   ngOnInit(): void { this.load(); }
 
+  // ── Loading ─────────────────────────────────────────────────────────────────
   load(page = 1): void {
-    this.currentPage = page;
+    this.livePage = page;
     this.loading.set(true);
-    this.api.listMedia(page, 24).subscribe({
+    this.api.listMedia(page, PAGE_SIZE).subscribe({
       next:  res => { this.data.set(res); this.loading.set(false); },
       error: ()  => this.loading.set(false),
     });
   }
 
-  onPage(e: PageEvent): void { this.load(e.pageIndex + 1); }
+  loadTrash(page = 1): void {
+    this.trashPage = page;
+    this.loading.set(true);
+    this.api.listTrash(page, PAGE_SIZE).subscribe({
+      next:  res => { this.trash.set(res); this.loading.set(false); },
+      error: ()  => this.loading.set(false),
+    });
+  }
 
+  toggleTrash(show: boolean): void {
+    if (this.showTrash() === show) return;
+    this.showTrash.set(show);
+    this.search.set('');
+    if (show) this.loadTrash(1); else this.load(1);
+  }
+
+  onPage(e: PageEvent): void {
+    if (this.showTrash()) this.loadTrash(e.pageIndex + 1);
+    else this.load(e.pageIndex + 1);
+  }
+
+  private reloadActive(): void {
+    if (this.showTrash()) this.loadTrash(this.trashPage);
+    else this.load(this.livePage);
+  }
+
+  // ── Upload ──────────────────────────────────────────────────────────────────
   triggerInput(): void { this.fileInputRef.nativeElement.click(); }
 
   onFileChange(e: Event): void {
@@ -108,7 +151,7 @@ export class MediaManager implements OnInit {
     const uploadNext = (index: number) => {
       if (index >= valid.length) {
         this.uploading.set(false);
-        this.load(this.currentPage);
+        this.load(this.livePage);
         this.snack.open(
           valid.length === 1 ? 'Uploaded successfully' : `${valid.length} files uploaded`,
           undefined, { duration: 2500 },
@@ -126,28 +169,64 @@ export class MediaManager implements OnInit {
     uploadNext(0);
   }
 
-  startEdit(asset: MediaAsset): void {
-    this.editingId.set(asset.id);
-    this.altText = asset.altText ?? '';
+  // ── Viewer + alt text ─────────────────────────────────────────────────────────
+  openViewer(asset: MediaAsset): void {
+    this.viewerUrl.set(asset.publicUrl);
+    this.previewUrl.set(asset.publicUrl);
   }
+  onViewerCurrentChange(url: string): void { this.viewerUrl.set(url); }
+  closePreview(): void { this.previewUrl.set(null); }
 
-  saveAlt(asset: MediaAsset): void {
-    this.api.updateMedia(asset.id, this.altText).subscribe({
+  onAltSaved(altText: string): void {
+    const asset = this.viewerAsset();
+    if (!asset || altText === (asset.altText ?? '')) return;
+    this.api.updateMedia(asset.id, altText).subscribe({
       next: () => {
-        this.editingId.set(null);
+        this.patchAssetAlt(asset.id, altText);
         this.snack.open('Alt text saved', undefined, { duration: 2000 });
-        this.load(this.currentPage);
       },
       error: () => this.snack.open('Update failed', 'OK', { duration: 3000 }),
     });
   }
 
-  cancelEdit(): void { this.editingId.set(null); }
+  /** Optimistically update alt text in place so the viewer stays open. */
+  private patchAssetAlt(id: string, altText: string): void {
+    this.data.update(res =>
+      res ? { ...res, data: res.data.map(a => (a.id === id ? { ...a, altText } : a)) } : res,
+    );
+  }
 
+  // ── Trash actions ─────────────────────────────────────────────────────────────
   delete(asset: MediaAsset): void {
-    if (!confirm(`Delete "${asset.originalName}"? This cannot be undone.`)) return;
+    if (!confirm(`Move "${asset.originalName}" to the trash?`)) return;
     this.api.deleteMedia(asset.id).subscribe({
-      next:  () => { this.snack.open('Deleted', undefined, { duration: 2000 }); this.load(this.currentPage); },
+      next: () => {
+        this.snack.open('Moved to trash', undefined, { duration: 2000 });
+        this.load(this.livePage);
+        this.trash.set(null); // force a fresh trash count next time it's opened
+      },
+      error: () => this.snack.open('Delete failed', 'OK', { duration: 3000 }),
+    });
+  }
+
+  restore(asset: MediaAsset): void {
+    this.api.restoreMedia(asset.id).subscribe({
+      next: () => {
+        this.snack.open('Restored', undefined, { duration: 2000 });
+        this.loadTrash(this.trashPage);
+        this.data.set(null); // library will refetch on return
+      },
+      error: () => this.snack.open('Restore failed', 'OK', { duration: 3000 }),
+    });
+  }
+
+  purge(asset: MediaAsset): void {
+    if (!confirm(`Permanently delete "${asset.originalName}"? This cannot be undone.`)) return;
+    this.api.purgeMedia(asset.id).subscribe({
+      next: () => {
+        this.snack.open('Permanently deleted', undefined, { duration: 2000 });
+        this.loadTrash(this.trashPage);
+      },
       error: () => this.snack.open('Delete failed', 'OK', { duration: 3000 }),
     });
   }
@@ -157,18 +236,24 @@ export class MediaManager implements OnInit {
     this.snack.open('URL copied', undefined, { duration: 1500 });
   }
 
-  openPreview(url: string): void  { this.previewUrl.set(url); }
-  closePreview(): void            { this.previewUrl.set(null); }
-
   /** Open the full-screen annotation editor for an image. */
   editImage(asset: MediaAsset): void {
     void this.router.navigate(['/admin/media', asset.id, 'edit']);
   }
 
+  // ── Formatting ─────────────────────────────────────────────────────────────────
   formatBytes(bytes: number): string {
     if (bytes < 1024)         return `${bytes} B`;
     if (bytes < 1024 * 1024)  return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  /** Days remaining before a trashed asset is auto-purged. */
+  daysLeft(asset: MediaAsset): number {
+    if (!asset.deletedAt) return this.retentionDays();
+    const elapsedMs = Date.now() - new Date(asset.deletedAt).getTime();
+    const left = this.retentionDays() - Math.floor(elapsedMs / 86_400_000);
+    return Math.max(0, left);
   }
 
   extBadge(mime: string): string {

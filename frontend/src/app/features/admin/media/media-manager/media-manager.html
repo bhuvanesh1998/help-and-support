@@ -11,7 +11,7 @@
       <div class="search-box">
         <mat-icon class="search-icon">search</mat-icon>
         <input class="search-input"
-               placeholder="Search by name, type…"
+               [placeholder]="showTrash() ? 'Search trash…' : 'Search by name, type…'"
                [value]="search()"
                (input)="search.set($any($event.target).value)"
                aria-label="Search media" />
@@ -21,21 +21,42 @@
           </button>
         }
       </div>
-    </div>
-    <div class="toolbar-right">
-      @if (data()?.meta) {
-        <span class="stat-chip" aria-label="{{ data()!.meta.total }} files">
+
+      <!-- Library / Trash switch -->
+      <div class="view-switch" role="tablist" aria-label="Media view">
+        <button class="switch-btn" role="tab"
+                [class.switch-btn--active]="!showTrash()"
+                [attr.aria-selected]="!showTrash()"
+                (click)="toggleTrash(false)">
           <mat-icon aria-hidden="true">photo_library</mat-icon>
-          {{ data()!.meta.total }} file{{ data()!.meta.total === 1 ? '' : 's' }}
+          Library
+        </button>
+        <button class="switch-btn" role="tab"
+                [class.switch-btn--active]="showTrash()"
+                [attr.aria-selected]="showTrash()"
+                (click)="toggleTrash(true)">
+          <mat-icon aria-hidden="true">delete</mat-icon>
+          Trash
+        </button>
+      </div>
+    </div>
+
+    <div class="toolbar-right">
+      @if (active()?.meta; as meta) {
+        <span class="stat-chip" aria-label="{{ meta.total }} files">
+          <mat-icon aria-hidden="true">{{ showTrash() ? 'delete' : 'photo_library' }}</mat-icon>
+          {{ meta.total }} {{ showTrash() ? 'in trash' : (meta.total === 1 ? 'file' : 'files') }}
         </span>
       }
-      <button mat-flat-button class="upload-btn"
-              (click)="triggerInput()"
-              [disabled]="uploading()"
-              aria-label="Upload images">
-        <mat-icon aria-hidden="true">cloud_upload</mat-icon>
-        Upload
-      </button>
+      @if (!showTrash()) {
+        <button mat-flat-button class="upload-btn"
+                (click)="triggerInput()"
+                [disabled]="uploading()"
+                aria-label="Upload images">
+          <mat-icon aria-hidden="true">cloud_upload</mat-icon>
+          Upload
+        </button>
+      }
     </div>
   </div>
 
@@ -44,24 +65,32 @@
          style="display:none" (change)="onFileChange($event)"
          aria-label="Choose image files to upload" />
 
-  <!-- Drop zone -->
-  <div class="drop-zone"
-       [class.drop-zone--active]="dragOver()"
-       (dragover)="onDragOver($event)"
-       (dragleave)="onDragLeave()"
-       (drop)="onDrop($event)"
-       (click)="triggerInput()"
-       (keydown.enter)="triggerInput()"
-       (keydown.space)="triggerInput()"
-       role="button"
-       tabindex="0"
-       aria-label="Drop images here or click to browse">
-    <span class="drop-icon-wrap" aria-hidden="true">
-      <mat-icon class="drop-icon">upload_file</mat-icon>
-    </span>
-    <span class="drop-primary">Drag &amp; drop images here</span>
-    <span class="drop-secondary">or click to browse — PNG, JPG, GIF, WEBP</span>
-  </div>
+  @if (showTrash()) {
+    <!-- Trash retention notice -->
+    <div class="trash-notice" role="note">
+      <mat-icon aria-hidden="true">schedule</mat-icon>
+      Items in the trash are permanently deleted after {{ retentionDays() }} days.
+    </div>
+  } @else {
+    <!-- Drop zone -->
+    <div class="drop-zone"
+         [class.drop-zone--active]="dragOver()"
+         (dragover)="onDragOver($event)"
+         (dragleave)="onDragLeave()"
+         (drop)="onDrop($event)"
+         (click)="triggerInput()"
+         (keydown.enter)="triggerInput()"
+         (keydown.space)="triggerInput()"
+         role="button"
+         tabindex="0"
+         aria-label="Drop images here or click to browse">
+      <span class="drop-icon-wrap" aria-hidden="true">
+        <mat-icon class="drop-icon">upload_file</mat-icon>
+      </span>
+      <span class="drop-primary">Drag &amp; drop images here</span>
+      <span class="drop-secondary">or click to browse — PNG, JPG, GIF, WEBP</span>
+    </div>
+  }
 
   <!-- Loading skeletons -->
   @if (loading()) {
@@ -85,6 +114,10 @@
         <mat-icon class="empty-icon" aria-hidden="true">image_search</mat-icon>
         <p class="empty-title">No results for "{{ search() }}"</p>
         <p class="empty-sub">Try a different search term</p>
+      } @else if (showTrash()) {
+        <mat-icon class="empty-icon" aria-hidden="true">delete_outline</mat-icon>
+        <p class="empty-title">Trash is empty</p>
+        <p class="empty-sub">Deleted images will appear here for {{ retentionDays() }} days</p>
       } @else {
         <mat-icon class="empty-icon" aria-hidden="true">photo_library</mat-icon>
         <p class="empty-title">No images yet</p>
@@ -101,84 +134,70 @@
   @else {
     <div class="media-grid">
       @for (asset of filtered(); track asset.id) {
+        <div class="media-card" role="group" [attr.aria-label]="asset.originalName">
+          <div class="card-thumb">
+            <img [src]="asset.publicUrl"
+                 [alt]="asset.altText || asset.originalName"
+                 loading="lazy"
+                 (click)="openViewer(asset)" />
+            <span class="ext-badge" aria-hidden="true">{{ extBadge(asset.mimeType) }}</span>
 
-        <!-- Normal view -->
-        @if (editingId() !== asset.id) {
-          <div class="media-card" role="group" [attr.aria-label]="asset.originalName">
-            <div class="card-thumb">
-              <img [src]="asset.publicUrl"
-                   [alt]="asset.altText || asset.originalName"
-                   loading="lazy"
-                   (click)="openPreview(asset.publicUrl)" />
-              <span class="ext-badge" aria-hidden="true">{{ extBadge(asset.mimeType) }}</span>
+            @if (showTrash()) {
+              <span class="days-badge" aria-label="{{ daysLeft(asset) }} days until permanent deletion">
+                {{ daysLeft(asset) }}d left
+              </span>
               <div class="thumb-overlay" role="toolbar" [attr.aria-label]="'Actions for ' + asset.originalName">
                 <button mat-icon-button class="overlay-btn"
-                        matTooltip="Copy URL"
-                        aria-label="Copy URL"
+                        matTooltip="Restore" aria-label="Restore image"
+                        (click)="restore(asset)">
+                  <mat-icon>restore_from_trash</mat-icon>
+                </button>
+                <button mat-icon-button class="overlay-btn overlay-btn--danger"
+                        matTooltip="Delete forever" aria-label="Delete permanently"
+                        (click)="purge(asset)">
+                  <mat-icon>delete_forever</mat-icon>
+                </button>
+              </div>
+            } @else {
+              <div class="thumb-overlay" role="toolbar" [attr.aria-label]="'Actions for ' + asset.originalName">
+                <button mat-icon-button class="overlay-btn"
+                        matTooltip="View image" aria-label="View image"
+                        (click)="openViewer(asset)">
+                  <mat-icon>visibility</mat-icon>
+                </button>
+                <button mat-icon-button class="overlay-btn"
+                        matTooltip="Copy URL" aria-label="Copy URL"
                         (click)="copyUrl(asset)">
                   <mat-icon>content_copy</mat-icon>
                 </button>
                 <button mat-icon-button class="overlay-btn"
-                        matTooltip="Edit image (annotate)"
-                        aria-label="Edit image"
+                        matTooltip="Edit image (annotate)" aria-label="Edit image"
                         (click)="editImage(asset)">
                   <mat-icon>brush</mat-icon>
                 </button>
-                <button mat-icon-button class="overlay-btn"
-                        matTooltip="Edit alt text"
-                        aria-label="Edit alt text"
-                        (click)="startEdit(asset)">
-                  <mat-icon>edit</mat-icon>
-                </button>
                 <button mat-icon-button class="overlay-btn overlay-btn--danger"
-                        matTooltip="Delete"
-                        aria-label="Delete image"
+                        matTooltip="Move to trash" aria-label="Move to trash"
                         (click)="delete(asset)">
                   <mat-icon>delete_outline</mat-icon>
                 </button>
               </div>
-            </div>
-            <div class="card-meta">
-              <span class="card-name" [title]="asset.originalName">{{ asset.originalName }}</span>
-              <span class="card-size">{{ formatBytes(asset.sizeBytes) }}</span>
-            </div>
+            }
           </div>
-        }
-
-        <!-- Alt text edit mode -->
-        @else {
-          <div class="media-card media-card--editing" role="group" [attr.aria-label]="'Editing alt text for ' + asset.originalName">
-            <div class="card-thumb">
-              <img [src]="asset.publicUrl"
-                   [alt]="asset.altText || asset.originalName"
-                   loading="lazy" />
-            </div>
-            <div class="alt-edit">
-              <label class="alt-label" [for]="'alt-' + asset.id">Alt text</label>
-              <input class="alt-input"
-                     [id]="'alt-' + asset.id"
-                     [(ngModel)]="altText"
-                     placeholder="Describe the image…"
-                     (keydown.enter)="saveAlt(asset)"
-                     (keydown.escape)="cancelEdit()" />
-              <div class="alt-actions">
-                <button mat-stroked-button class="alt-cancel" (click)="cancelEdit()">Cancel</button>
-                <button mat-flat-button class="alt-save" (click)="saveAlt(asset)">Save</button>
-              </div>
-            </div>
+          <div class="card-meta">
+            <span class="card-name" [title]="asset.originalName">{{ asset.originalName }}</span>
+            <span class="card-size">{{ formatBytes(asset.sizeBytes) }}</span>
           </div>
-        }
-
+        </div>
       }
     </div>
 
     <!-- Paginator -->
-    @if ((data()?.meta?.pages ?? 1) > 1) {
+    @if ((active()?.meta?.pages ?? 1) > 1) {
       <mat-paginator
         class="paginator"
-        [length]="data()!.meta.total"
-        [pageSize]="24"
-        [pageIndex]="data()!.meta.page - 1"
+        [length]="active()!.meta.total"
+        [pageSize]="pageSize"
+        [pageIndex]="active()!.meta.page - 1"
         [hidePageSize]="true"
         (page)="onPage($event)"
         aria-label="Media page navigation">
@@ -186,8 +205,13 @@
     }
   }
 
-  <!-- Full-screen image viewer (zoom + gallery navigation) -->
-  <ha-image-viewer [src]="previewUrl()" [items]="galleryUrls()" alt="Image preview"
+  <!-- Full-screen image viewer (zoom + gallery navigation + alt editing) -->
+  <ha-image-viewer [src]="previewUrl()" [items]="galleryUrls()"
+                   [alt]="viewerAsset()?.altText || 'Image preview'"
+                   [allowAltEdit]="!showTrash()"
+                   [altText]="viewerAsset()?.altText || ''"
+                   (currentChange)="onViewerCurrentChange($event)"
+                   (altSaved)="onAltSaved($event)"
                    (closed)="closePreview()" />
 
 </div>
