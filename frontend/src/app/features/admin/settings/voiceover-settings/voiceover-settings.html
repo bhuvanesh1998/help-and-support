@@ -7,13 +7,39 @@
         around it. Saved here and applied to the next job — no redeploy.
       </p>
     </div>
-    @if (isCustomised()) {
-      <span class="vos-pill vos-pill--on">
-        <mat-icon aria-hidden="true">tune</mat-icon> Customised
-      </span>
-    } @else {
-      <span class="vos-pill vos-pill--off">Server defaults</span>
-    }
+    <!-- Actions live in the header: the form is long, and a bottom bar meant
+         scrolling past every field to save. -->
+    <div class="vos-top__actions">
+      @if (isCustomised()) {
+        <span class="vos-pill vos-pill--on">
+          <mat-icon aria-hidden="true">tune</mat-icon> Customised
+        </span>
+      } @else {
+        <span class="vos-pill vos-pill--off">Server defaults</span>
+      }
+
+      @if (saved()) {
+        <span class="vos-saved">
+          <mat-icon aria-hidden="true">check</mat-icon> Saved
+        </span>
+      }
+
+      @if (settings()) {
+        <button
+          mat-stroked-button
+          [disabled]="saving() || !isCustomised()"
+          matTooltip="Discard saved values and fall back to the server environment defaults"
+          (click)="resetToDefaults()"
+        >
+          <mat-icon aria-hidden="true">restart_alt</mat-icon>
+          Reset to defaults
+        </button>
+        <button mat-flat-button color="primary" [disabled]="saving()" (click)="save()">
+          <mat-icon aria-hidden="true">save</mat-icon>
+          {{ saving() ? 'Saving…' : 'Save settings' }}
+        </button>
+      }
+    </div>
   </header>
 
   @if (error()) {
@@ -316,28 +342,5 @@
         <strong>{{ wordsPerTenSeconds() }}</strong> words.
       </p>
     </section>
-  }
-
-  @if (settings()) {
-    <div class="vos-actions">
-      <button mat-flat-button color="primary" [disabled]="saving()" (click)="save()">
-        <mat-icon aria-hidden="true">save</mat-icon>
-        {{ saving() ? 'Saving…' : 'Save settings' }}
-      </button>
-      <button
-        mat-stroked-button
-        [disabled]="saving() || !isCustomised()"
-        matTooltip="Discard saved values and fall back to the server environment defaults"
-        (click)="resetToDefaults()"
-      >
-        <mat-icon aria-hidden="true">restart_alt</mat-icon>
-        Reset to defaults
-      </button>
-      @if (saved()) {
-        <span class="vos-saved">
-          <mat-icon aria-hidden="true">check</mat-icon> Saved — applies to the next job
-        </span>
-      }
-    </div>
   }
 </div>

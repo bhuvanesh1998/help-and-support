@@ -110,6 +110,36 @@
       }
     </section>
 
+    <!-- ── Script ────────────────────────────────────────────────────────── -->
+    @if (s.segments.length) {
+      <section class="sd-card">
+        <div class="sd-card__head">
+          <h3>Timed script</h3>
+          <p>Edit any line to write your own version; its audio is re-recorded from the edit.</p>
+        </div>
+
+        @if (editError()) {
+          <p class="sd-alert sd-alert--error" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ editError() }}</span>
+          </p>
+        }
+
+        <ha-script-table
+          [segments]="s.segments"
+          [audio]="audioByIndex()"
+          [editable]="true"
+          [renderingIndex]="renderingIndex()"
+          (saveLine)="saveLine($event)"
+          (renderLine)="renderOne($event)"
+        />
+      </section>
+    } @else {
+      <section class="sd-card sd-empty">
+        <p><strong>This script has no segments.</strong></p>
+        <p class="sd-sub">The run did not produce usable narration — see the error above.</p>
+      </section>
+    }
+
     <!-- ── Voiceover audio ───────────────────────────────────────────────── -->
     @if (s.segments.length) {
       <section class="sd-card">
@@ -242,36 +272,6 @@
             <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ ttsError() }}</span>
           </p>
         }
-      </section>
-    }
-
-    <!-- ── Script ────────────────────────────────────────────────────────── -->
-    @if (s.segments.length) {
-      <section class="sd-card">
-        <div class="sd-card__head">
-          <h3>Timed script</h3>
-          <p>Edit any line to write your own version; its audio is re-recorded from the edit.</p>
-        </div>
-
-        @if (editError()) {
-          <p class="sd-alert sd-alert--error" role="alert">
-            <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ editError() }}</span>
-          </p>
-        }
-
-        <ha-script-table
-          [segments]="s.segments"
-          [audio]="audioByIndex()"
-          [editable]="true"
-          [renderingIndex]="renderingIndex()"
-          (saveLine)="saveLine($event)"
-          (renderLine)="renderOne($event)"
-        />
-      </section>
-    } @else {
-      <section class="sd-card sd-empty">
-        <p><strong>This script has no segments.</strong></p>
-        <p class="sd-sub">The run did not produce usable narration — see the error above.</p>
       </section>
     }
   }

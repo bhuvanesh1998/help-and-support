@@ -224,21 +224,16 @@
   }
 }
 
-// ── Action bar ──────────────────────────────────────────────────────────────
+// ── Header actions ──────────────────────────────────────────────────────────
 
-.vos-actions {
+// Save sits with the title rather than below the form: the page is long, and a
+// bottom bar meant scrolling past every field to reach it.
+.vos-top__actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  position: sticky;
-  bottom: 0;
-  // Opaque, with a divider — the earlier gradient let content show through and
-  // read as overlapping text.
-  background: var(--mat-sys-surface);
-  border-top: 1px solid var(--mat-sys-outline-variant);
-  padding: 14px 0;
-  z-index: 2;
+  justify-content: flex-end;
 }
 
 .vos-saved {
