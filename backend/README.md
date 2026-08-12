@@ -61,10 +61,15 @@ and `ffprobe-static` packages, so local and container behaviour match.
 | `voiceover_frames` | Sampled stills, with on-disk paths so a re-tone needs no re-upload |
 | `voiceover_audio` | Rendered clips; `kind` is `segment` or the stitched `timeline` |
 
-Migrations live in `prisma/migrations/`, but note this database has no
-`_prisma_migrations` history — existing tables were applied outside Prisma, so
-`migrate deploy` refuses to baseline. Apply new DDL directly (see the migration
-SQL files) or baseline the database first.
+Migrations live in `prisma/migrations/` and the database has been baselined, so
+`npm run prisma:deploy` works normally. Earlier tables were created outside
+Prisma, which made `migrate deploy` fail with `P3005`; each migration was
+verified as genuinely applied and then recorded with
+`prisma migrate resolve --applied <name>`.
+
+A fresh environment pointed at an existing, already-populated database needs the
+same treatment — verify the objects exist, then resolve each migration rather
+than letting Prisma replay them.
 
 ### Generated media is publicly served
 
