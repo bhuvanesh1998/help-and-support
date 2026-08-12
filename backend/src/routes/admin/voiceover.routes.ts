@@ -575,11 +575,20 @@ voiceoverRouter.get('/scripts/:id/audio', requireBearer, async (req: Request, re
 voiceoverRouter.post(
   '/scripts/:id/audio/:index',
   requireBearer,
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
+    // `/audio/timeline` is a sibling route registered later, and this pattern
+    // would otherwise swallow it as a segment index. Anything non-numeric falls
+    // through rather than being reported as a missing segment.
+    const raw = p(req, 'index');
+    if (!/^\d+$/.test(raw)) {
+      next();
+      return;
+    }
+
     const script = await getScript(p(req, 'id'));
     if (!script) throw AppError.notFound('Script not found');
 
-    const index = Number.parseInt(p(req, 'index'), 10);
+    const index = Number.parseInt(raw, 10);
     const segment = script.segments.find((s) => s.index === index);
     if (!segment) throw AppError.notFound('Segment not found');
     if (!segment.script.trim()) throw AppError.badRequest('That segment has no narration text');

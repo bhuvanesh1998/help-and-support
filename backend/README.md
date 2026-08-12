@@ -45,10 +45,32 @@ saved row always wins over the environment.
 
 Provider API keys are **not** environment variables: connect them under
 **VO Settings**, where each is validated against the provider and then encrypted
-at rest (`ai_credentials`). The Anthropic row is shared with the AI Pipeline.
+at rest (`ai_credentials`). The Anthropic row is shared with the AI Pipeline, and
+the ElevenLabs key for narration audio lives in the same store.
 
 `ffmpeg`/`ffprobe` need no system install — they ship with the `ffmpeg-static`
 and `ffprobe-static` packages, so local and container behaviour match.
+
+### Data model
+
+| Table | Holds |
+| --- | --- |
+| `voiceover_settings` | The single settings row (falls back to env when absent) |
+| `voiceover_scripts` | One row per run; `sourceScriptId` links tone variants |
+| `voiceover_segments` | The timed lines; `editedAt` marks hand-edits |
+| `voiceover_frames` | Sampled stills, with on-disk paths so a re-tone needs no re-upload |
+| `voiceover_audio` | Rendered clips; `kind` is `segment` or the stitched `timeline` |
+
+Migrations live in `prisma/migrations/`, but note this database has no
+`_prisma_migrations` history — existing tables were applied outside Prisma, so
+`migrate deploy` refuses to baseline. Apply new DDL directly (see the migration
+SQL files) or baseline the database first.
+
+### Generated media is publicly served
+
+Frame stills and narration MP3s are written to `UPLOAD_DIR` and served from
+`/uploads`, which has no auth — the same path the help-manual images use. Fine
+for local and internal use; restrict it before exposing this to the internet.
 
 ## Scripts
 

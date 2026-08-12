@@ -121,13 +121,6 @@ export class ScriptDetail implements OnInit, OnDestroy {
     return map;
   });
 
-  readonly audioCount = computed(() => this.audio().length);
-
-  readonly allAudioRendered = computed(() => {
-    const total = this.script()?.segments.length ?? 0;
-    return total > 0 && this.audioCount() >= total;
-  });
-
   /** Voice used by the existing clips, so the panel reports what was rendered. */
   readonly renderedVoice = computed(() => this.audio()[0]?.voiceName ?? '');
 

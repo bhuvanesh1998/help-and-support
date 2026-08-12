@@ -59,6 +59,32 @@
         }
       </mat-menu>
 
+      <!-- Only worth offering once more than one provider has been used. -->
+      @if (filters().providers.length > 1) {
+        <button
+          type="button"
+          class="cat-filter"
+          [matMenuTriggerFor]="providerMenu"
+          aria-label="Filter by provider"
+        >
+          <mat-icon class="cat-filter-icon" aria-hidden="true">smart_toy</mat-icon>
+          <span class="cat-filter-text">{{ provider || 'Any provider' }}</span>
+          <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #providerMenu="matMenu">
+          <button mat-menu-item (click)="provider = ''; load(true)">
+            <mat-icon>{{ provider ? 'remove' : 'check' }}</mat-icon>
+            <span>Any provider</span>
+          </button>
+          @for (p of filters().providers; track p) {
+            <button mat-menu-item (click)="provider = p; load(true)">
+              <mat-icon>{{ provider === p ? 'check' : 'memory' }}</mat-icon>
+              <span>{{ p }}</span>
+            </button>
+          }
+        </mat-menu>
+      }
+
       @if (anyFilterActive()) {
         <button type="button" class="cat-filter" (click)="clearFilters()">
           <mat-icon class="cat-filter-icon" aria-hidden="true">filter_alt_off</mat-icon>
