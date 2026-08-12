@@ -152,6 +152,10 @@ export class ScriptDetail implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.closeStream();
+    // Sample audio is held as a blob URL; without this it leaks for the tab's
+    // lifetime every time a voice is auditioned.
+    const url = this.sampleUrl();
+    if (url) URL.revokeObjectURL(url);
   }
 
   private load(id: string): void {
