@@ -13,9 +13,31 @@
 import { prisma } from '../../lib/prisma.js';
 import { seal, open } from '../../lib/crypto.js';
 import { getProvider, PROVIDER_META, PROVIDERS, type ProviderId } from './providers/index.js';
+import { TTS_PROVIDER, validateKey as validateTtsKey } from './tts.service.js';
+
+/**
+ * Credentials this feature stores. The vision providers write the script; the
+ * text-to-speech provider renders it. They share one table because they share
+ * one lifecycle: connect once, encrypted at rest, never read back.
+ */
+export type CredentialId = ProviderId | typeof TTS_PROVIDER;
+
+const ALL_CREDENTIALS: CredentialId[] = [...PROVIDERS, TTS_PROVIDER];
+
+export function isCredentialId(value: unknown): value is CredentialId {
+  return typeof value === 'string' && (ALL_CREDENTIALS as string[]).includes(value);
+}
+
+/** Metadata for credentials that are not vision providers. */
+const TTS_META = {
+  label: 'ElevenLabs (text to speech)',
+  defaultModel: 'eleven_multilingual_v2',
+  suggestedModels: ['eleven_multilingual_v2'],
+  keyHint: 'ElevenLabs API key',
+};
 
 export interface KeyStatus {
-  provider: ProviderId;
+  provider: CredentialId;
   label: string;
   connected: boolean;
   keyLast4: string | null;
@@ -25,16 +47,16 @@ export interface KeyStatus {
   defaultModel: string;
 }
 
-/** Connection status for every provider, for the settings UI. */
+/** Connection status for every credential, for the settings UI. */
 export async function listKeyStatus(): Promise<KeyStatus[]> {
   const rows = await prisma.aiCredential.findMany({
-    where: { provider: { in: [...PROVIDERS] } },
+    where: { provider: { in: ALL_CREDENTIALS } },
   });
   const byProvider = new Map(rows.map((r) => [r.provider, r]));
 
-  return PROVIDERS.map((provider) => {
+  return ALL_CREDENTIALS.map((provider) => {
     const row = byProvider.get(provider);
-    const meta = PROVIDER_META[provider];
+    const meta = provider === TTS_PROVIDER ? TTS_META : PROVIDER_META[provider as ProviderId];
     return {
       provider,
       label: meta.label,
@@ -48,8 +70,8 @@ export async function listKeyStatus(): Promise<KeyStatus[]> {
   });
 }
 
-/** Decrypted key for one provider, or null when not connected. */
-export async function getKey(provider: ProviderId): Promise<string | null> {
+/** Decrypted key for one credential, or null when not connected. */
+export async function getKey(provider: CredentialId): Promise<string | null> {
   const row = await prisma.aiCredential.findUnique({ where: { provider } });
   if (!row) return null;
   try {
@@ -62,11 +84,14 @@ export async function getKey(provider: ProviderId): Promise<string | null> {
 
 /** Validate against the provider, then persist encrypted. */
 export async function saveKey(
-  provider: ProviderId,
+  provider: CredentialId,
   key: string,
   userId: string,
 ): Promise<{ ok: boolean; error?: string; status?: KeyStatus[] }> {
-  const check = await getProvider(provider).validateKey(key);
+  const check =
+    provider === TTS_PROVIDER
+      ? await validateTtsKey(key)
+      : await getProvider(provider).validateKey(key);
   if (!check.ok) return { ok: false, error: check.error };
 
   const sealed = seal(key);
@@ -84,13 +109,18 @@ export async function saveKey(
     // `model` is owned by the AI Pipeline for the anthropic row; the voiceover
     // feature keeps its own model in its settings, so it is only set on create.
     update: data,
-    create: { provider, ...data, model: PROVIDER_META[provider].defaultModel },
+    create: {
+      provider,
+      ...data,
+      model:
+        provider === TTS_PROVIDER ? TTS_META.defaultModel : PROVIDER_META[provider].defaultModel,
+    },
   });
 
   return { ok: true, status: await listKeyStatus() };
 }
 
-export async function deleteKey(provider: ProviderId): Promise<KeyStatus[]> {
+export async function deleteKey(provider: CredentialId): Promise<KeyStatus[]> {
   await prisma.aiCredential.deleteMany({ where: { provider } });
   return listKeyStatus();
 }

@@ -15,6 +15,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminApiService } from '../../../../core/services/admin-api';
 import type {
+  VoCredentialId,
   VoEffort,
   VoKeyStatus,
   VoProviderId,
@@ -74,7 +75,7 @@ export class VoiceoverSettingsPage implements OnInit {
 
   /** Per-provider key entry state, keyed by provider id. */
   readonly keyInput: Record<string, string> = {};
-  readonly connecting = signal<VoProviderId | null>(null);
+  readonly connecting = signal<VoCredentialId | null>(null);
   readonly keyError = signal('');
   /** Set when connecting a key also moved the provider selection. */
   readonly autoSwitched = signal(false);
@@ -197,7 +198,7 @@ export class VoiceoverSettingsPage implements OnInit {
     return this.keys().find((k) => k.provider === id) ?? null;
   });
 
-  hasKey(provider: VoProviderId): boolean {
+  hasKey(provider: VoCredentialId): boolean {
     return this.keys().some((k) => k.provider === provider && k.connected);
   }
 
@@ -346,7 +347,7 @@ export class VoiceoverSettingsPage implements OnInit {
   }
 
   // ── Provider keys ─────────────────────────────────────────────────────────
-  connectKey(provider: VoProviderId): void {
+  connectKey(provider: VoCredentialId): void {
     const key = (this.keyInput[provider] ?? '').trim();
     if (!key) return;
 
@@ -364,8 +365,11 @@ export class VoiceoverSettingsPage implements OnInit {
         // silently would leave the studio reporting a missing key for a provider
         // the operator never meant to use.
         const selected = this.settings()?.provider;
-        if (selected && selected !== provider && !this.hasKey(selected)) {
-          this.setProvider(provider);
+        const isVisionProvider = this.providers().some((meta) => meta.id === provider);
+        // ElevenLabs is not a vision provider, so connecting it must never
+        // change which model reads the frames.
+        if (isVisionProvider && selected && selected !== provider && !this.hasKey(selected)) {
+          this.setProvider(provider as VoProviderId);
           this.autoSwitched.set(true);
         } else if (selected === provider) {
           this.loadModels();
@@ -378,7 +382,7 @@ export class VoiceoverSettingsPage implements OnInit {
     });
   }
 
-  disconnectKey(provider: VoProviderId): void {
+  disconnectKey(provider: VoCredentialId): void {
     this.connecting.set(provider);
     this.keyError.set('');
     this.api.disconnectVoiceoverKey(provider).subscribe({

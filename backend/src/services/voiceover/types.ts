@@ -64,6 +64,8 @@ export interface VoSegment {
   wordCount: number;
   /** Still shown at the start of this segment, for the review table. */
   imageUrl: string | null;
+  /** Set when a human rewrote this line. */
+  editedAt?: string | null;
 }
 
 /** Events streamed to the client over SSE. */
@@ -73,7 +75,14 @@ export type VoEvent =
   | { type: 'meta'; meta: VideoMeta }
   | { type: 'frames'; count: number; sceneChanges: number }
   | { type: 'segment'; segment: VoSegment }
-  | { type: 'done'; totalSegments: number; totalWords: number; spokenSec: number }
+  | {
+      type: 'done';
+      /** Durable record id — the client switches to it once the run ends. */
+      scriptId: string | null;
+      totalSegments: number;
+      totalWords: number;
+      spokenSec: number;
+    }
   | { type: 'error'; message: string };
 
 export interface VoLogEntry {

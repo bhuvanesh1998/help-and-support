@@ -305,6 +305,29 @@ export type VoEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** Vision providers that can read the frames and write the script. */
 export type VoProviderId = 'anthropic' | 'openai' | 'gemini';
 
+/** Credentials the feature stores: vision providers plus text-to-speech. */
+export type VoCredentialId = VoProviderId | 'elevenlabs';
+
+/** A voice on the connected ElevenLabs account. */
+export interface TtsVoice {
+  voiceId: string;
+  name: string;
+  category: string | null;
+  previewUrl: string | null;
+}
+
+/** One rendered narration clip. `kind` is 'segment' or the stitched 'timeline'. */
+export interface VoAudioClip {
+  kind: string;
+  segmentIndex: number;
+  voiceId: string;
+  voiceName: string;
+  modelId: string;
+  publicUrl: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
 export interface VoProviderMeta {
   id: VoProviderId;
   label: string;
@@ -315,7 +338,7 @@ export interface VoProviderMeta {
 
 /** Per-provider key connection status. Never carries the key itself. */
 export interface VoKeyStatus {
-  provider: VoProviderId;
+  provider: VoCredentialId;
   label: string;
   connected: boolean;
   keyLast4: string | null;
@@ -376,11 +399,56 @@ export interface VoSegment {
   wordBudget: number;
   wordCount: number;
   imageUrl: string | null;
+  /** Set when a human rewrote this line. */
+  editedAt?: string | null;
+}
+
+/** Row in the script library. */
+export interface VoScriptSummary {
+  id: string;
+  videoName: string;
+  appName: string;
+  tone: VoTone;
+  provider: string;
+  model: string;
+  status: string;
+  durationSec: number;
+  segmentCount: number;
+  totalWords: number;
+  /** Set when this is another tone of an earlier run's frames. */
+  sourceScriptId: string | null;
+  /** How many other tones exist for the same frames. */
+  variantCount: number;
+  /** True when the stills are still stored, so a re-tone is possible. */
+  canRegenerate: boolean;
+  createdAt: string;
+}
+
+/** Distinct values present in storage, so filters only offer real options. */
+export interface VoScriptFilters {
+  tones: string[];
+  providers: string[];
+  statuses: string[];
+}
+
+/** A saved script with its segments — the durable form of a run's output. */
+export interface VoScriptDetail extends VoScriptSummary {
+  audience: string;
+  tone: VoTone;
+  width: number;
+  height: number;
+  fps: number;
+  wordsPerMinute: number;
+  frameCount: number;
+  error: string | null;
+  segments: VoSegment[];
 }
 
 export interface VoJobSnapshot {
   id: string;
   phase: VoJobPhase;
+  /** Durable record for this run — survives job expiry and restarts. */
+  scriptId: string | null;
   config: {
     appName: string;
     audience: string;
@@ -406,5 +474,11 @@ export type VoiceoverEvent =
   | { type: 'meta'; meta: VideoMeta }
   | { type: 'frames'; count: number; sceneChanges: number }
   | { type: 'segment'; segment: VoSegment }
-  | { type: 'done'; totalSegments: number; totalWords: number; spokenSec: number }
+  | {
+      type: 'done';
+      scriptId: string | null;
+      totalSegments: number;
+      totalWords: number;
+      spokenSec: number;
+    }
   | { type: 'error'; message: string };

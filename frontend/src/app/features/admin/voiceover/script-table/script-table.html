@@ -1,0 +1,131 @@
+<div class="st">
+  @if (overBudgetCount() > 0) {
+    <p class="st-alert">
+      <mat-icon aria-hidden="true">warning_amber</mat-icon>
+      <span>
+        {{ overBudgetCount() }} segment(s) run over their word budget. Trim them, or
+        the narration drifts out of sync with the visuals.
+      </span>
+    </p>
+  }
+
+  <div class="st-bar">
+    <p class="st-note">
+      Timecodes are for your editing timeline. Don't paste this table into a
+      text-to-speech engine — it reads the numbers aloud. Copy the lines instead.
+    </p>
+    <button mat-stroked-button (click)="copyAll()">
+      <mat-icon aria-hidden="true">{{ copiedIndex() === -1 ? 'check' : 'content_copy' }}</mat-icon>
+      Copy all lines
+    </button>
+  </div>
+
+  <div class="st-wrap">
+    <table class="st-table">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">In–Out</th>
+          <th scope="col">Frame</th>
+          <th scope="col">On screen</th>
+          <th scope="col">Voiceover</th>
+          <th scope="col">Words</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (segment of segments(); track segment.index) {
+          <tr [class.st-table__over]="overBudget(segment)">
+            <td>{{ segment.index }}</td>
+            <td class="st-table__time">
+              {{ timecode(segment.startSec) }}–{{ timecode(segment.endSec) }}
+              <small>{{ duration(segment) }}</small>
+            </td>
+            <td>
+              @if (segment.imageUrl) {
+                <img
+                  class="st-thumb"
+                  [src]="segment.imageUrl"
+                  [alt]="'Frame at ' + timecode(segment.startSec)"
+                  loading="lazy"
+                />
+              }
+            </td>
+            <td class="st-table__onscreen">{{ segment.onScreen }}</td>
+            <td class="st-table__script">
+              @if (editingIndex() === segment.index) {
+                <textarea
+                  class="st-edit"
+                  rows="3"
+                  [(ngModel)]="draft"
+                  [attr.aria-label]="'Edit voiceover for segment ' + segment.index"
+                ></textarea>
+                <div class="st-edit__bar">
+                  <span
+                    class="st-edit__count"
+                    [class.st-edit__count--over]="draftWords() > segment.wordBudget"
+                  >
+                    {{ draftWords() }}/{{ segment.wordBudget }} words
+                  </span>
+                  <button mat-flat-button color="primary" (click)="commitEdit()">Save</button>
+                  <button mat-stroked-button (click)="cancelEdit()">Cancel</button>
+                </div>
+              } @else {
+                <span>{{ segment.script }}</span>
+                @if (segment.editedAt) {
+                  <span class="st-edited" matTooltip="Hand-edited">edited</span>
+                }
+              }
+            </td>
+            <td class="st-table__words">
+              {{ segment.wordCount }}/{{ segment.wordBudget }}
+              @if (overBudget(segment)) {
+                <mat-icon
+                  class="st-table__flag"
+                  matTooltip="Over budget — this line will overrun its span"
+                  >warning_amber</mat-icon
+                >
+              }
+            </td>
+            <td class="st-table__actions">
+              <button
+                mat-icon-button
+                [attr.aria-label]="'Copy voiceover for segment ' + segment.index"
+                matTooltip="Copy this line"
+                (click)="copyScript(segment)"
+              >
+                <mat-icon>{{ copiedIndex() === segment.index ? 'check' : 'content_copy' }}</mat-icon>
+              </button>
+
+              @if (editable() && editingIndex() !== segment.index) {
+                <button
+                  mat-icon-button
+                  [attr.aria-label]="'Edit voiceover for segment ' + segment.index"
+                  matTooltip="Edit this line"
+                  (click)="startEdit(segment)"
+                >
+                  <mat-icon>edit</mat-icon>
+                </button>
+              }
+
+              @if (clipFor(segment.index); as clip) {
+                <audio class="st-audio" controls preload="none" [src]="clip.publicUrl"></audio>
+                <button
+                  mat-icon-button
+                  matTooltip="Re-record this line"
+                  [disabled]="renderingIndex() !== null"
+                  [attr.aria-label]="'Re-record audio for segment ' + segment.index"
+                  (click)="renderLine.emit(segment.index)"
+                >
+                  <mat-icon>refresh</mat-icon>
+                </button>
+              } @else if (renderingIndex() === segment.index) {
+                <span class="st-rendering">rendering…</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

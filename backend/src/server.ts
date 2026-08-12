@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
+import { reconcileInterruptedScripts } from './services/voiceover/script-store.service.js';
 
 const app = createApp();
 
@@ -12,6 +13,10 @@ const server: Server = app.listen(env.port, () => {
     env: env.nodeEnv,
     baseUrl: env.publicBaseUrl,
   });
+
+  // Voiceover jobs live in memory, so a restart abandons any in flight while
+  // their stored rows still read "running". Settle those on boot.
+  void reconcileInterruptedScripts();
 });
 
 /** Drain connections and close the DB pool before exiting. */

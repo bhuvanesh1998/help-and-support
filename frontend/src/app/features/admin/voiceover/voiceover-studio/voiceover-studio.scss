@@ -347,3 +347,98 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+// ── Saved scripts ───────────────────────────────────────────────────────────
+
+.vo-saved {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    border-radius: 10px;
+    padding: 6px 8px 6px 4px;
+    background: var(--mat-sys-surface);
+
+    // The script currently shown in the table below.
+    &--open {
+      border-color: var(--mat-sys-primary);
+      background: color-mix(in srgb, var(--mat-sys-primary) 5%, var(--mat-sys-surface));
+    }
+  }
+
+  // The row itself is the open action, so the whole strip is clickable.
+  &__main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: none;
+    border: 0;
+    padding: 8px 10px;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+
+    &:hover { background: var(--mat-sys-surface-container-high); }
+
+    &:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 1px;
+    }
+  }
+
+  &__name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--mat-sys-on-surface);
+    overflow-wrap: anywhere;
+  }
+
+  &__facts {
+    font-size: 0.78rem;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__status {
+    flex: none;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface-variant);
+
+    &--bad {
+      background: color-mix(in srgb, var(--mat-sys-error) 12%, transparent);
+      color: var(--mat-sys-error);
+    }
+  }
+}
+
+.vo-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: none;
+
+  &:hover { color: var(--mat-sys-primary); }
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+}

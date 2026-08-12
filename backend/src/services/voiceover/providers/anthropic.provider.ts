@@ -8,6 +8,7 @@
 import {
   SEGMENT_SCHEMA,
   parseSegments,
+  providerError,
   type ProviderError,
   type ProviderRequest,
   type ProviderResult,
@@ -58,7 +59,7 @@ async function call(req: ProviderRequest, useFallback: boolean): Promise<Provide
 
   if (!resp.ok) {
     const text = await resp.text();
-    const error: ProviderError = new Error(`Anthropic ${resp.status}: ${text.slice(0, 300)}`);
+    const error: ProviderError = providerError('Anthropic', resp.status, text);
     // Lets the caller retry without the fallback opt-in if this org lacks the beta.
     error.fallbackRejected = useFallback && resp.status === 400 && /fallback|beta/i.test(text);
     throw error;

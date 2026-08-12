@@ -9,6 +9,7 @@
 import {
   GEMINI_SEGMENT_SCHEMA,
   parseSegments,
+  providerError,
   type ProviderRequest,
   type ProviderResult,
   type VisionProvider,
@@ -48,7 +49,7 @@ export const geminiProvider: VisionProvider = {
     );
 
     if (!resp.ok) {
-      throw new Error(`Gemini ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+      throw providerError('Gemini', resp.status, await resp.text());
     }
 
     const data = (await resp.json()) as {

@@ -346,3 +346,110 @@ model VoiceoverSetting {
 
   @@map("voiceover_settings")
 }
+
+/// A generated voiceover script, kept so the output survives navigation,
+/// job expiry and restarts. One row per run; segments are children.
+model VoiceoverScript {
+  id           String   @id @default(uuid()) @db.Uuid
+  videoName    String
+  appName      String
+  audience     String
+  tone         String
+  provider     String
+  model        String
+  /// Source video facts, for the review header.
+  durationSec  Float    @default(0)
+  width        Int      @default(0)
+  height       Int      @default(0)
+  fps          Float    @default(0)
+  sizeBytes    Int      @default(0)
+  /// Speaking pace this run used — word budgets are meaningless without it.
+  wordsPerMinute Int    @default(150)
+  frameCount   Int      @default(0)
+  totalWords   Int      @default(0)
+  /// running | done | error | cancelled
+  status       String   @default("running")
+  error        String?
+  /// Set when this run re-used another script's frames with a different tone,
+  /// so every tone of one video groups together as variants.
+  sourceScriptId String? @db.Uuid
+  createdById  String?  @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  segments VoiceoverSegment[]
+  frames   VoiceoverFrame[]
+  audio    VoiceoverAudio[]
+  source   VoiceoverScript?  @relation("ScriptVariants", fields: [sourceScriptId], references: [id], onDelete: SetNull)
+  variants VoiceoverScript[] @relation("ScriptVariants")
+
+  @@index([createdAt])
+  @@index([sourceScriptId])
+  @@map("voiceover_scripts")
+}
+
+/// The sampled stills for a run, kept so a different tone can be generated
+/// without re-uploading the video (the upload is deleted after extraction).
+model VoiceoverFrame {
+  id            String   @id @default(uuid()) @db.Uuid
+  scriptId      String   @db.Uuid
+  at            Float
+  isSceneChange Boolean  @default(false)
+  imageUrl      String?
+  /// On-disk path, needed to re-read the bytes when regenerating.
+  storagePath   String
+  createdAt     DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@index([scriptId])
+  @@map("voiceover_frames")
+}
+
+/// One narration segment, locked to a span of the source video.
+model VoiceoverSegment {
+  id         String   @id @default(uuid()) @db.Uuid
+  scriptId   String   @db.Uuid
+  index      Int
+  startSec   Float
+  endSec     Float
+  onScreen   String
+  script     String
+  wordBudget Int
+  wordCount  Int
+  imageUrl   String?
+  /// Set when a human rewrote this line, so edits are visible as such.
+  editedAt   DateTime?
+  createdAt  DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, index])
+  @@index([scriptId])
+  @@map("voiceover_segments")
+}
+
+/// Rendered narration audio, one row per script segment. Keyed by segment index
+/// so re-rendering a single line replaces just that clip.
+model VoiceoverAudio {
+  id           String   @id @default(uuid()) @db.Uuid
+  scriptId     String   @db.Uuid
+  /// 'segment' for one line; 'timeline' for the full-length stitched track,
+  /// which is stored at segmentIndex -1.
+  kind         String   @default("segment")
+  segmentIndex Int
+  voiceId      String
+  voiceName    String
+  modelId      String
+  filename     String
+  storagePath  String
+  publicUrl    String
+  sizeBytes    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, segmentIndex])
+  @@index([scriptId])
+  @@map("voiceover_audio")
+}

@@ -163,4 +163,29 @@ export function parseSegments(text: string): RawSegment[] {
 /** Shared error shape so the caller can retry without the fallback opt-in. */
 export interface ProviderError extends Error {
   fallbackRejected?: boolean;
+  /** HTTP status from the provider, when the failure was a response. */
+  status?: number;
+}
+
+/**
+ * Statuses worth retrying: rate limits, overload and transient server faults.
+ * Free-tier accounts hit 429/503 routinely, and without a retry a single spike
+ * throws away a whole job's worth of extracted frames.
+ */
+const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
+
+export function isRetryable(err: unknown): boolean {
+  const status = (err as ProviderError)?.status;
+  if (typeof status === 'number') return RETRYABLE_STATUS.has(status);
+  // Network-level failures (socket reset, DNS blip) carry no status.
+  return /fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network/i.test(
+    (err as Error)?.message ?? '',
+  );
+}
+
+/** Build an error that carries the provider's HTTP status for retry decisions. */
+export function providerError(label: string, status: number, body: string): ProviderError {
+  const error: ProviderError = new Error(`${label} ${status}: ${body.slice(0, 300)}`);
+  error.status = status;
+  return error;
 }

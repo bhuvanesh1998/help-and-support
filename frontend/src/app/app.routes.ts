@@ -85,8 +85,22 @@ export const routes: Routes = [
       {
         path: 'voiceover',
         loadComponent: () =>
+          import('./features/admin/voiceover/voiceover-library/voiceover-library').then(
+            (m) => m.VoiceoverLibrary,
+          ),
+      },
+      {
+        path: 'voiceover/new',
+        loadComponent: () =>
           import('./features/admin/voiceover/voiceover-studio/voiceover-studio').then(
             (m) => m.VoiceoverStudio,
+          ),
+      },
+      {
+        path: 'voiceover/:id',
+        loadComponent: () =>
+          import('./features/admin/voiceover/script-detail/script-detail').then(
+            (m) => m.ScriptDetail,
           ),
       },
       {

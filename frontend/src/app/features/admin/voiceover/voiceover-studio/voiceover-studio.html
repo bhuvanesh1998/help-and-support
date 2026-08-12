@@ -1,8 +1,12 @@
 <div class="vo">
+  <a class="vo-back" routerLink="/admin/voiceover">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon> All scripts
+  </a>
+
   <!-- ── Setup ───────────────────────────────────────────────────────────── -->
   <section class="vo-card">
     <header class="vo-card__head">
-      <h2>Voiceover Studio</h2>
+      <h2>Generate voiceover</h2>
       <p>
         Upload a walkthrough recording. The configured model reads the frames and
         writes a narration script locked to min:sec, with a word budget per
@@ -144,96 +148,19 @@
   <!-- ── Result ──────────────────────────────────────────────────────────── -->
   @if (hasResult()) {
     <section class="vo-card">
-      <header class="vo-card__head vo-card__head--row">
-        <div>
-          <h3>Timed script</h3>
-          <p>
-            {{ segments().length }} segments · {{ totalWords() }} words · about
-            {{ timecode(spokenSec()) }} spoken
-            @if (meta(); as m) { against {{ timecode(m.durationSec) }} of video }
-          </p>
-        </div>
-        <div class="vo-actions">
-          <button mat-stroked-button (click)="download()">
-            <mat-icon aria-hidden="true">download</mat-icon>
-            Download ZIP
-          </button>
-        </div>
+      <header class="vo-card__head">
+        <h3>Timed script</h3>
+        <p>
+          {{ segments().length }} segments · {{ totalWords() }} words · about
+          {{ timecode(spokenSec()) }} spoken
+          @if (meta(); as m) { against {{ timecode(m.durationSec) }} of video }
+        </p>
+        @if (phase() === 'done') {
+          <p class="vo-meta-line">Saved — opening the stored script…</p>
+        }
       </header>
 
-      @if (overBudgetCount() > 0) {
-        <p class="vo-alert vo-alert--warn">
-          <mat-icon aria-hidden="true">warning_amber</mat-icon>
-          {{ overBudgetCount() }} segment(s) run over their word budget. Trim them, or
-          the narration will drift out of sync with the visuals.
-        </p>
-      }
-
-      <p class="vo-note">
-        The table below is your editing reference. Do not paste it into a
-        text-to-speech engine — it will read the timecodes aloud. Copy the
-        individual lines, or use the clean per-segment files in the ZIP.
-      </p>
-
-      <div class="vo-table-wrap">
-        <table class="vo-table">
-          <thead>
-            <tr>
-              <th scope="col">#</th>
-              <th scope="col">In–Out</th>
-              <th scope="col">Frame</th>
-              <th scope="col">On screen</th>
-              <th scope="col">Voiceover</th>
-              <th scope="col">Words</th>
-              <th scope="col"><span class="vo-sr">Copy</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (segment of segments(); track segment.index) {
-              <tr [class.vo-table__over]="overBudget(segment)">
-                <td>{{ segment.index }}</td>
-                <td class="vo-table__time">
-                  {{ timecode(segment.startSec) }}–{{ timecode(segment.endSec) }}
-                  <small>{{ duration(segment) }}</small>
-                </td>
-                <td>
-                  @if (segment.imageUrl) {
-                    <img
-                      class="vo-thumb"
-                      [src]="segment.imageUrl"
-                      [alt]="'Frame at ' + timecode(segment.startSec)"
-                      loading="lazy"
-                    />
-                  }
-                </td>
-                <td class="vo-table__onscreen">{{ segment.onScreen }}</td>
-                <td class="vo-table__script">{{ segment.script }}</td>
-                <td class="vo-table__words">
-                  {{ segment.wordCount }}/{{ segment.wordBudget }}
-                  @if (overBudget(segment)) {
-                    <mat-icon
-                      class="vo-table__flag"
-                      matTooltip="Over budget — this line will overrun its span"
-                      >warning_amber</mat-icon
-                    >
-                  }
-                </td>
-                <td>
-                  <button
-                    mat-icon-button
-                    [attr.aria-label]="'Copy voiceover for segment ' + segment.index"
-                    matTooltip="Copy this line"
-                    (click)="copyScript(segment)"
-                  >
-                    <mat-icon>{{ copiedIndex() === segment.index ? 'check' : 'content_copy' }}</mat-icon>
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+      <ha-script-table [segments]="segments()" />
     </section>
-
   }
 </div>

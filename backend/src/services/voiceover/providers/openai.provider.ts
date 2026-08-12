@@ -9,6 +9,7 @@
 import {
   SEGMENT_SCHEMA,
   parseSegments,
+  providerError,
   type ProviderRequest,
   type ProviderResult,
   type VisionProvider,
@@ -49,7 +50,7 @@ export const openaiProvider: VisionProvider = {
     });
 
     if (!resp.ok) {
-      throw new Error(`OpenAI ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+      throw providerError('OpenAI', resp.status, await resp.text());
     }
 
     const data = (await resp.json()) as {

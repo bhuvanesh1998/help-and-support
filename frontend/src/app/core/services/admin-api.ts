@@ -20,10 +20,17 @@ import type {
   MediaAsset,
   PaginatedResponse,
   VoiceoverConfig,
+  TtsVoice,
+  VoAudioClip,
+  VoCredentialId,
   VoKeyStatus,
   VoProviderId,
   VoiceoverSettings,
   VoJobSnapshot,
+  VoScriptDetail,
+  VoScriptFilters,
+  VoScriptSummary,
+  VoSegment,
   VoTone,
 } from '../models/admin';
 
@@ -230,17 +237,97 @@ export class AdminApiService {
   voiceoverStreamUrl(jobId: string, token: string): string {
     return `${this.b}/voiceover/jobs/${jobId}/stream?token=${encodeURIComponent(token)}`;
   }
+  /**
+   * The script library — searched and filtered server-side so results stay
+   * correct as the collection grows.
+   */
+  listVoiceoverScripts(query: {
+    search?: string;
+    status?: string;
+    tone?: string;
+    provider?: string;
+  } = {}) {
+    const params: Record<string, string> = {};
+    if (query.search) params['search'] = query.search;
+    if (query.status) params['status'] = query.status;
+    if (query.tone) params['tone'] = query.tone;
+    if (query.provider) params['provider'] = query.provider;
+    return this.http.get<{ scripts: VoScriptSummary[]; filters: VoScriptFilters }>(
+      `${this.b}/voiceover/scripts`,
+      { params },
+    );
+  }
+  // ── Narration audio (ElevenLabs) ──────────────────────────────────────────
+  /** Voices and TTS models on the connected account. */
+  listTtsVoices() {
+    return this.http.get<{ voices: TtsVoice[]; models: string[]; defaultModel: string }>(
+      `${this.b}/voiceover/tts/voices`,
+    );
+  }
+  listScriptAudio(scriptId: string) {
+    return this.http.get<{ audio: VoAudioClip[] }>(`${this.b}/voiceover/scripts/${scriptId}/audio`);
+  }
+  /** Render one segment. One call per line, so a bad take is a single re-render. */
+  renderSegmentAudio(
+    scriptId: string,
+    index: number,
+    body: { voiceId: string; voiceName: string; modelId?: string },
+  ) {
+    return this.http.post<{ clip: VoAudioClip }>(
+      `${this.b}/voiceover/scripts/${scriptId}/audio/${index}`,
+      body,
+    );
+  }
+  deleteScriptAudio(scriptId: string) {
+    return this.http.delete<{ deleted: number }>(
+      `${this.b}/voiceover/scripts/${scriptId}/audio`,
+    );
+  }
+  /** Short listening test, not stored server-side. Returns raw audio. */
+  sampleVoice(body: { voiceId: string; modelId?: string; text?: string }) {
+    return this.http.post(`${this.b}/voiceover/tts/sample`, body, { responseType: 'blob' });
+  }
+  /** Stitch the rendered lines into one track matching the video length. */
+  buildAudioTimeline(scriptId: string) {
+    return this.http.post<{ clip: VoAudioClip; lines: number }>(
+      `${this.b}/voiceover/scripts/${scriptId}/audio/timeline`,
+      {},
+    );
+  }
+  /** Save a hand-edited narration line. */
+  updateSegmentText(scriptId: string, index: number, script: string) {
+    return this.http.patch<{ segment: VoSegment }>(
+      `${this.b}/voiceover/scripts/${scriptId}/segments/${index}`,
+      { script },
+    );
+  }
+  voiceoverAudioExportUrl(scriptId: string, token: string): string {
+    return `${this.b}/voiceover/scripts/${scriptId}/audio/export?token=${encodeURIComponent(token)}`;
+  }
+
+  /** Re-run a script's stored frames in another tone. Returns a job to watch. */
+  regenerateVoiceoverScript(id: string, tone: VoTone) {
+    return this.http.post<{ jobId: string }>(`${this.b}/voiceover/scripts/${id}/regenerate`, {
+      tone,
+    });
+  }
+  getVoiceoverScript(id: string) {
+    return this.http.get<{ script: VoScriptDetail }>(`${this.b}/voiceover/scripts/${id}`);
+  }
+  deleteVoiceoverScript(id: string) {
+    return this.http.delete<{ deleted: boolean }>(`${this.b}/voiceover/scripts/${id}`);
+  }
   /** Download URL — plain navigation, so the token travels in the query. */
-  voiceoverExportUrl(jobId: string, token: string): string {
-    return `${this.b}/voiceover/jobs/${jobId}/export?token=${encodeURIComponent(token)}`;
+  voiceoverExportUrl(scriptId: string, token: string): string {
+    return `${this.b}/voiceover/scripts/${scriptId}/export?token=${encodeURIComponent(token)}`;
   }
   /** Provider API keys. Validated server-side; the key is never read back. */
-  connectVoiceoverKey(provider: VoProviderId, apiKey: string) {
+  connectVoiceoverKey(provider: VoCredentialId, apiKey: string) {
     return this.http.put<{ keys: VoKeyStatus[] }>(`${this.b}/voiceover/keys/${provider}`, {
       apiKey,
     });
   }
-  disconnectVoiceoverKey(provider: VoProviderId) {
+  disconnectVoiceoverKey(provider: VoCredentialId) {
     return this.http.delete<{ keys: VoKeyStatus[] }>(`${this.b}/voiceover/keys/${provider}`);
   }
   /** Models the connected account can actually use, asked of the provider. */

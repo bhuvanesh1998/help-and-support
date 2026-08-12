@@ -1,0 +1,192 @@
+<div class="lib">
+  <!-- ── Toolbar (matches the Pages screen) ──────────────────────────────── -->
+  <div class="list-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <mat-icon class="search-icon">search</mat-icon>
+        <input
+          class="search-input"
+          placeholder="Search scripts…"
+          [(ngModel)]="search"
+          (input)="onSearchInput()"
+          aria-label="Search scripts"
+        />
+        @if (search) {
+          <button
+            mat-icon-button
+            class="search-clear"
+            aria-label="Clear search"
+            (click)="search = ''; load(true)"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+
+      <button type="button" class="cat-filter" [matMenuTriggerFor]="toneMenu" aria-label="Filter by tone">
+        <mat-icon class="cat-filter-icon" aria-hidden="true">filter_list</mat-icon>
+        <span class="cat-filter-text">{{ tone || 'All tones' }}</span>
+        <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #toneMenu="matMenu">
+        <button mat-menu-item (click)="tone = ''; load(true)">
+          <mat-icon>{{ tone ? 'remove' : 'check' }}</mat-icon>
+          <span>All tones</span>
+        </button>
+        @for (t of filters().tones; track t) {
+          <button mat-menu-item (click)="tone = t; load(true)">
+            <mat-icon>{{ tone === t ? 'check' : 'label_outline' }}</mat-icon>
+            <span>{{ t }}</span>
+          </button>
+        }
+      </mat-menu>
+
+      <button type="button" class="cat-filter" [matMenuTriggerFor]="statusMenu" aria-label="Filter by status">
+        <mat-icon class="cat-filter-icon" aria-hidden="true">flag</mat-icon>
+        <span class="cat-filter-text">{{ status || 'Any status' }}</span>
+        <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #statusMenu="matMenu">
+        <button mat-menu-item (click)="status = ''; load(true)">
+          <mat-icon>{{ status ? 'remove' : 'check' }}</mat-icon>
+          <span>Any status</span>
+        </button>
+        @for (s of filters().statuses; track s) {
+          <button mat-menu-item (click)="status = s; load(true)">
+            <mat-icon>{{ status === s ? 'check' : 'circle' }}</mat-icon>
+            <span>{{ s }}</span>
+          </button>
+        }
+      </mat-menu>
+
+      @if (anyFilterActive()) {
+        <button type="button" class="cat-filter" (click)="clearFilters()">
+          <mat-icon class="cat-filter-icon" aria-hidden="true">filter_alt_off</mat-icon>
+          <span class="cat-filter-text">Clear</span>
+        </button>
+      }
+    </div>
+
+    <div class="toolbar-right">
+      <div class="stat-chip">
+        <mat-icon>graphic_eq</mat-icon>
+        <span>{{ scripts().length }} scripts</span>
+      </div>
+      <a mat-flat-button color="primary" routerLink="/admin/voiceover/new">
+        <mat-icon aria-hidden="true">add</mat-icon>
+        Generate voiceover
+      </a>
+    </div>
+  </div>
+
+  @if (error()) {
+    <p class="lib-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error() }}</span>
+    </p>
+  }
+
+  <!-- ── Cards ───────────────────────────────────────────────────────────── -->
+  @if (loading()) {
+    <p class="lib-sub">Loading…</p>
+  } @else if (!scripts().length) {
+    <section class="lib-card lib-empty">
+      <mat-icon aria-hidden="true">graphic_eq</mat-icon>
+      @if (anyFilterActive()) {
+        <p><strong>Nothing matches those filters.</strong></p>
+        <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
+      } @else {
+        <p><strong>No scripts yet.</strong></p>
+        <p class="lib-sub">
+          Upload a walkthrough recording and the configured model will write a
+          narration script locked to min:sec.
+        </p>
+        <a mat-flat-button color="primary" routerLink="/admin/voiceover/new">
+          <mat-icon aria-hidden="true">add</mat-icon>
+          Generate voiceover
+        </a>
+      }
+    </section>
+  } @else {
+    @for (group of groups(); track group.videoName) {
+      <section class="lib-group">
+        <button
+          type="button"
+          class="lib-group__head"
+          [attr.aria-expanded]="!isCollapsed(group.videoName)"
+          (click)="toggleGroup(group.videoName)"
+        >
+          <mat-icon aria-hidden="true">
+            {{ isCollapsed(group.videoName) ? 'chevron_right' : 'expand_more' }}
+          </mat-icon>
+          <span class="lib-group__name">{{ group.videoName }}</span>
+          <span class="lib-group__count">{{ group.scripts.length }}</span>
+        </button>
+
+        @if (!isCollapsed(group.videoName)) {
+          <div class="lib-grid">
+            @for (s of group.scripts; track s.id) {
+        <a class="lib-item" [routerLink]="['/admin/voiceover', s.id]">
+          <header class="lib-item__head">
+            <span class="lib-item__tone">{{ s.tone }}</span>
+            @switch (s.status) {
+              @case ('done') {
+                <span class="lib-pill lib-pill--ok">
+                  <mat-icon aria-hidden="true">check_circle</mat-icon> Ready
+                </span>
+              }
+              @case ('running') {
+                <span class="lib-pill lib-pill--live">
+                  <mat-icon aria-hidden="true">autorenew</mat-icon> Generating
+                </span>
+              }
+              @default {
+                <span class="lib-pill lib-pill--bad">{{ s.status }}</span>
+              }
+            }
+          </header>
+
+          <h3 class="lib-item__name">{{ s.appName }}</h3>
+          <p class="lib-item__app">{{ s.tone }} narration · {{ s.provider }}</p>
+
+          <dl class="lib-item__stats">
+            <div><dt>Length</dt><dd>{{ timecode(s.durationSec) }}</dd></div>
+            <div><dt>Segments</dt><dd>{{ s.segmentCount }}</dd></div>
+            <div><dt>Words</dt><dd>{{ s.totalWords }}</dd></div>
+          </dl>
+
+          <footer class="lib-item__foot">
+            <span class="lib-item__meta">
+              {{ when(s.createdAt) }} · {{ s.model }}
+              @if (s.variantCount > 0) {
+                · {{ s.variantCount + 1 }} tones
+              } @else if (s.sourceScriptId) {
+                · variant
+              }
+            </span>
+            <span class="lib-item__actions">
+              @if (s.canRegenerate) {
+                <mat-icon
+                  class="lib-item__hint"
+                  matTooltip="Open to re-tone or generate audio"
+                  aria-hidden="true"
+                  >autorenew</mat-icon
+                >
+              }
+              <button
+                mat-icon-button
+                [attr.aria-label]="'Delete ' + s.tone + ' script for ' + s.videoName"
+                matTooltip="Delete"
+                (click)="deleteScript(s, $event)"
+              >
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </span>
+          </footer>
+            </a>
+            }
+          </div>
+        }
+      </section>
+    }
+  }
+</div>

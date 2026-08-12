@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -18,6 +18,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminApiService } from '../../../../core/services/admin-api';
 import { AuthStore } from '../../../../core/services/auth-store';
+import { ScriptTable } from '../script-table/script-table';
 import type {
   VideoMeta,
   VoiceoverConfig,
@@ -27,6 +28,9 @@ import type {
   VoTone,
 } from '../../../../core/models/admin';
 
+/** Key under which the active job id is parked so a reload can reattach. */
+const ACTIVE_JOB_KEY = 'ha.voiceover.activeJob';
+
 interface ToneOption {
   value: VoTone;
   label: string;
@@ -34,18 +38,18 @@ interface ToneOption {
 }
 
 /**
- * Voiceover Studio — upload a walkthrough video, get a min:sec-locked
- * narration script plus TTS-ready segment text.
+ * Generate a voiceover — upload a walkthrough video and watch the run.
  *
- * The timed table is the editing reference; the per-segment text is what goes
- * to text-to-speech. They are deliberately separate: a TTS engine reads
- * timecodes aloud as numbers, so the two must never be pasted as one blob.
+ * Output is stored as it is produced, so the finished script lives in the
+ * library rather than in this page's state; on completion the user is taken to
+ * the saved script.
  */
 @Component({
   selector: 'ha-voiceover-studio',
   imports: [
     FormsModule,
     RouterLink,
+    ScriptTable,
     MatButtonModule,
     MatIconModule,
     MatFormFieldModule,
@@ -61,6 +65,7 @@ interface ToneOption {
 export class VoiceoverStudio implements OnInit, OnDestroy {
   private readonly api = inject(AdminApiService);
   private readonly auth = inject(AuthStore);
+  private readonly router = inject(Router);
 
   // ── Form state ────────────────────────────────────────────────────────────
   appName = '';
@@ -86,10 +91,10 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
   readonly error = signal('');
   readonly startError = signal('');
 
-  readonly copiedIndex = signal<number | null>(null);
+  /** Durable record for this run — the library and export both key off it. */
+  readonly scriptId = signal('');
 
   private source: EventSource | null = null;
-  private copyTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ── Derived ───────────────────────────────────────────────────────────────
   readonly running = computed(() => {
@@ -144,11 +149,11 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
       next: (c) => this.config.set(c),
       error: () => this.startError.set('Could not load Voiceover Studio settings.'),
     });
+    this.reattachActiveJob();
   }
 
   ngOnDestroy(): void {
     this.closeStream();
-    if (this.copyTimer) clearTimeout(this.copyTimer);
   }
 
   // ── Upload ────────────────────────────────────────────────────────────────
@@ -201,6 +206,7 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
       .subscribe({
         next: (res) => {
           this.jobId.set(res.jobId);
+          localStorage.setItem(ACTIVE_JOB_KEY, res.jobId);
           this.openStream(res.jobId);
         },
         error: (err) => {
@@ -223,6 +229,7 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
 
   private resetResult(): void {
     this.closeStream();
+    this.scriptId.set('');
     this.segments.set([]);
     this.logs.set([]);
     this.meta.set(null);
@@ -274,6 +281,12 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
         break;
       case 'done':
         this.phase.set('done');
+        localStorage.removeItem(ACTIVE_JOB_KEY);
+        // Hand off to the stored script: it owns export, tones and permanence.
+        if (event.scriptId) {
+          this.scriptId.set(event.scriptId);
+          void this.router.navigate(['/admin/voiceover', event.scriptId]);
+        }
         this.phaseMessage.set(
           `${event.totalSegments} segments, ${event.totalWords} words — about ${Math.round(event.spokenSec)}s spoken`,
         );
@@ -281,6 +294,7 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
       case 'error':
         this.phase.set('error');
         this.error.set(event.message);
+        localStorage.removeItem(ACTIVE_JOB_KEY);
         break;
     }
   }
@@ -312,28 +326,36 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
   }
 
-  duration(segment: VoSegment): string {
-    return `${(segment.endSec - segment.startSec).toFixed(1)}s`;
-  }
+  /**
+   * Re-subscribe to a job that was still running when the page was left, so
+   * navigating away mid-run no longer abandons it silently.
+   */
+  private reattachActiveJob(): void {
+    const parked = localStorage.getItem(ACTIVE_JOB_KEY);
+    if (!parked) return;
 
-  overBudget(segment: VoSegment): boolean {
-    return segment.wordCount > segment.wordBudget;
-  }
-
-  async copyScript(segment: VoSegment): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(segment.script);
-      this.copiedIndex.set(segment.index);
-      if (this.copyTimer) clearTimeout(this.copyTimer);
-      this.copyTimer = setTimeout(() => this.copiedIndex.set(null), 1600);
-    } catch {
-      /* clipboard blocked — the text is selectable in the table */
-    }
-  }
-
-  download(): void {
-    const id = this.jobId();
-    if (!id) return;
-    window.open(this.api.voiceoverExportUrl(id, this.auth.accessToken() ?? ''), '_blank');
+    this.api.getVoiceoverJob(parked).subscribe({
+      next: (snap) => {
+        const live =
+          snap.phase === 'pending' ||
+          snap.phase === 'probing' ||
+          snap.phase === 'extracting' ||
+          snap.phase === 'scripting';
+        if (!live) {
+          localStorage.removeItem(ACTIVE_JOB_KEY);
+          // Finished while away — the saved script is the durable view of it.
+          if (snap.scriptId) void this.router.navigate(['/admin/voiceover', snap.scriptId]);
+          return;
+        }
+        this.jobId.set(snap.id);
+        if (snap.scriptId) this.scriptId.set(snap.scriptId);
+        this.phase.set(snap.phase);
+        this.meta.set(snap.meta);
+        this.segments.set(snap.segments);
+        this.openStream(snap.id);
+      },
+      // Job expired or the server restarted — nothing to reattach to.
+      error: () => localStorage.removeItem(ACTIVE_JOB_KEY),
+    });
   }
 }

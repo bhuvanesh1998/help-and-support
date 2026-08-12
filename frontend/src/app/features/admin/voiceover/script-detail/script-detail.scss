@@ -1,0 +1,268 @@
+.sd {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sd-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: none;
+
+  &:hover { color: var(--mat-sys-primary); }
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+}
+
+.sd-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+}
+
+.sd-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.sd-sub {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.sd-card {
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &__head {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    h3 {
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: var(--mat-sys-on-surface);
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.84rem;
+      line-height: 1.5;
+      color: var(--mat-sys-on-surface-variant);
+      max-width: 620px;
+    }
+  }
+}
+
+.sd-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 14px 20px;
+
+  li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  span {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  strong {
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--mat-sys-on-surface);
+  }
+}
+
+// ── Tones ───────────────────────────────────────────────────────────────────
+
+.sd-tones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sd-tone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 20px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  text-decoration: none;
+  color: var(--mat-sys-on-surface-variant);
+
+  &:hover {
+    border-color: var(--mat-sys-primary);
+    color: var(--mat-sys-primary);
+  }
+
+  small {
+    font-weight: 400;
+    text-transform: none;
+    opacity: 0.75;
+  }
+
+  // The tone being viewed, so the set reads as a switcher.
+  &--current {
+    border-color: var(--mat-sys-primary);
+    background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+    color: var(--mat-sys-primary);
+    cursor: default;
+  }
+
+  mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+  }
+}
+
+.sd-regen {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  mat-form-field {
+    flex: 1 1 320px;
+    min-width: 240px;
+  }
+}
+
+.sd-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+
+  mat-icon {
+    flex: none;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  &--error {
+    background: color-mix(in srgb, var(--mat-sys-error) 12%, transparent);
+    color: var(--mat-sys-error);
+  }
+
+  &--info {
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.sd-empty {
+  align-items: center;
+  text-align: center;
+  padding: 32px 20px;
+
+  p { margin: 0; }
+}
+
+// ── Voiceover audio ─────────────────────────────────────────────────────────
+
+.sd-card__head--row {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+// The finished track gets its own emphasis: it is the deliverable.
+.sd-track {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--mat-sys-primary);
+  background: color-mix(in srgb, var(--mat-sys-primary) 6%, var(--mat-sys-surface));
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 220px;
+    min-width: 0;
+
+    strong { font-size: 0.92rem; color: var(--mat-sys-on-surface); }
+    span { font-size: 0.78rem; color: var(--mat-sys-on-surface-variant); }
+  }
+
+  &__player {
+    flex: 2 1 320px;
+    min-width: 240px;
+    height: 36px;
+  }
+}
+
+.sd-voice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  mat-form-field { flex: 1 1 240px; min-width: 200px; }
+  button { margin-top: 6px; }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+}
+
+.sd-sample {
+  width: 100%;
+  max-width: 420px;
+  height: 36px;
+}

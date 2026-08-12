@@ -15,8 +15,8 @@
  * The API key is passed in per call and never persisted here.
  */
 
-import { getProvider } from './providers/index.js';
-import type { ProviderResult, RawSegment } from './providers/index.js';
+import { getProvider, isRetryable } from './providers/index.js';
+import type { ProviderRequest, ProviderResult, RawSegment, VisionProvider } from './providers/index.js';
 import type { VoiceoverSettings } from './settings.service.js';
 import type { Frame, VoSegment, VoTone } from './types.js';
 import { countWords, timecode, wordBudgetFor } from './types.js';
@@ -78,6 +78,57 @@ Cover ONLY the span ${from.toFixed(1)}s to ${to.toFixed(1)}s. Break that span in
 - Write continuous narration: each line should follow naturally from the previous one rather than restarting the topic.`;
 }
 
+/** Attempts per batch, and the waits between them. */
+const RETRY_DELAYS_MS = [3_000, 9_000, 20_000];
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        reject(new Error('Job cancelled'));
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
+ * Call the provider, retrying transient failures with a growing wait.
+ *
+ * Rate limits and overload (429/503) are routine on free-tier accounts, and a
+ * single spike would otherwise discard a whole job's extracted frames. Genuine
+ * failures — a bad key, an unknown model, a malformed request — are not
+ * retryable and surface immediately.
+ */
+async function generateWithRetry(
+  provider: VisionProvider,
+  request: ProviderRequest,
+  onLog: (level: 'info' | 'warn' | 'error', message: string) => void,
+): Promise<ProviderResult> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await provider.generate(request);
+    } catch (err) {
+      lastError = err;
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (!isRetryable(err) || delay === undefined || request.signal.aborted) throw err;
+
+      onLog(
+        'warn',
+        `${(err as Error).message.split('\n')[0]} — retrying in ${Math.round(delay / 1000)}s (attempt ${attempt + 2} of ${RETRY_DELAYS_MS.length + 1}).`,
+      );
+      await sleep(delay, request.signal);
+    }
+  }
+
+  throw lastError;
+}
+
 /** Clamp, order and gap-fill the model's segments so they tile [from, to] exactly. */
 function normaliseBatch(raw: RawSegment[], from: number, to: number): RawSegment[] {
   const usable = raw
@@ -132,17 +183,21 @@ export async function runScripter(ctx: ScriptContext): Promise<VoSegment[]> {
 
     let result: ProviderResult;
     try {
-      result = await provider.generate({
-        apiKey: ctx.apiKey,
-        model: ctx.model,
-        maxTokens: ctx.settings.maxTokens,
-        effort: ctx.settings.effort,
-        frames: batch
-          .filter((f) => f.base64)
-          .map((f) => ({ at: f.at, base64: f.base64! })),
-        prompt: buildPrompt(ctx, batch, from, to),
-        signal: ctx.signal,
-      });
+      result = await generateWithRetry(
+        provider,
+        {
+          apiKey: ctx.apiKey,
+          model: ctx.model,
+          maxTokens: ctx.settings.maxTokens,
+          effort: ctx.settings.effort,
+          frames: batch
+            .filter((f) => f.base64)
+            .map((f) => ({ at: f.at, base64: f.base64! })),
+          prompt: buildPrompt(ctx, batch, from, to),
+          signal: ctx.signal,
+        },
+        ctx.onLog,
+      );
     } catch (err) {
       lastFailure = (err as Error).message;
       ctx.onLog('error', `${timecode(from)}–${timecode(to)}: ${lastFailure}`);
