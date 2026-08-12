@@ -286,3 +286,125 @@ export type AiPipelineEvent =
   | { type: 'draft'; tutorial: AiDraftTutorial }
   | { type: 'done'; totalScreens: number; totalTutorials: number }
   | { type: 'error'; message: string };
+
+// ── Voiceover Studio ─────────────────────────────────────────────────────────
+
+export type VoJobPhase =
+  | 'pending'
+  | 'probing'
+  | 'extracting'
+  | 'scripting'
+  | 'done'
+  | 'error'
+  | 'cancelled';
+
+export type VoTone = 'instructional' | 'marketing' | 'onboarding';
+
+export type VoEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+/** Vision providers that can read the frames and write the script. */
+export type VoProviderId = 'anthropic' | 'openai' | 'gemini';
+
+export interface VoProviderMeta {
+  id: VoProviderId;
+  label: string;
+  defaultModel: string;
+  suggestedModels: string[];
+  keyHint: string;
+}
+
+/** Per-provider key connection status. Never carries the key itself. */
+export interface VoKeyStatus {
+  provider: VoProviderId;
+  label: string;
+  connected: boolean;
+  keyLast4: string | null;
+  validatedAt: string | null;
+  keyHint: string;
+  suggestedModels: string[];
+  defaultModel: string;
+}
+
+/** Admin-editable tunables, persisted server-side. */
+export interface VoiceoverSettings {
+  maxVideoUploadMb: number;
+  provider: VoProviderId;
+  model: string;
+  effort: VoEffort;
+  maxTokens: number;
+  maxFrames: number;
+  framesPerBatch: number;
+  frameWidth: number;
+  frameQuality: number;
+  sceneThreshold: number;
+  minFrameGapSec: number;
+  minSegmentSec: number;
+  maxSegmentSec: number;
+  wordsPerMinute: number;
+  jobRetentionMinutes: number;
+}
+
+/** Allowed range per numeric field, enforced server-side and mirrored in inputs. */
+export type VoiceoverBounds = Record<string, { min: number; max: number }>;
+
+/** Effective settings plus capabilities, so the UI never hardcodes limits. */
+export interface VoiceoverConfig {
+  settings: VoiceoverSettings;
+  bounds: VoiceoverBounds;
+  providers: VoProviderMeta[];
+  keys: VoKeyStatus[];
+  efforts: VoEffort[];
+  tones: VoTone[];
+  /** The environment baseline, offered as "reset to defaults". */
+  envDefaults: VoiceoverSettings;
+}
+
+export interface VideoMeta {
+  durationSec: number;
+  fps: number;
+  width: number;
+  height: number;
+  sizeBytes: number;
+}
+
+export interface VoSegment {
+  index: number;
+  startSec: number;
+  endSec: number;
+  onScreen: string;
+  script: string;
+  wordBudget: number;
+  wordCount: number;
+  imageUrl: string | null;
+}
+
+export interface VoJobSnapshot {
+  id: string;
+  phase: VoJobPhase;
+  config: {
+    appName: string;
+    audience: string;
+    tone: VoTone;
+    model: string;
+    provider: string;
+    videoName: string;
+  };
+  /** What this run actually used, for traceability after settings change. */
+  settings: VoiceoverSettings;
+  meta: VideoMeta | null;
+  frames: Array<{ at: number; isSceneChange: boolean; imageUrl: string | null }>;
+  segments: VoSegment[];
+  logs: Array<{ level: 'info' | 'warn' | 'error'; message: string; at: string }>;
+  error: string | null;
+  createdAt: string;
+}
+
+/** Events streamed over SSE from the voiceover job. */
+export type VoiceoverEvent =
+  | { type: 'phase'; phase: VoJobPhase; message: string }
+  | { type: 'log'; level: 'info' | 'warn' | 'error'; message: string }
+  | { type: 'meta'; meta: VideoMeta }
+  | { type: 'frames'; count: number; sceneChanges: number }
+  | { type: 'segment'; segment: VoSegment }
+  | { type: 'done'; totalSegments: number; totalWords: number; spokenSec: number }
+  | { type: 'error'; message: string };

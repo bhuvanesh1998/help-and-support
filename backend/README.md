@@ -18,6 +18,38 @@ npm run db:seed               # create the first SUPER_ADMIN
 npm run dev                   # watch mode
 ```
 
+## Voiceover Studio configuration
+
+`.env.example` is git-ignored, so the Voiceover Studio variables are documented
+here. **All of them are only initial defaults** — every value is editable at
+runtime under **Admin → VO Settings** and persisted in `voiceover_settings`, so a
+saved row always wins over the environment.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MAX_VIDEO_UPLOAD_MB` | `500` | Video upload ceiling (images use `MAX_UPLOAD_MB`) |
+| `VOICEOVER_PROVIDER` | `anthropic` | Vision provider: `anthropic` \| `openai` \| `gemini` |
+| `VOICEOVER_MODEL` | `claude-opus-5` | Model id — must belong to the chosen provider |
+| `VOICEOVER_EFFORT` | `medium` | Reasoning depth (Anthropic only) |
+| `VOICEOVER_MAX_TOKENS` | `12000` | Output ceiling per script request |
+| `VOICEOVER_MAX_FRAMES` | `48` | Frames sampled per video — the dominant cost control |
+| `VOICEOVER_FRAMES_PER_BATCH` | `12` | Frames per model request |
+| `VOICEOVER_FRAME_WIDTH` | `960` | Frame downscale width in px |
+| `VOICEOVER_FRAME_QUALITY` | `4` | ffmpeg `-q:v` (1 best … 31 worst) |
+| `VOICEOVER_SCENE_THRESHOLD` | `0.3` | Scene-change sensitivity, 0–1 (lower catches more) |
+| `VOICEOVER_MIN_FRAME_GAP_SEC` | `1.5` | Minimum spacing between sampled frames |
+| `VOICEOVER_MIN_SEGMENT_SEC` | `4` | Shortest narration segment |
+| `VOICEOVER_MAX_SEGMENT_SEC` | `14` | Longest narration segment |
+| `VOICEOVER_WORDS_PER_MINUTE` | `150` | Speaking pace — sets every segment's word budget |
+| `VOICEOVER_JOB_RETENTION_MIN` | `60` | How long a finished job stays reviewable |
+
+Provider API keys are **not** environment variables: connect them under
+**VO Settings**, where each is validated against the provider and then encrypted
+at rest (`ai_credentials`). The Anthropic row is shared with the AI Pipeline.
+
+`ffmpeg`/`ffprobe` need no system install — they ship with the `ffmpeg-static`
+and `ffprobe-static` packages, so local and container behaviour match.
+
 ## Scripts
 
 | Script                 | Purpose                                  |

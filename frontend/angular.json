@@ -91,7 +91,8 @@
               "buildTarget": "help-assistant-ui:build:production"
             },
             "development": {
-              "buildTarget": "help-assistant-ui:build:development"
+              "buildTarget": "help-assistant-ui:build:development",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "development"

@@ -83,6 +83,20 @@ export const routes: Routes = [
           import('./features/admin/ai/ai-pipeline/ai-pipeline').then((m) => m.AIPipeline),
       },
       {
+        path: 'voiceover',
+        loadComponent: () =>
+          import('./features/admin/voiceover/voiceover-studio/voiceover-studio').then(
+            (m) => m.VoiceoverStudio,
+          ),
+      },
+      {
+        path: 'settings/voiceover',
+        loadComponent: () =>
+          import(
+            './features/admin/settings/voiceover-settings/voiceover-settings'
+          ).then((m) => m.VoiceoverSettingsPage),
+      },
+      {
         path: 'mcp',
         loadComponent: () =>
           import('./features/admin/mcp/mcp-connect/mcp-connect').then((m) => m.McpConnect),

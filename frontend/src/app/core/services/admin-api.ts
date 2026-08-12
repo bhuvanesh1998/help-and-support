@@ -19,6 +19,12 @@ import type {
   LoginResponse,
   MediaAsset,
   PaginatedResponse,
+  VoiceoverConfig,
+  VoKeyStatus,
+  VoProviderId,
+  VoiceoverSettings,
+  VoJobSnapshot,
+  VoTone,
 } from '../models/admin';
 
 @Injectable({ providedIn: 'root' })
@@ -192,6 +198,54 @@ export class AdminApiService {
   }
   deleteAiCredential() {
     return this.http.delete<{ disconnected: boolean }>(`${this.b}/ai-pipeline/credential`);
+  }
+
+  // ── Voiceover Studio ────────────────────────────────────────────────────────
+  getVoiceoverConfig() {
+    return this.http.get<VoiceoverConfig>(`${this.b}/voiceover/config`);
+  }
+  saveVoiceoverSettings(settings: Partial<VoiceoverSettings>) {
+    return this.http.put<{ settings: VoiceoverSettings }>(`${this.b}/voiceover/settings`, settings);
+  }
+  /** Drop the saved row so the server's environment baseline applies again. */
+  resetVoiceoverSettings() {
+    return this.http.delete<{ settings: VoiceoverSettings }>(`${this.b}/voiceover/settings`);
+  }
+  /** Upload the walkthrough video and start a script job. */
+  startVoiceoverJob(video: File, data: { appName: string; audience: string; tone: VoTone }) {
+    const form = new FormData();
+    form.append('video', video);
+    form.append('appName', data.appName);
+    form.append('audience', data.audience);
+    form.append('tone', data.tone);
+    return this.http.post<{ jobId: string }>(`${this.b}/voiceover/jobs`, form);
+  }
+  getVoiceoverJob(id: string) {
+    return this.http.get<VoJobSnapshot>(`${this.b}/voiceover/jobs/${id}`);
+  }
+  cancelVoiceoverJob(id: string) {
+    return this.http.post<{ cancelled: boolean }>(`${this.b}/voiceover/jobs/${id}/cancel`, {});
+  }
+  /** Full SSE URL for an EventSource (token in query — EventSource can't set headers). */
+  voiceoverStreamUrl(jobId: string, token: string): string {
+    return `${this.b}/voiceover/jobs/${jobId}/stream?token=${encodeURIComponent(token)}`;
+  }
+  /** Download URL — plain navigation, so the token travels in the query. */
+  voiceoverExportUrl(jobId: string, token: string): string {
+    return `${this.b}/voiceover/jobs/${jobId}/export?token=${encodeURIComponent(token)}`;
+  }
+  /** Provider API keys. Validated server-side; the key is never read back. */
+  connectVoiceoverKey(provider: VoProviderId, apiKey: string) {
+    return this.http.put<{ keys: VoKeyStatus[] }>(`${this.b}/voiceover/keys/${provider}`, {
+      apiKey,
+    });
+  }
+  disconnectVoiceoverKey(provider: VoProviderId) {
+    return this.http.delete<{ keys: VoKeyStatus[] }>(`${this.b}/voiceover/keys/${provider}`);
+  }
+  /** Models the connected account can actually use, asked of the provider. */
+  listProviderModels(provider: VoProviderId) {
+    return this.http.get<{ models: string[] }>(`${this.b}/voiceover/models/${provider}`);
   }
 
   // ── MCP connector ───────────────────────────────────────────────────────────

@@ -42,6 +42,8 @@ export class Layout {
     { label: 'Analytics',   icon: 'bar_chart',     route: '/admin/analytics', description: 'Usage & view stats' },
     { label: 'Users',       icon: 'group',         route: '/admin/users',     description: 'Admin user accounts' },
     { label: 'AI Pipeline', icon: 'smart_toy',     route: '/admin/ai',        description: 'AI content pipeline' },
+    { label: 'Voiceover',   icon: 'graphic_eq',    route: '/admin/voiceover', description: 'Video → timed VO script' },
+    { label: 'VO Settings', icon: 'tune',          route: '/admin/settings/voiceover', description: 'Voiceover cost & quality controls' },
     { label: 'MCP Connect', icon: 'cable',         route: '/admin/mcp',       description: 'Connect via Claude MCP' },
     { label: 'Embed Widget',icon: 'integration_instructions', route: '/admin/connect', description: 'Add the help widget to your app' },
     { label: 'Downloads',   icon: 'download',       route: '/admin/exports',   description: 'Word / PDF exports' },

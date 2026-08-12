@@ -17,6 +17,7 @@ import { mediaRouter } from './routes/admin/media.routes.js';
 import { usersRouter } from './routes/admin/users.routes.js';
 import { analyticsRouter } from './routes/admin/analytics.routes.js';
 import { aiPipelineRouter } from './routes/admin/ai-pipeline.routes.js';
+import { voiceoverRouter } from './routes/admin/voiceover.routes.js';
 import { mcpAdminRouter } from './routes/admin/mcp-admin.routes.js';
 import { exportsRouter } from './routes/admin/exports.routes.js';
 import { mcpRouter } from './routes/mcp.routes.js';
@@ -250,6 +251,10 @@ function applyCfg(){
   // Mounted before the global authenticate so the EventSource stream can
   // authenticate via query param (EventSource cannot set headers).
   app.use('/api/admin/ai-pipeline', aiPipelineRouter);
+
+  // ── Voiceover Studio (self-authenticating: Bearer for JSON, ?token= for the
+  // SSE stream and the zip downloads, neither of which can set headers) ─────
+  app.use('/api/admin/voiceover', voiceoverRouter);
 
   // ── Admin API (JWT required for all routes below) ────────────────────────
   app.use('/api/admin', authenticate);

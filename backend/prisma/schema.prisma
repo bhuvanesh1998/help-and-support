@@ -318,3 +318,31 @@ model AnalyticsEvent {
   @@index([createdAt])
   @@map("analytics_events")
 }
+
+/// Runtime-editable Voiceover Studio tunables. A single row ("default").
+/// When absent, the values fall back to the environment defaults, so a fresh
+/// deployment behaves exactly as before this table existed.
+model VoiceoverSetting {
+  id                  String   @id @default(uuid()) @db.Uuid
+  name                String   @unique @default("default")
+  maxVideoUploadMb    Int      @default(500)
+  provider            String   @default("anthropic") // anthropic | openai | gemini
+  model               String   @default("claude-opus-5")
+  effort              String   @default("medium")   // low | medium | high | xhigh | max
+  maxTokens           Int      @default(12000)
+  maxFrames           Int      @default(48)
+  framesPerBatch      Int      @default(12)
+  frameWidth          Int      @default(960)
+  frameQuality        Int      @default(4)          // ffmpeg -q:v, 1 best … 31 worst
+  sceneThreshold      Float    @default(0.3)        // 0–1, lower catches more transitions
+  minFrameGapSec      Float    @default(1.5)
+  minSegmentSec       Float    @default(4)
+  maxSegmentSec       Float    @default(14)
+  wordsPerMinute      Int      @default(150)
+  jobRetentionMinutes Int      @default(60)
+  updatedById         String?  @db.Uuid
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("voiceover_settings")
+}
