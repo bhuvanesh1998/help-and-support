@@ -98,6 +98,14 @@
         <mat-icon>graphic_eq</mat-icon>
         <span>{{ scripts().length }} scripts</span>
       </div>
+      <a
+        mat-stroked-button
+        routerLink="/admin/voiceover/usage"
+        matTooltip="Tokens and characters consumed"
+      >
+        <mat-icon aria-hidden="true">insights</mat-icon>
+        Usage
+      </a>
       <a mat-flat-button color="primary" routerLink="/admin/voiceover/new">
         <mat-icon aria-hidden="true">add</mat-icon>
         Generate voiceover

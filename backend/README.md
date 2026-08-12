@@ -60,6 +60,22 @@ and `ffprobe-static` packages, so local and container behaviour match.
 | `voiceover_segments` | The timed lines; `editedAt` marks hand-edits |
 | `voiceover_frames` | Sampled stills, with on-disk paths so a re-tone needs no re-upload |
 | `voiceover_audio` | Rendered clips; `kind` is `segment` or the stitched `timeline` |
+| `voiceover_usage` | One row per billable provider call, for the usage report |
+
+### Usage reporting
+
+`GET /api/admin/voiceover/usage?days=30` (surfaced at **Voiceover → Usage**) reports
+consumption in the units providers bill in — input/output tokens for the vision
+models, characters for ElevenLabs — grouped by provider, model, activity, day and
+script. Failed calls are recorded too, since a failed request is spend with no
+output.
+
+It is deliberately **not** priced. Rates differ per account and change, so a
+figure derived from hardcoded prices would read as authoritative while being
+wrong; apply your own rates to the units. `voiceover_usage.scriptId` is not a
+foreign key on purpose — deleting a script must not erase what it cost, so those
+rows survive and appear without a name. Local ffmpeg work (frame extraction,
+timeline assembly) costs nothing at a provider and is not recorded.
 
 Migrations live in `prisma/migrations/` and the database has been baselined, so
 `npm run prisma:deploy` works normally. Earlier tables were created outside

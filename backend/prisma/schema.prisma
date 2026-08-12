@@ -453,3 +453,34 @@ model VoiceoverAudio {
   @@index([scriptId])
   @@map("voiceover_audio")
 }
+
+/// One row per billable API call the Voiceover Studio makes, so usage can be
+/// reported per provider, model and script. Units are recorded raw (tokens,
+/// characters, requests) rather than priced — provider rates change, and a
+/// wrong hardcoded price is worse than no price.
+model VoiceoverUsage {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Deliberately not a foreign key: deleting a script must not erase what it
+  /// cost. The report shows such rows without a name.
+  scriptId     String?  @db.Uuid
+  /// 'script' for a vision call, 'tts' for narration audio, 'sample' for an
+  /// audition. Timeline assembly is local ffmpeg work and is not recorded.
+  kind         String
+  provider     String
+  model        String
+  /// Vision calls: tokens reported by the provider.
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  /// Vision calls: how many stills were sent in this request.
+  frames       Int      @default(0)
+  /// TTS calls: characters submitted, which is what ElevenLabs bills on.
+  characters   Int      @default(0)
+  /// False when the call failed; kept so failures are visible in the report.
+  ok           Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([scriptId])
+  @@index([provider, kind])
+  @@map("voiceover_usage")
+}

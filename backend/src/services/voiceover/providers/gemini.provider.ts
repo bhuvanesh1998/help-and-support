@@ -58,13 +58,19 @@ export const geminiProvider: VisionProvider = {
         finishReason?: string;
         content?: { parts?: Array<{ text?: string; thought?: boolean }> };
       }>;
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+    };
+
+    const usage = {
+      inputTokens: data.usageMetadata?.promptTokenCount ?? 0,
+      outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
     };
 
     // Safety blocks surface either on the prompt or as a candidate finishReason.
-    if (data.promptFeedback?.blockReason) return { segments: [], refused: true };
+    if (data.promptFeedback?.blockReason) return { segments: [], refused: true, usage };
     const candidate = data.candidates?.[0];
     if (candidate?.finishReason === 'SAFETY' || candidate?.finishReason === 'PROHIBITED_CONTENT') {
-      return { segments: [], refused: true };
+      return { segments: [], refused: true, usage };
     }
 
     // Gemini 3 models can return reasoning parts alongside the answer; those
@@ -75,7 +81,7 @@ export const geminiProvider: VisionProvider = {
       .join('')
       .trim();
 
-    return { segments: parseSegments(text), refused: false };
+    return { segments: parseSegments(text), refused: false, usage };
   },
 
   async listModels(apiKey) {

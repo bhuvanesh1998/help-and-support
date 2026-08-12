@@ -66,10 +66,18 @@ export interface ProviderRequest {
   signal: AbortSignal;
 }
 
+/** Tokens a provider reported for one call, when it reports them. */
+export interface ProviderUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface ProviderResult {
   segments: RawSegment[];
   /** True when the provider declined the request on policy grounds. */
   refused: boolean;
+  /** Reported usage, for the usage report. Zeroed when a provider omits it. */
+  usage: ProviderUsage;
 }
 
 export interface VisionProvider {

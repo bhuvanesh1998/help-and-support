@@ -31,6 +31,7 @@ import {
   saveClip,
 } from '../../services/voiceover/audio-store.service.js';
 import { buildTimeline } from '../../services/voiceover/timeline.service.js';
+import { getUsageReport, recordUsage } from '../../services/voiceover/usage.service.js';
 import {
   DEFAULT_TTS_MODEL,
   TTS_PROVIDER,
@@ -606,8 +607,23 @@ voiceoverRouter.post(
     try {
       const clip = await renderClip(key, segment.script, voiceId, modelId);
       const saved = await saveClip(script.id, index, { voiceId, voiceName, modelId }, clip);
+      await recordUsage({
+        scriptId: script.id,
+        kind: 'tts',
+        provider: TTS_PROVIDER,
+        model: modelId,
+        characters: segment.script.length,
+      });
       res.json({ clip: saved });
     } catch (err) {
+      await recordUsage({
+        scriptId: script.id,
+        kind: 'tts',
+        provider: TTS_PROVIDER,
+        model: modelId,
+        characters: segment.script.length,
+        ok: false,
+      });
       throw AppError.badRequest((err as Error).message);
     }
   },
@@ -720,6 +736,12 @@ voiceoverRouter.post('/tts/sample', requireBearer, async (req: Request, res: Res
   const key = await requireTtsKey();
   try {
     const clip = await renderClip(key, text, voiceId, modelId);
+    await recordUsage({
+      kind: 'sample',
+      provider: TTS_PROVIDER,
+      model: modelId,
+      characters: text.length,
+    });
     const buffer = fs.readFileSync(clip.storagePath);
     // Not an asset — remove the file once it has been streamed back.
     removeClipFile(clip.storagePath);
@@ -782,3 +804,15 @@ voiceoverRouter.post(
     }
   },
 );
+
+/**
+ * GET /api/admin/voiceover/usage?days=30 — what the studio has consumed.
+ *
+ * Reported in provider units (tokens, characters) rather than money: rates
+ * differ per account and change, so a figure derived from hardcoded prices would
+ * be confidently wrong.
+ */
+voiceoverRouter.get('/usage', requireBearer, async (req: Request, res: Response) => {
+  const raw = Number.parseInt(String(req.query['days'] ?? '30'), 10);
+  res.json(await getUsageReport(Number.isFinite(raw) ? raw : 30));
+});

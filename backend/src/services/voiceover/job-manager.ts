@@ -36,6 +36,7 @@ import {
   saveMeta,
 } from './script-store.service.js';
 import { getSettings } from './settings.service.js';
+import { recordUsage } from './usage.service.js';
 import type { VoiceoverSettings } from './settings.service.js';
 import { spokenSecondsFor } from './types.js';
 import type {
@@ -417,6 +418,14 @@ async function runJob(job: VoJob): Promise<void> {
         if (job.scriptId) void appendSegment(job.scriptId, segment);
       },
       onLog: (level, message) => emit(job, { type: 'log', level, message }),
+      onUsage: (usage) =>
+        void recordUsage({
+          scriptId: job.scriptId,
+          kind: 'script',
+          provider: job.config.provider,
+          model: job.config.model,
+          ...usage,
+        }),
     });
 
     const totalWords = segments.reduce((sum, s) => sum + s.wordCount, 0);
@@ -599,6 +608,14 @@ async function runRegenerate(job: VoJob, sourceScriptId: string): Promise<void> 
         if (job.scriptId) void appendSegment(job.scriptId, segment);
       },
       onLog: (level, message) => emit(job, { type: 'log', level, message }),
+      onUsage: (usage) =>
+        void recordUsage({
+          scriptId: job.scriptId,
+          kind: 'script',
+          provider: job.config.provider,
+          model: job.config.model,
+          ...usage,
+        }),
     });
 
     const totalWords = segments.reduce((sum, s) => sum + s.wordCount, 0);

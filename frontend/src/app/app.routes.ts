@@ -97,6 +97,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'voiceover/usage',
+        loadComponent: () =>
+          import('./features/admin/voiceover/usage-report/usage-report').then(
+            (m) => m.UsageReport,
+          ),
+      },
+      {
         path: 'voiceover/:id',
         loadComponent: () =>
           import('./features/admin/voiceover/script-detail/script-detail').then(

@@ -41,6 +41,13 @@ export interface ScriptContext {
   durationSec: number;
   onSegment: (segment: VoSegment) => void;
   onLog: (level: 'info' | 'warn' | 'error', message: string) => void;
+  /** Called once per provider call so the usage report can record it. */
+  onUsage?: (usage: {
+    inputTokens: number;
+    outputTokens: number;
+    frames: number;
+    ok: boolean;
+  }) => void;
   signal: AbortSignal;
 }
 
@@ -200,9 +207,19 @@ export async function runScripter(ctx: ScriptContext): Promise<VoSegment[]> {
       );
     } catch (err) {
       lastFailure = (err as Error).message;
+      // A failed call still consumed the request; record it so the report shows
+      // what was spent on work that produced nothing.
+      ctx.onUsage?.({ inputTokens: 0, outputTokens: 0, frames: batch.length, ok: false });
       ctx.onLog('error', `${timecode(from)}–${timecode(to)}: ${lastFailure}`);
       continue;
     }
+
+    ctx.onUsage?.({
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+      frames: batch.length,
+      ok: true,
+    });
 
     if (result.refused) {
       ctx.onLog('warn', `${timecode(from)}–${timecode(to)}: the model declined this section.`);

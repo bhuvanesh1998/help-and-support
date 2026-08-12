@@ -68,13 +68,20 @@ async function call(req: ProviderRequest, useFallback: boolean): Promise<Provide
   const data = (await resp.json()) as {
     stop_reason?: string;
     content?: Array<{ type?: string; text?: string }>;
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
+
+  const usage = {
+    inputTokens: data.usage?.input_tokens ?? 0,
+    outputTokens: data.usage?.output_tokens ?? 0,
   };
 
   // Check stop_reason before reading content: a refusal carries no usable text.
-  if (data.stop_reason === 'refusal') return { segments: [], refused: true };
+  // The tokens are still billed, so the usage is reported either way.
+  if (data.stop_reason === 'refusal') return { segments: [], refused: true, usage };
 
   const text = data.content?.find((b) => b.type === 'text')?.text ?? '';
-  return { segments: parseSegments(text), refused: false };
+  return { segments: parseSegments(text), refused: false, usage };
 }
 
 export const anthropicProvider: VisionProvider = {

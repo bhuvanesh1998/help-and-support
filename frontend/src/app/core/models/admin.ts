@@ -468,6 +468,34 @@ export interface VoJobSnapshot {
 }
 
 /** Events streamed over SSE from the voiceover job. */
+/** ── Usage report ──────────────────────────────────────────────────────────
+ * Raw provider units, never money: rates differ per account and change, so the
+ * reader applies their own. `characters` is text-to-speech; tokens are vision.
+ */
+export interface VoUsageTotals {
+  calls: number;
+  failed: number;
+  inputTokens: number;
+  outputTokens: number;
+  frames: number;
+  characters: number;
+}
+
+export interface VoUsageBreakdown extends VoUsageTotals {
+  key: string;
+}
+
+export interface VoUsageReport {
+  days: number;
+  since: string;
+  totals: VoUsageTotals;
+  byProvider: VoUsageBreakdown[];
+  byModel: VoUsageBreakdown[];
+  byKind: VoUsageBreakdown[];
+  byDay: VoUsageBreakdown[];
+  topScripts: Array<VoUsageBreakdown & { videoName: string | null; tone: string | null }>;
+}
+
 export type VoiceoverEvent =
   | { type: 'phase'; phase: VoJobPhase; message: string }
   | { type: 'log'; level: 'info' | 'warn' | 'error'; message: string }

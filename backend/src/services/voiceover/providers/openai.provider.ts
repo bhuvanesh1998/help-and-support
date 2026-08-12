@@ -58,13 +58,19 @@ export const openaiProvider: VisionProvider = {
         finish_reason?: string;
         message?: { content?: string | null; refusal?: string | null };
       }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+
+    const usage = {
+      inputTokens: data.usage?.prompt_tokens ?? 0,
+      outputTokens: data.usage?.completion_tokens ?? 0,
     };
 
     const choice = data.choices?.[0];
     // A strict-schema refusal arrives as a populated `refusal` with null content.
-    if (choice?.message?.refusal) return { segments: [], refused: true };
+    if (choice?.message?.refusal) return { segments: [], refused: true, usage };
 
-    return { segments: parseSegments(choice?.message?.content ?? ''), refused: false };
+    return { segments: parseSegments(choice?.message?.content ?? ''), refused: false, usage };
   },
 
   async validateKey(apiKey) {

@@ -32,6 +32,7 @@ import type {
   VoScriptSummary,
   VoSegment,
   VoTone,
+  VoUsageReport,
 } from '../models/admin';
 
 @Injectable({ providedIn: 'root' })
@@ -333,6 +334,12 @@ export class AdminApiService {
   /** Models the connected account can actually use, asked of the provider. */
   listProviderModels(provider: VoProviderId) {
     return this.http.get<{ models: string[] }>(`${this.b}/voiceover/models/${provider}`);
+  }
+  /** Consumption over the last `days`, in provider units. */
+  getVoiceoverUsage(days: number) {
+    return this.http.get<VoUsageReport>(`${this.b}/voiceover/usage`, {
+      params: { days: String(days) },
+    });
   }
 
   // ── MCP connector ───────────────────────────────────────────────────────────
