@@ -1,3 +1,18 @@
+// ── Fonts, self-hosted ──────────────────────────────────────────────────────
+// Bundled rather than fetched from fonts.googleapis.com. Two reasons:
+//   • The production build used to download the stylesheet at build time, and the
+//     build container has no DNS for that host — the whole build failed with
+//     `getaddrinfo EAI_AGAIN`.
+//   • At runtime, a network that cannot reach Google left every <mat-icon>
+//     rendering its ligature name as literal text ("delete_outline"), which looks
+//     like the app is broken rather than like a missing font.
+// Only the latin subset and the weights actually used are imported.
+@use '@fontsource/inter/latin-300.css';
+@use '@fontsource/inter/latin-400.css';
+@use '@fontsource/inter/latin-500.css';
+@use '@fontsource/inter/latin-600.css';
+@use 'material-icons/iconfont/filled.css';
+
 @use '@angular/material' as mat;
 
 // ── Default palette (cyan) — light ────────────────────────────────────────────
