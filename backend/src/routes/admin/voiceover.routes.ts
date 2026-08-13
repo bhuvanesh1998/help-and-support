@@ -8,11 +8,12 @@
  */
 
 import { Router } from 'express';
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import fs from 'node:fs';
 import { MulterError } from 'multer';
 import AdmZip from 'adm-zip';
 import { parseAccessToken } from '../../middleware/auth.middleware.js';
+import { requirePermission } from '../../middleware/permission.middleware.js';
 import { AppError } from '../../utils/app-error.js';
 import { videoUpload } from '../../lib/upload.js';
 import {
@@ -108,6 +109,22 @@ function requireQueryToken(req: Request, _res: Response, next: NextFunction): vo
 }
 
 /**
+ * Auth plus the permission a route needs, in one spread.
+ *
+ * Keys are per route rather than per router: a role may be allowed to read
+ * scripts without spending API credit on new ones, or to hold the provider keys
+ * without producing narration at all.
+ */
+function can(permission: string): RequestHandler[] {
+  return [requireBearer, requirePermission(permission)];
+}
+
+/** Same, for the SSE stream and downloads that authenticate by query token. */
+function canQuery(permission: string): RequestHandler[] {
+  return [requireQueryToken, requirePermission(permission)];
+}
+
+/**
  * Run the video uploader and translate its failures into 400s.
  *
  * The size limit is read per request from the saved settings, so an admin can
@@ -148,7 +165,7 @@ function ownedJob(req: Request) {
 // ── Config & settings ────────────────────────────────────────────────────────
 
 /** GET /api/admin/voiceover/config — effective settings + capabilities for the UI. */
-voiceoverRouter.get('/config', requireBearer, async (_req: Request, res: Response) => {
+voiceoverRouter.get('/config', ...can('voiceover.view'), async (_req: Request, res: Response) => {
   const [settings, keys] = await Promise.all([getSettings(), listKeyStatus()]);
   res.json({
     settings,
@@ -165,12 +182,12 @@ voiceoverRouter.get('/config', requireBearer, async (_req: Request, res: Respons
 // ── Provider keys ────────────────────────────────────────────────────────────
 
 /** GET /api/admin/voiceover/keys — connection status per provider (no secrets). */
-voiceoverRouter.get('/keys', requireBearer, async (_req: Request, res: Response) => {
+voiceoverRouter.get('/keys', ...can('voiceover.view'), async (_req: Request, res: Response) => {
   res.json({ keys: await listKeyStatus() });
 });
 
 /** PUT /api/admin/voiceover/keys/:provider — validate against the provider, then store. */
-voiceoverRouter.put('/keys/:provider', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.put('/keys/:provider', ...can('voiceover.settings'), async (req: Request, res: Response) => {
   const provider = p(req, 'provider');
   if (!isCredentialId(provider)) throw AppError.badRequest('Unknown provider');
 
@@ -189,7 +206,7 @@ voiceoverRouter.put('/keys/:provider', requireBearer, async (req: Request, res: 
  * retired on their own schedule and a stale list fails as a bare 404 at
  * generation time.
  */
-voiceoverRouter.get('/models/:provider', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.get('/models/:provider', ...can('voiceover.settings'), async (req: Request, res: Response) => {
   const provider = p(req, 'provider');
   if (!isProviderId(provider)) throw AppError.badRequest('Unknown provider');
 
@@ -208,14 +225,14 @@ voiceoverRouter.get('/models/:provider', requireBearer, async (req: Request, res
 });
 
 /** DELETE /api/admin/voiceover/keys/:provider */
-voiceoverRouter.delete('/keys/:provider', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.delete('/keys/:provider', ...can('voiceover.settings'), async (req: Request, res: Response) => {
   const provider = p(req, 'provider');
   if (!isCredentialId(provider)) throw AppError.badRequest('Unknown provider');
   res.json({ keys: await deleteKey(provider) });
 });
 
 /** PUT /api/admin/voiceover/settings — validate, clamp and persist. */
-voiceoverRouter.put('/settings', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.put('/settings', ...can('voiceover.settings'), async (req: Request, res: Response) => {
   const settings = await saveSettings(
     (req.body ?? {}) as Record<string, unknown>,
     req.user!.id,
@@ -224,7 +241,7 @@ voiceoverRouter.put('/settings', requireBearer, async (req: Request, res: Respon
 });
 
 /** DELETE /api/admin/voiceover/settings — revert to the environment baseline. */
-voiceoverRouter.delete('/settings', requireBearer, async (_req: Request, res: Response) => {
+voiceoverRouter.delete('/settings', ...can('voiceover.settings'), async (_req: Request, res: Response) => {
   res.json({ settings: await resetSettings() });
 });
 
@@ -236,7 +253,7 @@ voiceoverRouter.delete('/settings', requireBearer, async (_req: Request, res: Re
  */
 voiceoverRouter.post(
   '/jobs',
-  requireBearer,
+  ...can('voiceover.manage'),
   acceptVideo,
   async (req: Request, res: Response) => {
     if (!req.file) {
@@ -297,12 +314,12 @@ voiceoverRouter.post(
 );
 
 /** GET /api/admin/voiceover/jobs/:id — current snapshot. */
-voiceoverRouter.get('/jobs/:id', requireBearer, (req: Request, res: Response) => {
+voiceoverRouter.get('/jobs/:id', ...can('voiceover.view'), (req: Request, res: Response) => {
   res.json(snapshot(ownedJob(req)));
 });
 
 /** POST /api/admin/voiceover/jobs/:id/cancel */
-voiceoverRouter.post('/jobs/:id/cancel', requireBearer, (req: Request, res: Response) => {
+voiceoverRouter.post('/jobs/:id/cancel', ...can('voiceover.manage'), (req: Request, res: Response) => {
   const job = ownedJob(req);
   const cancelled = cancelJob(job.id);
   if (!cancelled) throw AppError.badRequest('Job has already finished');
@@ -310,7 +327,7 @@ voiceoverRouter.post('/jobs/:id/cancel', requireBearer, (req: Request, res: Resp
 });
 
 /** GET /api/admin/voiceover/jobs/:id/stream?token=… — SSE progress. */
-voiceoverRouter.get('/jobs/:id/stream', requireQueryToken, (req: Request, res: Response) => {
+voiceoverRouter.get('/jobs/:id/stream', ...canQuery('voiceover.view'), (req: Request, res: Response) => {
   const job = ownedJob(req);
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -356,7 +373,7 @@ function safeSlug(name: string): string {
  * Optional `search`, `status`, `tone`, `provider`, `limit`. Filtering happens in
  * the query rather than the client so the list stays correct as it grows.
  */
-voiceoverRouter.get('/scripts', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.get('/scripts', ...can('voiceover.view'), async (req: Request, res: Response) => {
   const limit = Number.parseInt(q(req, 'limit') || '100', 10);
   const [scripts, filters] = await Promise.all([
     listScripts({
@@ -372,7 +389,7 @@ voiceoverRouter.get('/scripts', requireBearer, async (req: Request, res: Respons
 });
 
 /** GET /api/admin/voiceover/scripts/:id — one script with its segments. */
-voiceoverRouter.get('/scripts/:id', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.get('/scripts/:id', ...can('voiceover.view'), async (req: Request, res: Response) => {
   const script = await getScript(p(req, 'id'));
   if (!script) throw AppError.notFound('Script not found');
   res.json({ script });
@@ -387,7 +404,7 @@ voiceoverRouter.get('/scripts/:id', requireBearer, async (req: Request, res: Res
  */
 voiceoverRouter.post(
   '/scripts/:id/regenerate',
-  requireBearer,
+  ...can('voiceover.manage'),
   async (req: Request, res: Response) => {
     const source = await getScript(p(req, 'id'));
     if (!source) throw AppError.notFound('Script not found');
@@ -437,7 +454,7 @@ voiceoverRouter.post(
 );
 
 /** DELETE /api/admin/voiceover/scripts/:id — segments cascade. */
-voiceoverRouter.delete('/scripts/:id', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.delete('/scripts/:id', ...can('voiceover.manage'), async (req: Request, res: Response) => {
   const removed = await deleteScript(p(req, 'id'));
   if (!removed) throw AppError.notFound('Script not found');
   res.json({ deleted: true });
@@ -493,7 +510,7 @@ function buildScriptMarkdown(
  */
 voiceoverRouter.get(
   '/scripts/:id/export',
-  requireQueryToken,
+  ...canQuery('voiceover.view'),
   async (req: Request, res: Response) => {
     const script = await getScript(p(req, 'id'));
     if (!script) throw AppError.notFound('Script not found');
@@ -551,7 +568,7 @@ async function requireTtsKey(): Promise<string> {
 }
 
 /** GET /api/admin/voiceover/tts/voices — voices on the connected account. */
-voiceoverRouter.get('/tts/voices', requireBearer, async (_req: Request, res: Response) => {
+voiceoverRouter.get('/tts/voices', ...can('voiceover.manage'), async (_req: Request, res: Response) => {
   const key = await requireTtsKey();
   try {
     const [voices, models] = await Promise.all([listVoices(key), listTtsModels(key)]);
@@ -562,7 +579,7 @@ voiceoverRouter.get('/tts/voices', requireBearer, async (_req: Request, res: Res
 });
 
 /** GET /api/admin/voiceover/scripts/:id/audio — clips rendered so far. */
-voiceoverRouter.get('/scripts/:id/audio', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.get('/scripts/:id/audio', ...can('voiceover.view'), async (req: Request, res: Response) => {
   res.json({ audio: await listAudio(p(req, 'id')) });
 });
 
@@ -575,7 +592,7 @@ voiceoverRouter.get('/scripts/:id/audio', requireBearer, async (req: Request, re
  */
 voiceoverRouter.post(
   '/scripts/:id/audio/:index',
-  requireBearer,
+  ...can('voiceover.manage'),
   async (req: Request, res: Response, next: NextFunction) => {
     // `/audio/timeline` is a sibling route registered later, and this pattern
     // would otherwise swallow it as a segment index. Anything non-numeric falls
@@ -632,7 +649,7 @@ voiceoverRouter.post(
 /** DELETE /api/admin/voiceover/scripts/:id/audio — drop every clip and its file. */
 voiceoverRouter.delete(
   '/scripts/:id/audio',
-  requireBearer,
+  ...can('voiceover.manage'),
   async (req: Request, res: Response) => {
     res.json({ deleted: await deleteAudio(p(req, 'id')) });
   },
@@ -645,7 +662,7 @@ voiceoverRouter.delete(
  */
 voiceoverRouter.get(
   '/scripts/:id/audio/export',
-  requireQueryToken,
+  ...canQuery('voiceover.view'),
   async (req: Request, res: Response) => {
     const script = await getScript(p(req, 'id'));
     if (!script) throw AppError.notFound('Script not found');
@@ -693,7 +710,7 @@ voiceoverRouter.get(
  */
 voiceoverRouter.patch(
   '/scripts/:id/segments/:index',
-  requireBearer,
+  ...can('voiceover.manage'),
   async (req: Request, res: Response) => {
     const scriptId = p(req, 'id');
     const index = Number.parseInt(p(req, 'index'), 10);
@@ -721,7 +738,7 @@ voiceoverRouter.patch(
  *
  * Deliberately short and not stored: this is a listening test, not an asset.
  */
-voiceoverRouter.post('/tts/sample', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.post('/tts/sample', ...can('voiceover.manage'), async (req: Request, res: Response) => {
   const body = req.body as Record<string, unknown>;
   const voiceId = typeof body['voiceId'] === 'string' ? body['voiceId'].trim() : '';
   if (!voiceId) throw AppError.badRequest('voiceId is required');
@@ -764,7 +781,7 @@ voiceoverRouter.post('/tts/sample', requireBearer, async (req: Request, res: Res
  */
 voiceoverRouter.post(
   '/scripts/:id/audio/timeline',
-  requireBearer,
+  ...can('voiceover.manage'),
   async (req: Request, res: Response) => {
     const script = await getScript(p(req, 'id'));
     if (!script) throw AppError.notFound('Script not found');
@@ -812,7 +829,7 @@ voiceoverRouter.post(
  * differ per account and change, so a figure derived from hardcoded prices would
  * be confidently wrong.
  */
-voiceoverRouter.get('/usage', requireBearer, async (req: Request, res: Response) => {
+voiceoverRouter.get('/usage', ...can('voiceover.usage'), async (req: Request, res: Response) => {
   const raw = Number.parseInt(String(req.query['days'] ?? '30'), 10);
   res.json(await getUsageReport(Number.isFinite(raw) ? raw : 30));
 });

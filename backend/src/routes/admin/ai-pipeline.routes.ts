@@ -8,8 +8,9 @@
  */
 
 import { Router } from 'express';
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import { parseAccessToken } from '../../middleware/auth.middleware.js';
+import { requirePermission } from '../../middleware/permission.middleware.js';
 import { AppError } from '../../utils/app-error.js';
 import {
   startJob,
@@ -63,11 +64,24 @@ function requireQueryToken(req: Request, _res: Response, next: NextFunction): vo
 }
 
 /**
+ * Auth plus the permission a route needs. Reading a run is not the same as
+ * starting one — starting one spends API credit.
+ */
+function can(permission: string): RequestHandler[] {
+  return [requireBearer, requirePermission(permission)];
+}
+
+/** Same, for the SSE stream that authenticates by query token. */
+function canQuery(permission: string): RequestHandler[] {
+  return [requireQueryToken, requirePermission(permission)];
+}
+
+/**
  * POST /api/admin/ai-pipeline/jobs
  * Body: { baseUrl, appName, email, password, anthropicKey, model?, navDepth? }
  * Starts a job and returns its id. Secrets are held in memory only.
  */
-aiPipelineRouter.post('/jobs', requireBearer, async (req: Request, res: Response) => {
+aiPipelineRouter.post('/jobs', ...can('ai.manage'), async (req: Request, res: Response) => {
   const body = req.body as Record<string, unknown>;
 
   const baseUrlRaw = typeof body['baseUrl'] === 'string' ? body['baseUrl'].trim() : '';
@@ -151,7 +165,7 @@ aiPipelineRouter.post('/jobs', requireBearer, async (req: Request, res: Response
 // ── Stored credential (connect once, reuse for every run) ────────────────────
 
 /** GET /api/admin/ai-pipeline/credential — connection status (never the key). */
-aiPipelineRouter.get('/credential', requireBearer, async (_req: Request, res: Response) => {
+aiPipelineRouter.get('/credential', ...can('ai.view'), async (_req: Request, res: Response) => {
   res.json(await getCredentialStatus());
 });
 
@@ -160,7 +174,7 @@ aiPipelineRouter.get('/credential', requireBearer, async (_req: Request, res: Re
  * Body: { anthropicKey, model? } — validates against Anthropic, then stores
  * the key encrypted. Returns the (masked) status.
  */
-aiPipelineRouter.put('/credential', requireBearer, async (req: Request, res: Response) => {
+aiPipelineRouter.put('/credential', ...can('ai.manage'), async (req: Request, res: Response) => {
   const body = req.body as Record<string, unknown>;
   const key = typeof body['anthropicKey'] === 'string' ? body['anthropicKey'].trim() : '';
   if (!key) throw AppError.badRequest('anthropicKey is required');
@@ -176,27 +190,27 @@ aiPipelineRouter.put('/credential', requireBearer, async (req: Request, res: Res
 });
 
 /** DELETE /api/admin/ai-pipeline/credential — disconnect (removes the key). */
-aiPipelineRouter.delete('/credential', requireBearer, async (_req: Request, res: Response) => {
+aiPipelineRouter.delete('/credential', ...can('ai.manage'), async (_req: Request, res: Response) => {
   await deleteCredential();
   res.json({ disconnected: true });
 });
 
 /** GET /api/admin/ai-pipeline/jobs/:id — current snapshot (polling / reconnect). */
-aiPipelineRouter.get('/jobs/:id', requireBearer, (req: Request, res: Response) => {
+aiPipelineRouter.get('/jobs/:id', ...can('ai.view'), (req: Request, res: Response) => {
   const job = getJob(p(req, 'id'));
   if (!job) throw AppError.notFound('Job not found or expired');
   res.json(snapshot(job));
 });
 
 /** POST /api/admin/ai-pipeline/jobs/:id/cancel */
-aiPipelineRouter.post('/jobs/:id/cancel', requireBearer, (req: Request, res: Response) => {
+aiPipelineRouter.post('/jobs/:id/cancel', ...can('ai.manage'), (req: Request, res: Response) => {
   const ok = cancelJob(p(req, 'id'));
   if (!ok) throw AppError.badRequest('Job not found or already finished');
   res.json({ cancelled: true });
 });
 
 /** GET /api/admin/ai-pipeline/jobs/:id/stream?token=... — SSE progress stream. */
-aiPipelineRouter.get('/jobs/:id/stream', requireQueryToken, (req: Request, res: Response) => {
+aiPipelineRouter.get('/jobs/:id/stream', ...canQuery('ai.view'), (req: Request, res: Response) => {
   const job = getJob(p(req, 'id'));
   if (!job) throw AppError.notFound('Job not found or expired');
 

@@ -20,12 +20,14 @@ import { aiPipelineRouter } from './routes/admin/ai-pipeline.routes.js';
 import { voiceoverRouter } from './routes/admin/voiceover.routes.js';
 import { mcpAdminRouter } from './routes/admin/mcp-admin.routes.js';
 import { exportsRouter } from './routes/admin/exports.routes.js';
+import { rolesRouter } from './routes/admin/roles.routes.js';
 import { mcpRouter } from './routes/mcp.routes.js';
 import { connectorRouter } from './routes/connector.routes.js';
 import { buildLoaderJs } from './services/widget/loader.js';
 import { getWidgetConfig } from './services/widget/config.js';
 import { connectRouter } from './routes/admin/connect.routes.js';
 import { authenticate } from './middleware/auth.middleware.js';
+import { requireFeature, requirePermission } from './middleware/permission.middleware.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -258,15 +260,21 @@ function applyCfg(){
 
   // ── Admin API (JWT required for all routes below) ────────────────────────
   app.use('/api/admin', authenticate);
-  app.use('/api/admin/pages/:pageId/steps', stepsRouter);
-  app.use('/api/admin/pages', pagesRouter);
-  app.use('/api/admin/categories', categoriesRouter);
-  app.use('/api/admin/connect', connectRouter);
-  app.use('/api/admin/media', mediaRouter);
+  // Each feature guard reads `<feature>.view` for GET and `<feature>.manage` for
+  // anything that changes state, so one line per router covers both.
+  app.use('/api/admin/pages/:pageId/steps', requireFeature('pages'), stepsRouter);
+  app.use('/api/admin/pages', requireFeature('pages'), pagesRouter);
+  app.use('/api/admin/categories', requireFeature('categories'), categoriesRouter);
+  app.use('/api/admin/connect', requireFeature('embed'), connectRouter);
+  app.use('/api/admin/media', requireFeature('media'), mediaRouter);
+  // Users and roles carry their own guards: users.routes still enforces the
+  // SUPER_ADMIN-only rules on top of the permission.
   app.use('/api/admin/users', usersRouter);
-  app.use('/api/admin/analytics', analyticsRouter);
-  app.use('/api/admin/mcp', mcpAdminRouter);
-  app.use('/api/admin/exports', exportsRouter);
+  app.use('/api/admin/roles', rolesRouter);
+  // Analytics is read-only, so one key covers it.
+  app.use('/api/admin/analytics', requirePermission('analytics.view'), analyticsRouter);
+  app.use('/api/admin/mcp', requireFeature('mcp', true), mcpAdminRouter);
+  app.use('/api/admin/exports', requireFeature('exports'), exportsRouter);
 
   // SPA fallback in production — serve index.html for any unmatched non-API GET.
   // Express 5 / path-to-regexp v8 rejects a bare '*' route, so use middleware

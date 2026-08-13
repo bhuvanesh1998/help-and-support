@@ -1,9 +1,44 @@
 export interface AdminUser {
   id: string;
   email: string;
+  /** Account tier. SUPER_ADMIN holds every permission unconditionally. */
   role: 'SUPER_ADMIN' | 'ADMIN';
+  /** Assigned role; null means the legacy admin fallback. */
+  roleId?: string | null;
+  roleName?: string | null;
+  /**
+   * Effective permission keys, from /auth/me. Advisory only — used to hide what
+   * the account cannot use; the server re-checks every request.
+   */
+  permissions?: string[];
   isActive: boolean;
   lastLoginAt: string | null;
+  createdAt: string;
+}
+
+/** ── Roles ────────────────────────────────────────────────────────────────── */
+
+export interface PermissionDef {
+  key: string;
+  label: string;
+  description: string;
+  implies?: string[];
+}
+
+export interface PermissionGroup {
+  key: string;
+  label: string;
+  permissions: PermissionDef[];
+}
+
+export interface AdminRole {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  /** Built-in roles: renameable, but their permission set is fixed. */
+  isSystem: boolean;
+  userCount: number;
   createdAt: string;
 }
 

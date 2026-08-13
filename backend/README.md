@@ -61,6 +61,7 @@ and `ffprobe-static` packages, so local and container behaviour match.
 | `voiceover_frames` | Sampled stills, with on-disk paths so a re-tone needs no re-upload |
 | `voiceover_audio` | Rendered clips; `kind` is `segment` or the stitched `timeline` |
 | `voiceover_usage` | One row per billable provider call, for the usage report |
+| `roles` | Named permission sets; `isSystem` marks the seeded ones |
 
 ### Usage reporting
 
@@ -87,11 +88,57 @@ A fresh environment pointed at an existing, already-populated database needs the
 same treatment — verify the objects exist, then resolve each migration rather
 than letting Prisma replay them.
 
+**`prisma migrate dev` is not usable on this database.** The baselined migrations
+do not reproduce the current schema exactly (the pre-baseline tables were created
+by hand), so `migrate dev` detects drift and offers to reset — which would drop
+real data, and dev and prod share this database. Write the migration SQL by hand
+under `prisma/migrations/<timestamp>_<name>/migration.sql`, apply it with
+`npm run prisma:deploy`, then `npm run prisma:generate`.
+
 ### Generated media is publicly served
 
 Frame stills and narration MP3s are written to `UPLOAD_DIR` and served from
 `/uploads`, which has no auth — the same path the help-manual images use. Fine
 for local and internal use; restrict it before exposing this to the internet.
+
+## Roles & permissions
+
+Two separate ideas, deliberately not merged:
+
+| Concept | Column | Who can grant it | Effect |
+| --- | --- | --- | --- |
+| Account tier | `users.role` (`SUPER_ADMIN` \| `ADMIN`) | Super admins only | `SUPER_ADMIN` holds **every** permission unconditionally |
+| Assigned role | `users.roleId` → `roles` | Anyone with `users.manage` | Decides which features the account can reach |
+
+The permission catalogue lives in one place — `src/config/permissions.ts`. It is
+served to the UI with `GET /api/admin/roles`, so the roles screen never hardcodes
+a list that could drift from the server's. Adding a feature means adding an entry
+there and guarding its router; nothing else.
+
+- `manage` **implies** `view`, expanded server-side on save, so a hand-crafted API
+  call cannot produce "can edit pages but cannot see them".
+- Guards: `requireFeature('pages')` reads `pages.view` for GET and `pages.manage`
+  for anything that changes state. `requirePermission('key')` is the explicit
+  form, used where a router needs a single key (`analytics.view`, `roles.manage`)
+  or where routes differ from each other — the Voiceover Studio guards each route
+  individually, so a role may read scripts without spending API credit.
+- Permissions are resolved **per request**, not carried in the JWT: a role edit
+  takes effect immediately instead of at token expiry.
+- An `ADMIN` with **no** role assigned gets `LEGACY_ADMIN_PERMISSIONS` —
+  everything except users and roles. That was the behaviour before roles existed,
+  so introducing them locked nobody out.
+- Four roles are seeded on boot (Administrator, Content Editor, Voiceover
+  Producer, Viewer). They can be renamed but their permission sets are fixed and
+  they cannot be deleted, so there is always a coherent role to fall back on —
+  duplicate one to customise it. Administrator's set is re-synced with the
+  catalogue on boot, so a new feature reaches it without a manual edit.
+- A role that any user still holds cannot be deleted, and deleting a role that
+  somehow is (`ON DELETE SET NULL`) drops those users to the legacy fallback
+  rather than deleting them.
+
+Frontend guards (`permissionGuard`) and the filtered sidebar are **cosmetic** —
+they keep a user off a screen that would 403 on every call. The API is the
+boundary.
 
 ## Scripts
 

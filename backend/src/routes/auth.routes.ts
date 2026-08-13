@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/app-error.js';
 import { authenticate, parseRefreshToken } from '../middleware/auth.middleware.js';
+import { resolveAccess } from '../services/roles.service.js';
 
 export const authRouter: Router = Router();
 
@@ -58,7 +59,15 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
   res.json({ accessToken, expiresIn: env.jwtExpiresIn });
 });
 
-/** GET /api/admin/auth/me */
-authRouter.get('/me', authenticate, (req: Request, res: Response) => {
-  res.json({ user: req.user });
+/**
+ * GET /api/admin/auth/me
+ *
+ * Carries the effective permissions so the UI can hide what the account cannot
+ * use. They are advisory only — every endpoint re-checks server-side, and the
+ * client list is refreshed here rather than baked into the token so a role edit
+ * takes effect on the next load instead of on token expiry.
+ */
+authRouter.get('/me', authenticate, async (req: Request, res: Response) => {
+  const access = await resolveAccess(req.user!.id, req.user!.role);
+  res.json({ user: { ...req.user, ...access } });
 });

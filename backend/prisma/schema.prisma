@@ -44,7 +44,13 @@ model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique
   passwordHash String
+  /// Account tier. SUPER_ADMIN always has every permission regardless of role,
+  /// so the instance can never be locked out of its own administration.
   role         UserRole  @default(ADMIN)
+  /// Assigned role, which decides the feature permissions. Null falls back to
+  /// the legacy ADMIN set (everything except users and roles).
+  roleId       String?   @db.Uuid
+  accessRole   Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
@@ -52,7 +58,30 @@ model User {
 
   uploadedMedia MediaAsset[] @relation("UploadedByUser")
 
+  @@index([roleId])
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+//  Roles: a named set of feature permissions, assignable to users
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String   @default("")
+  /// Permission keys from src/config/permissions.ts, stored expanded (implied
+  /// keys included) so a check is a plain membership test.
+  permissions String[]
+  /// Seeded roles: renameable, but their permissions and existence are fixed so
+  /// there is always a coherent role to fall back on.
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+
+  @@map("roles")
 }
 
 // ---------------------------------------------------------------------------

@@ -33,6 +33,8 @@ import type {
   VoSegment,
   VoTone,
   VoUsageReport,
+  AdminRole,
+  PermissionGroup,
 } from '../models/admin';
 
 @Injectable({ providedIn: 'root' })
@@ -46,6 +48,21 @@ export class AdminApiService {
   }
   me() {
     return this.http.get<{ user: AdminUser }>(`${this.b}/auth/me`);
+  }
+
+  // ── Roles & permissions ─────────────────────────────────────────────────────
+  /** Roles plus the permission catalogue, so the UI never hardcodes the list. */
+  listRoles() {
+    return this.http.get<{ roles: AdminRole[]; groups: PermissionGroup[] }>(`${this.b}/roles`);
+  }
+  createRole(body: { name: string; description: string; permissions: string[] }) {
+    return this.http.post<{ role: AdminRole }>(`${this.b}/roles`, body);
+  }
+  updateRole(id: string, body: { name?: string; description?: string; permissions?: string[] }) {
+    return this.http.patch<{ role: AdminRole }>(`${this.b}/roles/${id}`, body);
+  }
+  deleteRole(id: string) {
+    return this.http.delete<{ deleted: boolean }>(`${this.b}/roles/${id}`);
   }
 
   // ── Connect (embed widget config) ───────────────────────────────────────────
@@ -394,10 +411,13 @@ export class AdminApiService {
   listUsers() {
     return this.http.get<{ users: AdminUser[] }>(`${this.b}/users`);
   }
-  createUser(data: { email: string; password: string; role: string }) {
+  createUser(data: { email: string; password: string; role: string; roleId?: string | null }) {
     return this.http.post<{ user: AdminUser }>(`${this.b}/users`, data);
   }
-  updateUser(id: string, data: Partial<{ password: string; isActive: boolean; role: string }>) {
+  updateUser(
+    id: string,
+    data: Partial<{ password: string; isActive: boolean; role: string; roleId: string | null }>,
+  ) {
     return this.http.patch<{ user: AdminUser }>(`${this.b}/users/${id}`, data);
   }
   deleteUser(id: string) {
