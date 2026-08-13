@@ -16,6 +16,24 @@ export interface AdminUser {
   createdAt: string;
 }
 
+/** ── Trash ────────────────────────────────────────────────────────────────── */
+
+export type TrashEntityType = 'voiceoverScript' | 'page' | 'category' | 'media';
+
+export interface TrashItem {
+  /** Opaque handle for restore/delete — not the original record's id. */
+  id: string;
+  entityType: TrashEntityType;
+  typeLabel: string;
+  icon: string;
+  label: string;
+  description: string;
+  deletedAt: string;
+  expiresAt: string;
+  /** Whole days before permanent deletion; 0 means today. */
+  daysLeft: number;
+}
+
 /** ── Roles ────────────────────────────────────────────────────────────────── */
 
 export interface PermissionDef {

@@ -1,0 +1,158 @@
+<div class="tr">
+  <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+  <div class="list-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <mat-icon class="search-icon" aria-hidden="true">search</mat-icon>
+        <input
+          class="search-input"
+          placeholder="Search trash…"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          aria-label="Search trash"
+        />
+        @if (search()) {
+          <button mat-icon-button class="search-clear" aria-label="Clear search" (click)="search.set('')">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+
+      @if (types().length > 1) {
+        <button type="button" class="cat-filter" [matMenuTriggerFor]="typeMenu" aria-label="Filter by type">
+          <mat-icon class="cat-filter-icon" aria-hidden="true">filter_list</mat-icon>
+          <span class="cat-filter-text">{{ typeFilter() || 'All types' }}</span>
+          <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #typeMenu="matMenu">
+          <button mat-menu-item (click)="typeFilter.set('')">
+            <mat-icon>{{ typeFilter() ? 'remove' : 'check' }}</mat-icon>
+            <span>All types</span>
+          </button>
+          @for (t of types(); track t.label) {
+            <button mat-menu-item (click)="typeFilter.set(t.label)">
+              <mat-icon>{{ typeFilter() === t.label ? 'check' : 'label_outline' }}</mat-icon>
+              <span>{{ t.label }} ({{ t.count }})</span>
+            </button>
+          }
+        </mat-menu>
+      }
+
+      @if (search() || typeFilter()) {
+        <button type="button" class="cat-filter" (click)="clearFilters()">
+          <mat-icon class="cat-filter-icon" aria-hidden="true">filter_alt_off</mat-icon>
+          <span class="cat-filter-text">Clear</span>
+        </button>
+      }
+    </div>
+
+    <div class="toolbar-right">
+      <div class="stat-chip">
+        <mat-icon>delete_outline</mat-icon>
+        <span>{{ items().length }} item(s)</span>
+      </div>
+      <button mat-stroked-button (click)="load()" [disabled]="loading()">
+        <mat-icon aria-hidden="true">refresh</mat-icon>
+        Refresh
+      </button>
+      @if (filtered().length) {
+        <button mat-stroked-button class="tr-empty-btn" (click)="emptyAll()" [disabled]="loading()">
+          <mat-icon aria-hidden="true">delete_forever</mat-icon>
+          Empty
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="tr-top">
+    <h1 class="tr-title">Trash</h1>
+    <p class="tr-sub">
+      Deleted items are kept here for {{ retentionDays() }} days, then deleted permanently along
+      with their files. Restore puts an item back exactly as it was — a voiceover script returns
+      with its lines, version history and recorded audio.
+    </p>
+  </div>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (error()) {
+    <p class="tr-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error() }}</span>
+    </p>
+  }
+
+  @if (expiringSoon() > 0) {
+    <p class="tr-warn" role="status">
+      <mat-icon aria-hidden="true">timer</mat-icon>
+      <span>
+        {{ expiringSoon() }} item(s) will be deleted permanently within three days. Restore
+        anything you still need.
+      </span>
+    </p>
+  }
+
+  <!-- ── Items ────────────────────────────────────────────────────────────── -->
+  @if (!loading() && items().length === 0) {
+    <div class="tr-empty">
+      <mat-icon aria-hidden="true">delete_outline</mat-icon>
+      <p><strong>The trash is empty.</strong></p>
+      <p class="tr-sub">Anything you delete lands here first, so nothing is lost by accident.</p>
+    </div>
+  } @else if (!loading() && filtered().length === 0) {
+    <div class="tr-empty">
+      <mat-icon aria-hidden="true">search_off</mat-icon>
+      <p><strong>Nothing matches that filter.</strong></p>
+      <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
+    </div>
+  } @else {
+    <ul class="tr-list" role="list">
+      @for (item of filtered(); track item.id) {
+        <li class="tr-row" [class.tr-row--soon]="item.daysLeft <= 3" [class.tr-row--busy]="busyId() === item.id">
+          <span class="tr-row__icon" aria-hidden="true">
+            <mat-icon>{{ item.icon }}</mat-icon>
+          </span>
+
+          <span class="tr-row__main">
+            <span class="tr-row__label">{{ item.label }}</span>
+            <span class="tr-row__desc">{{ item.description }}</span>
+          </span>
+
+          <span class="tr-row__type">{{ item.typeLabel }}</span>
+
+          <span class="tr-row__when" [matTooltip]="'Deleted ' + when(item.deletedAt)">
+            {{ when(item.deletedAt) }}
+          </span>
+
+          <span class="tr-row__expiry" [class.tr-row__expiry--soon]="item.daysLeft <= 3">
+            <mat-icon aria-hidden="true">schedule</mat-icon>
+            {{ expiry(item) }}
+          </span>
+
+          <span class="tr-row__actions">
+            <button
+              mat-flat-button
+              color="primary"
+              class="tr-row__restore"
+              [disabled]="busyId() !== null"
+              (click)="restore(item)"
+            >
+              <mat-icon aria-hidden="true">restore</mat-icon>
+              Restore
+            </button>
+            <button
+              mat-icon-button
+              matTooltip="Delete permanently"
+              [attr.aria-label]="'Delete ' + item.label + ' permanently'"
+              [disabled]="busyId() !== null"
+              (click)="remove(item)"
+            >
+              <mat-icon>delete_forever</mat-icon>
+            </button>
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</div>

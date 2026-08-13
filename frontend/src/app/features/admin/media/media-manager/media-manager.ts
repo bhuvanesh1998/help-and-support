@@ -18,6 +18,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { Router } from '@angular/router';
 import { AdminApiService } from '../../../../core/services/admin-api';
+import { ConfirmService } from '../../../../core/services/confirm.service';
 import { ImageViewer } from '../../../../core/components/image-viewer/image-viewer';
 import type { MediaAsset, PaginatedResponse } from '../../../../core/models/admin';
 
@@ -36,6 +37,7 @@ const PAGE_SIZE = 24;
 })
 export class MediaManager implements OnInit {
   private readonly api    = inject(AdminApiService);
+  private readonly confirm = inject(ConfirmService);
   private readonly snack  = inject(MatSnackBar);
   private readonly router = inject(Router);
 
@@ -99,7 +101,7 @@ export class MediaManager implements OnInit {
   loadTrash(page = 1): void {
     this.trashPage = page;
     this.loading.set(true);
-    this.api.listTrash(page, PAGE_SIZE).subscribe({
+    this.api.listMediaTrash(page, PAGE_SIZE).subscribe({
       next:  res => { this.trash.set(res); this.loading.set(false); },
       error: ()  => this.loading.set(false),
     });
@@ -197,8 +199,9 @@ export class MediaManager implements OnInit {
   }
 
   // ── Trash actions ─────────────────────────────────────────────────────────────
-  delete(asset: MediaAsset): void {
-    if (!confirm(`Move "${asset.originalName}" to the trash?`)) return;
+  async delete(asset: MediaAsset): Promise<void> {
+    const ok = await this.confirm.confirmMoveToTrash(`"${asset.originalName}"`);
+    if (!ok) return;
     this.api.deleteMedia(asset.id).subscribe({
       next: () => {
         this.snack.open('Moved to trash', undefined, { duration: 2000 });
@@ -220,8 +223,9 @@ export class MediaManager implements OnInit {
     });
   }
 
-  purge(asset: MediaAsset): void {
-    if (!confirm(`Permanently delete "${asset.originalName}"? This cannot be undone.`)) return;
+  async purge(asset: MediaAsset): Promise<void> {
+    const ok = await this.confirm.confirmPermanentDelete(`"${asset.originalName}"`);
+    if (!ok) return;
     this.api.purgeMedia(asset.id).subscribe({
       next: () => {
         this.snack.open('Permanently deleted', undefined, { duration: 2000 });

@@ -35,6 +35,7 @@ import type {
   VoUsageReport,
   AdminRole,
   PermissionGroup,
+  TrashItem,
 } from '../models/admin';
 
 @Injectable({ providedIn: 'root' })
@@ -48,6 +49,18 @@ export class AdminApiService {
   }
   me() {
     return this.http.get<{ user: AdminUser }>(`${this.b}/auth/me`);
+  }
+
+  // ── Trash ───────────────────────────────────────────────────────────────────
+  /** Deleted items the caller may see, newest first. */
+  listTrash() {
+    return this.http.get<{ items: TrashItem[]; retentionDays: number }>(`${this.b}/trash`);
+  }
+  restoreFromTrash(type: string, id: string) {
+    return this.http.post<{ restored: boolean }>(`${this.b}/trash/${type}/${id}/restore`, {});
+  }
+  deleteFromTrash(type: string, id: string) {
+    return this.http.delete<{ deleted: boolean }>(`${this.b}/trash/${type}/${id}`);
   }
 
   // ── Roles & permissions ─────────────────────────────────────────────────────
@@ -176,7 +189,8 @@ export class AdminApiService {
     return this.http.delete(`${this.b}/media/${id}`);
   }
   /** List trashed assets (soft-deleted, awaiting restore or 30-day purge). */
-  listTrash(page = 1, limit = 20) {
+  /** The media library's own trash — images only. See listTrash() for all types. */
+  listMediaTrash(page = 1, limit = 20) {
     return this.http.get<PaginatedResponse<MediaAsset>>(`${this.b}/media/trash`, {
       params: { page, limit },
     });

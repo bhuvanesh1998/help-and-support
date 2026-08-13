@@ -17,6 +17,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { AdminApiService } from '../../../../core/services/admin-api';
+import { ConfirmService } from '../../../../core/services/confirm.service';
 import { PageDialog } from '../page-dialog/page-dialog';
 import type { AdminPage, ExportFormat, PaginatedResponse } from '../../../../core/models/admin';
 
@@ -33,6 +34,7 @@ import type { AdminPage, ExportFormat, PaginatedResponse } from '../../../../cor
 })
 export class PagesList implements OnInit {
   private readonly api    = inject(AdminApiService);
+  private readonly confirm = inject(ConfirmService);
   private readonly dialog = inject(MatDialog);
   private readonly snack  = inject(MatSnackBar);
   private readonly router = inject(Router);
@@ -298,8 +300,12 @@ export class PagesList implements OnInit {
     });
   }
 
-  deletePage(page: AdminPage): void {
-    if (!confirm(`Delete "${page.title}"? All steps will also be removed.`)) return;
+  async deletePage(page: AdminPage): Promise<void> {
+    const ok = await this.confirm.confirmMoveToTrash(
+      `the page "${page.title}"`,
+      'Its steps and API entries go with it and come back together on restore.',
+    );
+    if (!ok) return;
     this.api.deletePage(page.id).subscribe({
       next: () => { this.snack.open('Page deleted', 'OK', { duration: 3000 }); this.load(); },
       error: () => { this.snack.open('Delete failed', 'OK', { duration: 3000 }); },

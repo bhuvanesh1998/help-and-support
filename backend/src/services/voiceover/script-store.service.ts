@@ -404,34 +404,6 @@ export async function getScript(id: string): Promise<ScriptDetail | null> {
   };
 }
 
-/** Segments cascade with the parent row. */
-export async function deleteScript(id: string): Promise<boolean> {
-  try {
-    // Rows cascade, but the rendered MP3s are ours alone and would otherwise sit
-    // in the uploads directory forever. Read the paths before the cascade drops
-    // the rows that point at them.
-    const clips = await prisma.voiceoverAudio.findMany({
-      where: { scriptId: id },
-      select: { storagePath: true },
-    });
-
-    await prisma.voiceoverScript.delete({ where: { id } });
-
-    for (const clip of clips) {
-      try {
-        if (fs.existsSync(clip.storagePath)) fs.unlinkSync(clip.storagePath);
-      } catch {
-        /* best effort — the row is already gone, a stray file is harmless */
-      }
-    }
-
-    // Frame stills are deliberately left: they are MediaAssets the media library
-    // owns, and may be referenced by manual pages.
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Mark scripts left mid-run as interrupted.

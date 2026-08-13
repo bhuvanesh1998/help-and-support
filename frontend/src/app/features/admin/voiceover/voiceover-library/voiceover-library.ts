@@ -14,6 +14,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminApiService } from '../../../../core/services/admin-api';
+import { ConfirmService } from '../../../../core/services/confirm.service';
 import type { VoScriptFilters, VoScriptSummary } from '../../../../core/models/admin';
 
 /**
@@ -43,6 +44,7 @@ const VIEW_KEY = 'ha.voiceover.libraryView';
 })
 export class VoiceoverLibrary implements OnInit, OnDestroy {
   private readonly api = inject(AdminApiService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly scripts = signal<VoScriptSummary[]>([]);
   readonly filters = signal<VoScriptFilters>({ tones: [], providers: [], statuses: [] });
@@ -128,9 +130,16 @@ export class VoiceoverLibrary implements OnInit, OnDestroy {
     this.load();
   }
 
-  deleteScript(script: VoScriptSummary, event: Event): void {
+  async deleteScript(script: VoScriptSummary, event: Event): Promise<void> {
     event.stopPropagation();
     event.preventDefault();
+
+    const ok = await this.confirm.confirmMoveToTrash(
+      `the ${script.tone} script`,
+      `"${script.appName}" and its ${script.segmentCount} lines, version history and any recorded audio go with it.`,
+    );
+    if (!ok) return;
+
     this.api.deleteVoiceoverScript(script.id).subscribe({
       next: () => this.scripts.update((list) => list.filter((s) => s.id !== script.id)),
       error: () => this.error.set('Could not delete that script.'),

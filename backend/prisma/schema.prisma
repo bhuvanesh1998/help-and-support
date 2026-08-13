@@ -63,6 +63,38 @@ model User {
 }
 
 // ---------------------------------------------------------------------------
+//  Trash: deleted records held for a retention window, restorable until purged
+// ---------------------------------------------------------------------------
+
+/// A deleted record, kept whole so it can be put back.
+///
+/// The rows are *removed* from their own tables and serialised into `payload`
+/// rather than being flagged in place. That keeps every existing list, count and
+/// join correct without a `deletedAt IS NULL` filter threaded through the app —
+/// a filter missed in one query is how "deleted" content reappears.
+model TrashItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Which adapter can restore this: 'voiceoverScript' | 'page' | 'category'.
+  entityType  String
+  /// The original record's id, so a restore recreates it unchanged.
+  entityId    String
+  /// What the user sees in the trash list.
+  label       String
+  description String   @default("")
+  /// The record and its children, exactly as they were.
+  payload     Json
+  deletedById String?  @db.Uuid
+  deletedAt   DateTime @default(now())
+  /// Stamped at delete time, so changing the retention window never silently
+  /// re-dates what is already in the trash.
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@index([entityType])
+  @@map("trash_items")
+}
+
+// ---------------------------------------------------------------------------
 //  Roles: a named set of feature permissions, assignable to users
 // ---------------------------------------------------------------------------
 

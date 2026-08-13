@@ -155,6 +155,44 @@ Frame stills and narration MP3s are written to `UPLOAD_DIR` and served from
 `/uploads`, which has no auth — the same path the help-manual images use. Fine
 for local and internal use; restrict it before exposing this to the internet.
 
+## Trash (30-day retention)
+
+Deleting content moves it to the trash instead of destroying it. `GET
+/api/admin/trash` lists what the caller may see; restore and permanent delete are
+per item. Retention is **30 days** (`TRASH_RETENTION_DAYS`), stamped as an
+absolute `expiresAt` at delete time so changing the window never silently re-dates
+what is already in the trash.
+
+Two mechanisms sit behind one screen, by design:
+
+| Mechanism | Types | How |
+| --- | --- | --- |
+| **Captured** | Voiceover scripts, pages, categories | The rows are serialised into `trash_items.payload` and removed from their own tables |
+| **Flagged** | Media assets | The pre-existing `media_assets.deletedAt` soft delete, adapted into the same list |
+
+Capturing rather than flagging is deliberate: every existing list, count and join
+stays correct without a `deletedAt IS NULL` filter threaded through the app, and a
+filter missed in one query is exactly how "deleted" content reappears. Media keeps
+its own flag because a still may still be referenced by a published page, and
+rewriting that would break what already works.
+
+- **Files are never deleted on trashing** — only on a permanent delete or expiry.
+  A restored script whose MP3s had already been unlinked would be a restore in
+  name only. Narration audio is removed on purge; frame stills are MediaAssets the
+  library owns and are left alone.
+- **Restores are whole**: a voiceover script returns with its lines, version
+  history, frame records and every take; a page with its steps and API entries; a
+  category re-files the pages that were under it (skipping any since moved).
+- **Permissions**: `trash.view` opens the screen, but each item additionally needs
+  its own type's permission — restoring a page is a page edit, so a role without
+  `pages.view` neither sees nor restores pages.
+- **The sweep** runs on boot, daily, and whenever the trash is opened. Each adapter
+  computes its own cutoff: captured types compare `expiresAt` to now, media
+  compares `deletedAt` to now − 30 days. A single shared cutoff was wrong for one
+  of them (it purged captured items 60 days late) — hence the split.
+- Analytics events are not part of a page's record; they detach (`SET NULL`) as
+  they always did and are not restored.
+
 ## Roles & permissions
 
 Two separate ideas, deliberately not merged:

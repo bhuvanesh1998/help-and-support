@@ -66,7 +66,6 @@ import {
   saveSettings,
 } from '../../services/voiceover/settings.service.js';
 import {
-  deleteScript,
   getScript,
   listFilterOptions,
   listScripts,
@@ -75,6 +74,7 @@ import {
   updateSegmentText,
 } from '../../services/voiceover/script-store.service.js';
 import { timecode, timelineSignature } from '../../services/voiceover/types.js';
+import { TRASH_RETENTION_DAYS, trashVoiceoverScript } from '../../services/trash.service.js';
 import type { VoSegment, VoTone } from '../../services/voiceover/types.js';
 
 export const voiceoverRouter: Router = Router();
@@ -456,11 +456,18 @@ voiceoverRouter.post(
   },
 );
 
-/** DELETE /api/admin/voiceover/scripts/:id — segments cascade. */
+/**
+ * DELETE /api/admin/voiceover/scripts/:id — moves the script to the trash.
+ *
+ * The script, its lines, their version history, the frame stills and every
+ * rendered take are kept whole for 30 days. Nothing is unlinked from disk yet:
+ * restoring a script whose audio had already been deleted would be a restore in
+ * name only.
+ */
 voiceoverRouter.delete('/scripts/:id', ...can('voiceover.manage'), async (req: Request, res: Response) => {
-  const removed = await deleteScript(p(req, 'id'));
-  if (!removed) throw AppError.notFound('Script not found');
-  res.json({ deleted: true });
+  const moved = await trashVoiceoverScript(p(req, 'id'), req.user?.id);
+  if (!moved) throw AppError.notFound('Script not found');
+  res.json({ trashed: true, retentionDays: TRASH_RETENTION_DAYS });
 });
 
 /** The human-facing reference doc: timecodes, on-screen action, VO, budget. */

@@ -17,6 +17,8 @@ interface NavItem {
   description: string;
   /** Permission required to see this entry. */
   permission: string;
+  /** Pinned below a divider at the end of the sidebar. */
+  footer?: boolean;
 }
 
 @Component({
@@ -56,10 +58,18 @@ export class Layout {
     { label: 'MCP Connect', icon: 'cable',         route: '/admin/mcp',        description: 'Connect via Claude MCP',           permission: 'mcp.manage' },
     { label: 'Embed Widget',icon: 'integration_instructions', route: '/admin/connect', description: 'Add the help widget to your app', permission: 'embed.view' },
     { label: 'Downloads',   icon: 'download',      route: '/admin/exports',    description: 'Word / PDF exports',               permission: 'exports.view' },
+    { label: 'Trash',       icon: 'delete_outline', route: '/admin/trash',     description: 'Deleted items, kept 30 days',      permission: 'trash.view', footer: true },
   ];
 
   /** Only what this account can actually open. */
-  readonly navItems = computed(() => this.allNavItems.filter((n) => this.auth.can(n.permission)));
+  private readonly visibleNav = computed(() =>
+    this.allNavItems.filter((n) => this.auth.can(n.permission)),
+  );
+
+  readonly navItems = computed(() => this.visibleNav().filter((n) => !n.footer));
+
+  /** Pinned to the bottom of the sidebar, away from the working screens. */
+  readonly footerNavItems = computed(() => this.visibleNav().filter((n) => n.footer));
 
   readonly userInitials = computed(() =>
     (this.auth.currentUser()?.email ?? '??').slice(0, 2).toUpperCase(),

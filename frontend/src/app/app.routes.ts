@@ -144,6 +144,12 @@ export const routes: Routes = [
         canActivate: [permissionGuard('roles.manage')],
       },
       {
+        path: 'trash',
+        loadComponent: () =>
+          import('./features/admin/trash/trash-list/trash-list').then((m) => m.TrashList),
+        canActivate: [permissionGuard('trash.view')],
+      },
+      {
         path: 'no-access',
         loadComponent: () =>
           import('./features/admin/no-access/no-access').then((m) => m.NoAccess),

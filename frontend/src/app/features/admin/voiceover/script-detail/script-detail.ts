@@ -17,6 +17,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { AdminApiService } from '../../../../core/services/admin-api';
+import { ConfirmService } from '../../../../core/services/confirm.service';
 import { AuthStore } from '../../../../core/services/auth-store';
 import { ScriptTable } from '../script-table/script-table';
 import type {
@@ -54,6 +55,7 @@ import type {
 })
 export class ScriptDetail implements OnInit, OnDestroy {
   private readonly api = inject(AdminApiService);
+  private readonly confirm = inject(ConfirmService);
   private readonly auth = inject(AuthStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -448,9 +450,23 @@ export class ScriptDetail implements OnInit, OnDestroy {
   }
 
   /** Clear every clip so a different voice can be used from scratch. */
-  clearAudio(): void {
+  async clearAudio(): Promise<void> {
     const s = this.script();
     if (!s) return;
+
+    // Not trash-backed: clips are regenerable, and holding megabytes of audio
+    // for 30 days to protect a one-click re-render is not worth the disk. So the
+    // dialog says plainly that it is permanent.
+    const takes = this.lineClips().length;
+    const ok = await this.confirm.ask({
+      title: 'Clear all narration audio?',
+      message: `${takes} take(s) and the full-length track will be deleted, including earlier versions and mixes. The script and its text are untouched.`,
+      note: 'This is not moved to Trash — audio can be re-recorded from the script.',
+      confirmLabel: 'Clear audio',
+      destructive: true,
+    });
+    if (!ok) return;
+
     this.api.deleteScriptAudio(s.id).subscribe({
       next: () => this.audio.set([]),
       error: (err) => this.ttsError.set(err.error?.error?.message ?? 'Could not clear audio.'),

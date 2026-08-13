@@ -21,6 +21,7 @@ import { voiceoverRouter } from './routes/admin/voiceover.routes.js';
 import { mcpAdminRouter } from './routes/admin/mcp-admin.routes.js';
 import { exportsRouter } from './routes/admin/exports.routes.js';
 import { rolesRouter } from './routes/admin/roles.routes.js';
+import { trashRouter } from './routes/admin/trash.routes.js';
 import { mcpRouter } from './routes/mcp.routes.js';
 import { connectorRouter } from './routes/connector.routes.js';
 import { buildLoaderJs } from './services/widget/loader.js';
@@ -271,6 +272,8 @@ function applyCfg(){
   // SUPER_ADMIN-only rules on top of the permission.
   app.use('/api/admin/users', usersRouter);
   app.use('/api/admin/roles', rolesRouter);
+  // Per-type permissions are enforced inside: restoring a page is a page edit.
+  app.use('/api/admin/trash', requirePermission('trash.view'), trashRouter);
   // Analytics is read-only, so one key covers it.
   app.use('/api/admin/analytics', requirePermission('analytics.view'), analyticsRouter);
   app.use('/api/admin/mcp', requireFeature('mcp', true), mcpAdminRouter);

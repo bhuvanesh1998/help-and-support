@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../utils/app-error.js';
+import { TRASH_RETENTION_DAYS, trashPage } from '../../services/trash.service.js';
 
 export const pagesRouter: Router = Router();
 
@@ -144,13 +145,18 @@ pagesRouter.patch('/:id', async (req: Request, res: Response) => {
 });
 
 /** DELETE /api/admin/pages/:id */
+/**
+ * DELETE /api/admin/pages/:id — moves the page to the trash.
+ *
+ * The page, its steps and its API endpoints are kept whole for 30 days, so a
+ * mistaken delete is a restore rather than a rewrite. Analytics events are not
+ * part of the record; they detach (SET NULL) as they always did.
+ */
 pagesRouter.delete('/:id', async (req: Request, res: Response) => {
   const id = p(req, 'id');
-  const existing = await prisma.page.findUnique({ where: { id } });
-  if (!existing) throw AppError.notFound('Page not found');
-
-  await prisma.page.delete({ where: { id } });
-  res.status(204).send();
+  const moved = await trashPage(id, req.user?.id);
+  if (!moved) throw AppError.notFound('Page not found');
+  res.json({ trashed: true, retentionDays: TRASH_RETENTION_DAYS });
 });
 
 // ── API endpoints (the auto-captured "API" tab; curatable here) ────────────────

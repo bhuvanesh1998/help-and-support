@@ -157,6 +157,12 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     label: 'Administration',
     permissions: [
       {
+        key: 'trash.view',
+        label: 'Open the trash',
+        description:
+          'See deleted items and restore or permanently delete them. Each item still needs the permission for its own type.',
+      },
+      {
         key: 'users.manage',
         label: 'Manage users',
         description: 'Invite, deactivate and assign roles to admin users.',
