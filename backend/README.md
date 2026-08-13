@@ -95,6 +95,31 @@ real data, and dev and prod share this database. Write the migration SQL by hand
 under `prisma/migrations/<timestamp>_<name>/migration.sql`, apply it with
 `npm run prisma:deploy`, then `npm run prisma:generate`.
 
+### Narration version history
+
+Editing a line **appends a version** instead of overwriting it, and the take
+recorded from the previous wording is kept — filed under that version in
+`voiceover_audio` (`segmentVersion`). Restoring a version points the line back at
+it and its take becomes current again, so undoing an edit normally costs nothing.
+
+| Table / column | Role |
+| --- | --- |
+| `voiceover_segment_versions` | Append-only history: text, word count, `source` (`generated` \| `edited`) |
+| `voiceover_segments.version` | Which stored version `script` currently holds |
+| `voiceover_audio.segmentVersion` | The wording a clip speaks; `0` for the derived timeline |
+
+Consequences worth knowing:
+
+- Re-saving unchanged text does **not** create a version — an undo history full of
+  identical entries is worse than none.
+- Restoring does not create a version either; it is a move along the history.
+- The stitched timeline is still discarded on any edit or restore: it is a mix of
+  words the script no longer says. It is rebuilt only from takes matching each
+  line's current version, and the response reports `missing` so a track with
+  silent gaps does not look finished.
+- The audio ZIP puts superseded takes under `lines/superseded/…-v<n>.mp3` rather
+  than dropping them, so an editor can still reach a version they preferred.
+
 ### Generated media is publicly served
 
 Frame stills and narration MP3s are written to `UPLOAD_DIR` and served from

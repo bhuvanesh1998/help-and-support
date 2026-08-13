@@ -407,6 +407,7 @@ model VoiceoverScript {
   updatedAt    DateTime @updatedAt
 
   segments VoiceoverSegment[]
+  segmentVersions VoiceoverSegmentVersion[]
   frames   VoiceoverFrame[]
   audio    VoiceoverAudio[]
   source   VoiceoverScript?  @relation("ScriptVariants", fields: [sourceScriptId], references: [id], onDelete: SetNull)
@@ -449,6 +450,10 @@ model VoiceoverSegment {
   imageUrl   String?
   /// Set when a human rewrote this line, so edits are visible as such.
   editedAt   DateTime?
+  /// Which stored version `script` currently holds. Rendered audio is filed
+  /// against the version it was spoken from, so restoring a version brings its
+  /// audio back instead of requiring a re-record.
+  version    Int      @default(1)
   createdAt  DateTime @default(now())
 
   scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
@@ -456,6 +461,26 @@ model VoiceoverSegment {
   @@unique([scriptId, index])
   @@index([scriptId])
   @@map("voiceover_segments")
+}
+
+/// Every wording a line has ever had. Append-only: an edit adds a version rather
+/// than overwriting, so a rewrite is never a one-way door.
+model VoiceoverSegmentVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  scriptId     String   @db.Uuid
+  segmentIndex Int
+  version      Int
+  text         String
+  wordCount    Int      @default(0)
+  /// 'generated' for the model's wording, 'edited' for a human rewrite.
+  source       String   @default("generated")
+  createdAt    DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, segmentIndex, version])
+  @@index([scriptId, segmentIndex])
+  @@map("voiceover_segment_versions")
 }
 
 /// Rendered narration audio, one row per script segment. Keyed by segment index
@@ -474,11 +499,15 @@ model VoiceoverAudio {
   storagePath  String
   publicUrl    String
   sizeBytes    Int      @default(0)
+  /// The segment version this clip was spoken from; 0 for the stitched timeline,
+  /// which is derived rather than spoken. Clips are kept per version so editing a
+  /// line no longer throws its recording away.
+  segmentVersion Int    @default(1)
   createdAt    DateTime @default(now())
 
   scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
 
-  @@unique([scriptId, segmentIndex])
+  @@unique([scriptId, segmentIndex, segmentVersion])
   @@index([scriptId])
   @@map("voiceover_audio")
 }

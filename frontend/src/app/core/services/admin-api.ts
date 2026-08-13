@@ -307,7 +307,7 @@ export class AdminApiService {
   }
   /** Stitch the rendered lines into one track matching the video length. */
   buildAudioTimeline(scriptId: string) {
-    return this.http.post<{ clip: VoAudioClip; lines: number }>(
+    return this.http.post<{ clip: VoAudioClip; lines: number; missing: number }>(
       `${this.b}/voiceover/scripts/${scriptId}/audio/timeline`,
       {},
     );
@@ -317,6 +317,13 @@ export class AdminApiService {
     return this.http.patch<{ segment: VoSegment }>(
       `${this.b}/voiceover/scripts/${scriptId}/segments/${index}`,
       { script },
+    );
+  }
+  /** Point a line back at an earlier wording; its take becomes current again. */
+  restoreSegmentVersion(scriptId: string, index: number, version: number) {
+    return this.http.post<{ segment: VoSegment }>(
+      `${this.b}/voiceover/scripts/${scriptId}/segments/${index}/versions/${version}/restore`,
+      {},
     );
   }
   voiceoverAudioExportUrl(scriptId: string, token: string): string {

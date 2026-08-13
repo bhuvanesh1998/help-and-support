@@ -24,6 +24,7 @@ import {
   deleteKey,
 } from '../../services/voiceover/keys.service.js';
 import {
+  DERIVED_VERSION,
   TIMELINE_INDEX,
   deleteAudio,
   deleteClip,
@@ -69,6 +70,7 @@ import {
   getScript,
   listFilterOptions,
   listScripts,
+  restoreSegmentVersion,
   updateSegmentText,
 } from '../../services/voiceover/script-store.service.js';
 import { timecode } from '../../services/voiceover/types.js';
@@ -623,7 +625,14 @@ voiceoverRouter.post(
     const key = await requireTtsKey();
     try {
       const clip = await renderClip(key, segment.script, voiceId, modelId);
-      const saved = await saveClip(script.id, index, { voiceId, voiceName, modelId }, clip);
+      const saved = await saveClip(
+        script.id,
+        index,
+        { voiceId, voiceName, modelId },
+        clip,
+        'segment',
+        segment.version ?? 1,
+      );
       await recordUsage({
         scriptId: script.id,
         kind: 'tts',
@@ -684,10 +693,14 @@ voiceoverRouter.get(
 
       const segment = byIndex.get(file.segmentIndex);
       const stamp = segment ? `${timecode(segment.startSec).replace(':', 'm')}s` : 'unknown';
-      zip.addFile(
-        `lines/${String(file.segmentIndex).padStart(2, '0')}-${stamp}.mp3`,
-        fs.readFileSync(file.storagePath),
-      );
+      const name = `${String(file.segmentIndex).padStart(2, '0')}-${stamp}`;
+      // Takes of superseded wordings are kept out of the way rather than
+      // dropped, so an editor can still reach a version they preferred.
+      const folder =
+        segment && (segment.version ?? 1) !== file.segmentVersion
+          ? `lines/superseded/${name}-v${file.segmentVersion}`
+          : `lines/${name}`;
+      zip.addFile(`${folder}.mp3`, fs.readFileSync(file.storagePath));
     }
 
     const buffer = zip.toBuffer();
@@ -705,8 +718,10 @@ voiceoverRouter.get(
  * PATCH /api/admin/voiceover/scripts/:id/segments/:index — hand-edit a line.
  * Body: { script }
  *
- * Any rendered audio for that line is discarded: the clip would otherwise say
- * something the script no longer does, which is worse than having no clip.
+ * The edit becomes a new version. Audio recorded from the previous wording is
+ * kept and filed under that version, so the change can be undone without paying
+ * to record the old line again — only the stitched track goes, since it is a
+ * derived mix that no longer matches the script.
  */
 voiceoverRouter.patch(
   '/scripts/:id/segments/:index',
@@ -724,8 +739,33 @@ voiceoverRouter.patch(
     const segment = await updateSegmentText(scriptId, index, text);
     if (!segment) throw AppError.notFound('Segment not found');
 
-    await deleteClip(scriptId, index);
-    // The stitched track no longer reflects the script either.
+    await deleteClip(scriptId, TIMELINE_INDEX);
+
+    res.json({ segment });
+  },
+);
+
+/**
+ * POST /api/admin/voiceover/scripts/:id/segments/:index/versions/:version/restore
+ *
+ * Points the line back at an earlier wording. Whatever was recorded from that
+ * wording becomes current again, so undoing an edit usually costs nothing.
+ */
+voiceoverRouter.post(
+  '/scripts/:id/segments/:index/versions/:version/restore',
+  ...can('voiceover.manage'),
+  async (req: Request, res: Response) => {
+    const scriptId = p(req, 'id');
+    const index = Number.parseInt(p(req, 'index'), 10);
+    const version = Number.parseInt(p(req, 'version'), 10);
+    if (!Number.isFinite(index) || !Number.isFinite(version)) {
+      throw AppError.badRequest('A segment index and version are required');
+    }
+
+    const segment = await restoreSegmentVersion(scriptId, index, version);
+    if (!segment) throw AppError.notFound('That version no longer exists');
+
+    // The stitched track was mixed from the previous wording.
     await deleteClip(scriptId, TIMELINE_INDEX);
 
     res.json({ segment });
@@ -794,8 +834,23 @@ voiceoverRouter.post(
       throw AppError.badRequest('Render the individual lines first, then assemble the track.');
     }
 
+    // Mix only the takes that speak each line's *current* wording. A clip left
+    // over from a since-edited version would put the old words under the video.
+    const currentVersion = new Map(script.segments.map((s) => [s.index, s.version ?? 1]));
     const startByIndex = new Map(script.segments.map((s) => [s.index, s.startSec]));
-    const clips = files
+    const usable = files.filter((f) => currentVersion.get(f.segmentIndex) === f.segmentVersion);
+
+    if (usable.length === 0) {
+      throw AppError.badRequest(
+        'Every recorded line has since been edited. Re-record them, then assemble the track.',
+      );
+    }
+
+    const missing = script.segments.filter(
+      (seg) => seg.script.trim() && !usable.some((f) => f.segmentIndex === seg.index),
+    ).length;
+
+    const clips = usable
       .map((f) => ({ startSec: startByIndex.get(f.segmentIndex) ?? 0, storagePath: f.storagePath }))
       .sort((a, b) => a.startSec - b.startSec);
 
@@ -814,8 +869,11 @@ voiceoverRouter.post(
         },
         built,
         'timeline',
+        DERIVED_VERSION,
       );
-      res.json({ clip: saved, lines: clips.length });
+      // `missing` is reported rather than silently mixed around: a track with
+      // gaps looks finished until someone watches it.
+      res.json({ clip: saved, lines: clips.length, missing });
     } catch (err) {
       throw AppError.badRequest((err as Error).message);
     }

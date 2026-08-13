@@ -66,6 +66,22 @@ export interface VoSegment {
   imageUrl: string | null;
   /** Set when a human rewrote this line. */
   editedAt?: string | null;
+  /** Which stored version `script` currently holds. */
+  version?: number;
+  /** Every wording this line has had, newest first. */
+  versions?: VoSegmentVersion[];
+}
+
+/** One stored wording of a line, with whether it still has audio on disk. */
+export interface VoSegmentVersion {
+  version: number;
+  text: string;
+  wordCount: number;
+  source: 'generated' | 'edited';
+  createdAt: string;
+  /** Public URL of the clip rendered from this wording, when one exists. */
+  audioUrl: string | null;
+  voiceName: string | null;
 }
 
 /** Events streamed to the client over SSE. */

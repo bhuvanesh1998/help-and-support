@@ -355,6 +355,8 @@ export interface TtsVoice {
 export interface VoAudioClip {
   kind: string;
   segmentIndex: number;
+  /** Which wording of the line this clip speaks; 0 for the stitched track. */
+  segmentVersion: number;
   voiceId: string;
   voiceName: string;
   modelId: string;
@@ -436,6 +438,21 @@ export interface VoSegment {
   imageUrl: string | null;
   /** Set when a human rewrote this line. */
   editedAt?: string | null;
+  /** Which stored version `script` currently holds. */
+  version?: number;
+  /** Every wording this line has had, newest first. */
+  versions?: VoSegmentVersion[];
+}
+
+/** One stored wording of a line, with the take recorded from it (if any). */
+export interface VoSegmentVersion {
+  version: number;
+  text: string;
+  wordCount: number;
+  source: 'generated' | 'edited';
+  createdAt: string;
+  audioUrl: string | null;
+  voiceName: string | null;
 }
 
 /** Row in the script library. */

@@ -1,9 +1,14 @@
 /**
  * audio-store.service.ts — Stored narration clips for a script.
  * ────────────────────────────────────────────────────────────
- * Audio is keyed by (script, segment index), so re-rendering one line replaces
- * exactly that clip and leaves the rest alone. Each tone variant is its own
- * script, so it carries its own audio set rather than sharing one.
+ * Audio is keyed by (script, segment index, segment version). Re-rendering the
+ * same wording replaces exactly that clip; rewriting a line renders under a new
+ * version and the previous recording stays, which is what lets an edit be undone
+ * without paying to record the old wording again.
+ *
+ * The stitched timeline is derived rather than spoken, so it lives at
+ * segmentIndex -1 / version 0. Each tone variant is its own script and carries
+ * its own audio set.
  */
 
 import { prisma } from '../../lib/prisma.js';
@@ -12,9 +17,14 @@ import { removeClipFile, type RenderedClip } from './tts.service.js';
 /** The full-length stitched track is stored at this index. */
 export const TIMELINE_INDEX = -1;
 
+/** Version used for clips that are not spoken from a wording (the timeline). */
+export const DERIVED_VERSION = 0;
+
 export interface AudioClip {
   kind: string;
   segmentIndex: number;
+  /** Which wording of the line this clip speaks; 0 for the stitched track. */
+  segmentVersion: number;
   voiceId: string;
   voiceName: string;
   modelId: string;
@@ -31,6 +41,7 @@ export async function listAudio(scriptId: string): Promise<AudioClip[]> {
   return rows.map((r) => ({
     kind: r.kind,
     segmentIndex: r.segmentIndex,
+    segmentVersion: r.segmentVersion,
     voiceId: r.voiceId,
     voiceName: r.voiceName,
     modelId: r.modelId,
@@ -44,28 +55,43 @@ export async function listAudio(scriptId: string): Promise<AudioClip[]> {
 export async function listAudioFiles(
   scriptId: string,
   kind?: 'segment' | 'timeline',
-): Promise<Array<{ segmentIndex: number; storagePath: string; filename: string }>> {
+): Promise<
+  Array<{ segmentIndex: number; segmentVersion: number; storagePath: string; filename: string }>
+> {
   return prisma.voiceoverAudio.findMany({
     where: { scriptId, ...(kind ? { kind } : {}) },
-    orderBy: { segmentIndex: 'asc' },
-    select: { segmentIndex: true, storagePath: true, filename: true },
+    orderBy: [{ segmentIndex: 'asc' }, { segmentVersion: 'asc' }],
+    select: { segmentIndex: true, segmentVersion: true, storagePath: true, filename: true },
   });
-}
-
-/** Remove one segment's clip — used when its text is rewritten. */
-export async function deleteClip(scriptId: string, segmentIndex: number): Promise<void> {
-  const row = await prisma.voiceoverAudio.findUnique({
-    where: { scriptId_segmentIndex: { scriptId, segmentIndex } },
-    select: { storagePath: true },
-  });
-  if (!row) return;
-  await prisma.voiceoverAudio.deleteMany({ where: { scriptId, segmentIndex } });
-  removeClipFile(row.storagePath);
 }
 
 /**
- * Store a rendered clip, replacing any existing one for the same segment. The
- * superseded file is deleted so re-renders do not accumulate on disk.
+ * Remove clips for one segment. With no version, every recording of that line
+ * goes — used for the derived timeline, which has exactly one.
+ */
+export async function deleteClip(
+  scriptId: string,
+  segmentIndex: number,
+  segmentVersion?: number,
+): Promise<void> {
+  const where = {
+    scriptId,
+    segmentIndex,
+    ...(segmentVersion === undefined ? {} : { segmentVersion }),
+  };
+  const rows = await prisma.voiceoverAudio.findMany({ where, select: { storagePath: true } });
+  if (rows.length === 0) return;
+
+  await prisma.voiceoverAudio.deleteMany({ where });
+  for (const row of rows) removeClipFile(row.storagePath);
+}
+
+/**
+ * Store a rendered clip against one wording of a line.
+ *
+ * Re-recording the same wording replaces that clip (and deletes the superseded
+ * file, so takes do not pile up on disk); recording a different version adds a
+ * row and leaves earlier recordings intact.
  */
 export async function saveClip(
   scriptId: string,
@@ -73,14 +99,19 @@ export async function saveClip(
   voice: { voiceId: string; voiceName: string; modelId: string },
   clip: RenderedClip,
   kind: 'segment' | 'timeline' = 'segment',
+  segmentVersion = 1,
 ): Promise<AudioClip> {
+  const key = {
+    scriptId_segmentIndex_segmentVersion: { scriptId, segmentIndex, segmentVersion },
+  };
+
   const existing = await prisma.voiceoverAudio.findUnique({
-    where: { scriptId_segmentIndex: { scriptId, segmentIndex } },
+    where: key,
     select: { storagePath: true },
   });
 
   const row = await prisma.voiceoverAudio.upsert({
-    where: { scriptId_segmentIndex: { scriptId, segmentIndex } },
+    where: key,
     update: {
       kind,
       voiceId: voice.voiceId,
@@ -95,6 +126,7 @@ export async function saveClip(
       scriptId,
       kind,
       segmentIndex,
+      segmentVersion,
       voiceId: voice.voiceId,
       voiceName: voice.voiceName,
       modelId: voice.modelId,
@@ -112,6 +144,7 @@ export async function saveClip(
   return {
     kind: row.kind,
     segmentIndex: row.segmentIndex,
+    segmentVersion: row.segmentVersion,
     voiceId: row.voiceId,
     voiceName: row.voiceName,
     modelId: row.modelId,

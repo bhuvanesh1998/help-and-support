@@ -114,18 +114,37 @@ export class ScriptDetail implements OnInit, OnDestroy {
     this.toneOptions.filter((t) => !this.existingTones().has(t.value)),
   );
 
-  /** Clip per segment index, for the table's play buttons. */
+  /**
+   * Clip per segment index — but only the take that speaks the line's *current*
+   * wording. Older takes stay in the store and are reachable from the line's
+   * history; showing one here would play words the script no longer says.
+   */
   readonly audioByIndex = computed(() => {
+    const currentVersion = new Map(
+      (this.script()?.segments ?? []).map((seg) => [seg.index, seg.version ?? 1]),
+    );
     const map = new Map<number, VoAudioClip>();
-    for (const clip of this.audio()) map.set(clip.segmentIndex, clip);
+    for (const clip of this.audio()) {
+      if (clip.kind === 'timeline') continue;
+      if (clip.segmentVersion !== (currentVersion.get(clip.segmentIndex) ?? 1)) continue;
+      map.set(clip.segmentIndex, clip);
+    }
     return map;
   });
 
   /** Voice used by the existing clips, so the panel reports what was rendered. */
   readonly renderedVoice = computed(() => this.audio()[0]?.voiceName ?? '');
 
-  /** Per-line clips only — the stitched track is presented separately. */
-  readonly lineClips = computed(() => this.audio().filter((c) => c.kind !== 'timeline'));
+  /** Takes matching the current script — what the counters and mix are about. */
+  readonly lineClips = computed(() => [...this.audioByIndex().values()]);
+
+  /** Takes of wordings that have since been rewritten. Kept, not counted. */
+  readonly supersededCount = computed(() => {
+    const current = this.audioByIndex();
+    return this.audio().filter(
+      (c) => c.kind !== 'timeline' && current.get(c.segmentIndex) !== c,
+    ).length;
+  });
 
   /** The full-length track, once assembled. */
   readonly timelineClip = computed(() => this.audio().find((c) => c.kind === 'timeline') ?? null);
@@ -247,12 +266,19 @@ export class ScriptDetail implements OnInit, OnDestroy {
       })
       .subscribe({
         next: (res) => {
-          // Replace just this clip so finished takes are never disturbed.
-          this.audio.update((list) => [
-            ...list.filter((c) => c.segmentIndex !== index),
-            res.clip,
-          ].sort((a, b) => a.segmentIndex - b.segmentIndex));
+          // Replace only the take for this wording: other lines and earlier
+          // versions of this one are left alone.
+          this.audio.update((list) =>
+            [
+              ...list.filter(
+                (c) =>
+                  c.segmentIndex !== index || c.segmentVersion !== res.clip.segmentVersion,
+              ),
+              res.clip,
+            ].sort((a, b) => a.segmentIndex - b.segmentIndex),
+          );
           this.renderingIndex.set(null);
+          this.refreshSegments();
         },
         error: (err) => {
           this.renderingIndex.set(null);
@@ -299,6 +325,8 @@ export class ScriptDetail implements OnInit, OnDestroy {
       }
     }
 
+    this.refreshSegments();
+
     this.renderingIndex.set(null);
     this.renderingAll.set(false);
   }
@@ -343,13 +371,62 @@ export class ScriptDetail implements OnInit, OnDestroy {
               }
             : current,
         );
-        // The edit invalidated this line's clip and the stitched track.
-        this.audio.update((list) =>
-          list.filter((c) => c.segmentIndex !== change.index && c.kind !== 'timeline'),
-        );
+        // The take from the previous wording is kept — it is filed under that
+        // version and reachable from the line's history. Only the stitched
+        // track goes, since it is a mix of words the script no longer says.
+        this.audio.update((list) => list.filter((c) => c.kind !== 'timeline'));
       },
       error: (err) =>
         this.editError.set(err.error?.error?.message ?? 'Could not save that line.'),
+    });
+  }
+
+  /**
+   * Put an earlier wording back. Its take, if one was recorded, becomes current
+   * again — so undoing an edit normally costs nothing.
+   */
+  restoreVersion(event: { index: number; version: number }): void {
+    const s = this.script();
+    if (!s) return;
+
+    this.editError.set('');
+    this.api.restoreSegmentVersion(s.id, event.index, event.version).subscribe({
+      next: (res) => {
+        this.script.update((current) =>
+          current
+            ? {
+                ...current,
+                segments: current.segments.map((seg) =>
+                  seg.index === event.index ? res.segment : seg,
+                ),
+                totalWords: current.segments.reduce(
+                  (sum, seg) =>
+                    sum + (seg.index === event.index ? res.segment.wordCount : seg.wordCount),
+                  0,
+                ),
+              }
+            : current,
+        );
+        // The stitched track was mixed from the wording just replaced.
+        this.audio.update((list) => list.filter((c) => c.kind !== 'timeline'));
+      },
+      error: (err) =>
+        this.editError.set(err.error?.error?.message ?? 'Could not restore that version.'),
+    });
+  }
+
+  /**
+   * Re-read the script so a newly recorded take shows up in the line's history.
+   * Cheap, and it keeps the history honest without duplicating the join here.
+   */
+  private refreshSegments(): void {
+    const s = this.script();
+    if (!s) return;
+    this.api.getVoiceoverScript(s.id).subscribe({
+      next: (res) => this.script.set(res.script),
+      error: () => {
+        /* the page is still usable; history refreshes on the next load */
+      },
     });
   }
 
@@ -405,6 +482,12 @@ export class ScriptDetail implements OnInit, OnDestroy {
     try {
       const res = await firstValueFrom(this.api.buildAudioTimeline(s.id));
       this.audio.update((list) => [...list.filter((c) => c.kind !== 'timeline'), res.clip]);
+      // A track with silent gaps looks finished until someone watches it.
+      this.ttsError.set(
+        res.missing > 0
+          ? `Track assembled from ${res.lines} line(s). ${res.missing} line(s) have no take for their current wording and are silent — record them and assemble again.`
+          : '',
+      );
     } catch (err) {
       const message =
         (err as { error?: { error?: { message?: string } } })?.error?.error?.message ??

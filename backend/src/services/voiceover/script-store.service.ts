@@ -198,6 +198,18 @@ export async function appendSegment(scriptId: string, segment: VoSegment): Promi
         imageUrl: segment.imageUrl,
       },
     });
+    // Version 1 is the model's own wording. Recording it here means the history
+    // panel has something to compare a later edit against.
+    await prisma.voiceoverSegmentVersion.create({
+      data: {
+        scriptId,
+        segmentIndex: segment.index,
+        version: 1,
+        text: segment.script,
+        wordCount: segment.wordCount,
+        source: 'generated',
+      },
+    });
   } catch (err) {
     logger.warn('voiceover: could not save segment', {
       index: segment.index,
@@ -315,6 +327,30 @@ export async function getScript(id: string): Promise<ScriptDetail | null> {
 
   const frames = await loadFrames(id);
 
+  // History and clips for the whole script in two queries rather than per
+  // segment: a 40-line script would otherwise fan out to 80 round trips.
+  const [versions, clips] = await Promise.all([
+    prisma.voiceoverSegmentVersion.findMany({
+      where: { scriptId: id },
+      orderBy: [{ segmentIndex: 'asc' }, { version: 'desc' }],
+    }),
+    prisma.voiceoverAudio.findMany({
+      where: { scriptId: id, kind: 'segment' },
+      select: { segmentIndex: true, segmentVersion: true, publicUrl: true, voiceName: true },
+    }),
+  ]);
+
+  const clipKey = (index: number, version: number) => `${index}:${version}`;
+  const audioByVersion = new Map(
+    clips.map((c) => [clipKey(c.segmentIndex, c.segmentVersion), c]),
+  );
+  const versionsByIndex = new Map<number, typeof versions>();
+  for (const v of versions) {
+    const list = versionsByIndex.get(v.segmentIndex) ?? [];
+    list.push(v);
+    versionsByIndex.set(v.segmentIndex, list);
+  }
+
   return {
     id: row.id,
     videoName: row.videoName,
@@ -347,6 +383,16 @@ export async function getScript(id: string): Promise<ScriptDetail | null> {
       wordCount: s.wordCount,
       imageUrl: s.imageUrl,
       editedAt: s.editedAt?.toISOString() ?? null,
+      version: s.version,
+      versions: (versionsByIndex.get(s.index) ?? []).map((v) => ({
+        version: v.version,
+        text: v.text,
+        wordCount: v.wordCount,
+        source: v.source === 'edited' ? ('edited' as const) : ('generated' as const),
+        createdAt: v.createdAt.toISOString(),
+        audioUrl: audioByVersion.get(clipKey(s.index, v.version))?.publicUrl ?? null,
+        voiceName: audioByVersion.get(clipKey(s.index, v.version))?.voiceName ?? null,
+      })),
     })),
   };
 }
@@ -428,33 +474,133 @@ export async function updateSegmentText(
   const words = clean ? clean.split(/\s+/).length : 0;
 
   try {
+    const current = await prisma.voiceoverSegment.findUnique({
+      where: { scriptId_index: { scriptId, index } },
+      select: { version: true, script: true },
+    });
+    if (!current) return null;
+
+    // Re-saving the same words should not manufacture a version — the user
+    // pressed Save on an unchanged textarea, and a history full of identical
+    // entries is worse than no history.
+    if (current.script === clean) return getSegment(scriptId, index);
+
+    const highest = await prisma.voiceoverSegmentVersion.aggregate({
+      where: { scriptId, segmentIndex: index },
+      _max: { version: true },
+    });
+    const nextVersion = Math.max(highest._max.version ?? 0, current.version) + 1;
+
+    await prisma.voiceoverSegmentVersion.create({
+      data: {
+        scriptId,
+        segmentIndex: index,
+        version: nextVersion,
+        text: clean,
+        wordCount: words,
+        source: 'edited',
+      },
+    });
+
     const row = await prisma.voiceoverSegment.update({
       where: { scriptId_index: { scriptId, index } },
-      data: { script: clean, wordCount: words, editedAt: new Date() },
+      data: { script: clean, wordCount: words, editedAt: new Date(), version: nextVersion },
     });
 
-    // Keep the script's total in step so the header does not drift.
-    const total = await prisma.voiceoverSegment.aggregate({
-      where: { scriptId },
-      _sum: { wordCount: true },
-    });
-    await prisma.voiceoverScript.update({
-      where: { id: scriptId },
-      data: { totalWords: total._sum.wordCount ?? 0 },
-    });
-
-    return {
-      index: row.index,
-      startSec: row.startSec,
-      endSec: row.endSec,
-      onScreen: row.onScreen,
-      script: row.script,
-      wordBudget: row.wordBudget,
-      wordCount: row.wordCount,
-      imageUrl: row.imageUrl,
-      editedAt: row.editedAt?.toISOString() ?? null,
-    };
+    await syncTotalWords(scriptId);
+    return getSegment(scriptId, index);
   } catch {
     return null;
   }
+}
+
+/**
+ * Point a line back at an earlier wording.
+ *
+ * The audio rendered from that wording is filed under the same version, so it
+ * becomes current again without a re-record — which is the whole reason history
+ * is kept. No new version is created: restoring is a move along the history, not
+ * an edit.
+ */
+export async function restoreSegmentVersion(
+  scriptId: string,
+  index: number,
+  version: number,
+): Promise<VoSegment | null> {
+  const target = await prisma.voiceoverSegmentVersion.findUnique({
+    where: {
+      scriptId_segmentIndex_version: { scriptId, segmentIndex: index, version },
+    },
+  });
+  if (!target) return null;
+
+  await prisma.voiceoverSegment.update({
+    where: { scriptId_index: { scriptId, index } },
+    data: {
+      script: target.text,
+      wordCount: target.wordCount,
+      version: target.version,
+      // Version 1 is the model's wording; anything later was hand-written, and
+      // restoring it should still read as an edit.
+      editedAt: target.source === 'edited' ? new Date() : null,
+    },
+  });
+
+  await syncTotalWords(scriptId);
+  return getSegment(scriptId, index);
+}
+
+/** Keep the script's word total in step so the header does not drift. */
+async function syncTotalWords(scriptId: string): Promise<void> {
+  const total = await prisma.voiceoverSegment.aggregate({
+    where: { scriptId },
+    _sum: { wordCount: true },
+  });
+  await prisma.voiceoverScript.update({
+    where: { id: scriptId },
+    data: { totalWords: total._sum.wordCount ?? 0 },
+  });
+}
+
+/** One segment with its full version history, as the client consumes it. */
+export async function getSegment(scriptId: string, index: number): Promise<VoSegment | null> {
+  const row = await prisma.voiceoverSegment.findUnique({
+    where: { scriptId_index: { scriptId, index } },
+  });
+  if (!row) return null;
+
+  const [versions, clips] = await Promise.all([
+    prisma.voiceoverSegmentVersion.findMany({
+      where: { scriptId, segmentIndex: index },
+      orderBy: { version: 'desc' },
+    }),
+    prisma.voiceoverAudio.findMany({
+      where: { scriptId, segmentIndex: index, kind: 'segment' },
+      select: { segmentVersion: true, publicUrl: true, voiceName: true },
+    }),
+  ]);
+
+  const audioByVersion = new Map(clips.map((c) => [c.segmentVersion, c]));
+
+  return {
+    index: row.index,
+    startSec: row.startSec,
+    endSec: row.endSec,
+    onScreen: row.onScreen,
+    script: row.script,
+    wordBudget: row.wordBudget,
+    wordCount: row.wordCount,
+    imageUrl: row.imageUrl,
+    editedAt: row.editedAt?.toISOString() ?? null,
+    version: row.version,
+    versions: versions.map((v) => ({
+      version: v.version,
+      text: v.text,
+      wordCount: v.wordCount,
+      source: v.source === 'edited' ? ('edited' as const) : ('generated' as const),
+      createdAt: v.createdAt.toISOString(),
+      audioUrl: audioByVersion.get(v.version)?.publicUrl ?? null,
+      voiceName: audioByVersion.get(v.version)?.voiceName ?? null,
+    })),
+  };
 }
