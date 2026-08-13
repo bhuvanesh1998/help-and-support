@@ -3,6 +3,9 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
+import { reconcileInterruptedScripts } from './services/voiceover/script-store.service.js';
+import { ensureSystemRoles } from './services/roles.service.js';
+import { sweepExpired } from './services/trash.service.js';
 
 const app = createApp();
 
@@ -12,6 +15,15 @@ const server: Server = app.listen(env.port, () => {
     env: env.nodeEnv,
     baseUrl: env.publicBaseUrl,
   });
+
+  // Voiceover jobs live in memory, so a restart abandons any in flight while
+  // their stored rows still read "running". Settle those on boot.
+  void reconcileInterruptedScripts();
+  void ensureSystemRoles();
+  // Retention is enforced on boot and then daily. The trash list also sweeps
+  // when opened, so an instance that is never left running still stays honest.
+  void sweepExpired();
+  setInterval(() => void sweepExpired(), 24 * 60 * 60 * 1000).unref();
 });
 
 /** Drain connections and close the DB pool before exiting. */

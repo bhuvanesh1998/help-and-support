@@ -1,0 +1,296 @@
+<div class="st">
+  <!-- ── Summary bar ──────────────────────────────────────────────────────── -->
+  <div class="st-bar">
+    <div class="st-bar__stats">
+      <span class="st-stat">
+        <mat-icon aria-hidden="true">format_list_numbered</mat-icon>
+        {{ segments().length }} lines
+      </span>
+      <span class="st-stat" [class.st-stat--warn]="overBudgetCount() > 0">
+        <mat-icon aria-hidden="true">
+          {{ overBudgetCount() > 0 ? 'warning_amber' : 'check_circle' }}
+        </mat-icon>
+        {{ overBudgetCount() > 0 ? overBudgetCount() + ' over budget' : 'All within budget' }}
+      </span>
+      @if (recordedCount() > 0) {
+        <span class="st-stat">
+          <mat-icon aria-hidden="true">graphic_eq</mat-icon>
+          {{ recordedCount() }}/{{ spokenCount() }} recorded
+        </span>
+      }
+      @if (withHistoryCount() > 0) {
+        <span class="st-stat" matTooltip="Earlier wordings are kept — nothing is lost by editing">
+          <mat-icon aria-hidden="true">history</mat-icon>
+          {{ withHistoryCount() }} with history
+        </span>
+      }
+    </div>
+
+    <button mat-stroked-button (click)="copyAll()">
+      <mat-icon aria-hidden="true">{{ copiedIndex() === -1 ? 'check' : 'content_copy' }}</mat-icon>
+      {{ copiedIndex() === -1 ? 'Copied' : 'Copy all lines' }}
+    </button>
+  </div>
+
+  <p class="st-note">
+    <mat-icon aria-hidden="true">info_outline</mat-icon>
+    <span>
+      Timecodes are an editing reference. Don't paste them into a text-to-speech engine — it
+      reads the numbers aloud. Copy the lines instead.
+    </span>
+  </p>
+
+  @if (overBudgetCount() > 0) {
+    <p class="st-alert" role="alert">
+      <mat-icon aria-hidden="true">warning_amber</mat-icon>
+      <span>
+        {{ overBudgetCount() }} line(s) run over their word budget. Trim them, or the narration
+        drifts out of sync with the visuals.
+      </span>
+    </p>
+  }
+
+  <!-- ── One card per line ────────────────────────────────────────────────── -->
+  <ol class="st-lines">
+    @for (segment of segments(); track segment.index) {
+      <li
+        class="st-line"
+        [class.st-line--over]="overBudget(segment)"
+        [class.st-line--editing]="editingIndex() === segment.index"
+      >
+        <!-- Timing rail -->
+        <div class="st-line__rail">
+          <span class="st-line__num">{{ segment.index }}</span>
+          <span class="st-line__time">
+            {{ timecode(segment.startSec) }}<br />{{ timecode(segment.endSec) }}
+          </span>
+          <span class="st-line__dur">{{ duration(segment) }}</span>
+        </div>
+
+        <!-- Frame still -->
+        <div class="st-line__frame">
+          @if (segment.imageUrl) {
+            <img
+              class="st-thumb"
+              [src]="segment.imageUrl"
+              [alt]="'Frame at ' + timecode(segment.startSec)"
+              loading="lazy"
+            />
+          } @else {
+            <div class="st-thumb st-thumb--empty" aria-hidden="true">
+              <mat-icon>image_not_supported</mat-icon>
+            </div>
+          }
+        </div>
+
+        <!-- Body -->
+        <div class="st-line__body">
+          @if (segment.onScreen) {
+            <p class="st-onscreen">
+              <mat-icon aria-hidden="true">visibility</mat-icon>
+              <span>{{ segment.onScreen }}</span>
+            </p>
+          }
+
+          @if (editingIndex() === segment.index) {
+            <textarea
+              class="st-edit"
+              rows="3"
+              [(ngModel)]="draft"
+              [attr.aria-label]="'Edit narration for line ' + segment.index"
+            ></textarea>
+            <div class="st-edit__bar">
+              <span
+                class="st-edit__count"
+                [class.st-edit__count--over]="draftWords() > segment.wordBudget"
+              >
+                {{ draftWords() }}/{{ segment.wordBudget }} words
+                @if (draftWords() > segment.wordBudget) {
+                  — over budget, it will overrun {{ duration(segment) }}
+                }
+              </span>
+              <span class="st-edit__keep">
+                <mat-icon aria-hidden="true">history</mat-icon>
+                The current wording and its take are kept as a version
+              </span>
+              <button mat-stroked-button (click)="cancelEdit()">Cancel</button>
+              <button mat-flat-button color="primary" [disabled]="!draft.trim()" (click)="commitEdit()">
+                Save as new version
+              </button>
+            </div>
+          } @else {
+            <p class="st-script">{{ segment.script }}</p>
+
+            <div class="st-meta">
+              <span class="st-budget" [class.st-budget--over]="overBudget(segment)">
+                <span class="st-budget__meter" aria-hidden="true">
+                  <span class="st-budget__fill" [style.width.%]="budgetPercent(segment)"></span>
+                </span>
+                {{ segment.wordCount }}/{{ segment.wordBudget }} words
+              </span>
+
+              @if (segment.editedAt) {
+                <span class="st-tag st-tag--edited" matTooltip="Hand-written, not the model's wording">
+                  <mat-icon aria-hidden="true">edit</mat-icon> edited
+                </span>
+              }
+              @if (hasHistory(segment)) {
+                <button
+                  type="button"
+                  class="st-tag st-tag--history"
+                  (click)="toggleHistory(segment.index)"
+                  [attr.aria-expanded]="historyIndex() === segment.index"
+                >
+                  <mat-icon aria-hidden="true">history</mat-icon>
+                  v{{ segment.version }} · {{ versionsFor(segment).length }} versions
+                  @if (recoverableTakes(segment) > 0) {
+                    <span class="st-tag__badge">{{ recoverableTakes(segment) }} take(s) kept</span>
+                  }
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Audio + actions -->
+        <div class="st-line__side">
+          <div class="st-actions">
+            <button
+              mat-icon-button
+              [attr.aria-label]="'Copy line ' + segment.index"
+              matTooltip="Copy this line"
+              (click)="copyScript(segment)"
+            >
+              <mat-icon>{{ copiedIndex() === segment.index ? 'check' : 'content_copy' }}</mat-icon>
+            </button>
+
+            @if (editable() && editingIndex() !== segment.index) {
+              <button
+                mat-icon-button
+                [attr.aria-label]="'Edit line ' + segment.index"
+                matTooltip="Edit this line"
+                (click)="startEdit(segment)"
+              >
+                <mat-icon>edit</mat-icon>
+              </button>
+            }
+
+            @if (hasHistory(segment)) {
+              <button
+                mat-icon-button
+                [attr.aria-label]="'Version history for line ' + segment.index"
+                matTooltip="Version history"
+                (click)="toggleHistory(segment.index)"
+              >
+                <mat-icon>history</mat-icon>
+              </button>
+            }
+          </div>
+
+          @if (renderingIndex() === segment.index) {
+            <span class="st-rendering">
+              <mat-icon aria-hidden="true">graphic_eq</mat-icon>
+              recording…
+            </span>
+          } @else if (clipFor(segment.index); as clip) {
+            <div class="st-take">
+              <audio class="st-take__player" controls preload="metadata" [src]="clip.publicUrl"></audio>
+              <div class="st-take__foot">
+                <span class="st-take__voice">{{ clip.voiceName }}</span>
+                <button
+                  mat-icon-button
+                  class="st-take__redo"
+                  matTooltip="Re-record this line"
+                  [disabled]="renderingIndex() !== null"
+                  [attr.aria-label]="'Re-record line ' + segment.index"
+                  (click)="renderLine.emit(segment.index)"
+                >
+                  <mat-icon>refresh</mat-icon>
+                </button>
+              </div>
+            </div>
+          } @else if (segment.script.trim()) {
+            <div class="st-take st-take--none">
+              <span class="st-take__empty">
+                @if (recoverableTakes(segment) > 0) {
+                  No take for this wording — an earlier version still has one
+                } @else {
+                  Not recorded yet
+                }
+              </span>
+              @if (editable()) {
+                <button
+                  mat-stroked-button
+                  class="st-take__record"
+                  [disabled]="renderingIndex() !== null"
+                  (click)="renderLine.emit(segment.index)"
+                >
+                  <mat-icon aria-hidden="true">mic</mat-icon>
+                  Record
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- ── Version history ─────────────────────────────────────────────── -->
+        @if (historyIndex() === segment.index) {
+          <div class="st-history">
+            <p class="st-history__head">
+              <mat-icon aria-hidden="true">history</mat-icon>
+              <span>
+                Every wording this line has had. Restoring one brings back the take recorded from
+                it, so an edit costs nothing to undo.
+              </span>
+            </p>
+
+            <ul class="st-versions">
+              @for (v of versionsFor(segment); track v.version) {
+                <li class="st-version" [class.st-version--current]="isCurrent(segment, v)">
+                  <div class="st-version__top">
+                    <span class="st-version__label">
+                      v{{ v.version }}
+                      <span class="st-version__source">
+                        {{ v.source === 'edited' ? 'hand-written' : 'generated' }}
+                      </span>
+                      @if (isCurrent(segment, v)) {
+                        <span class="st-version__badge">in use</span>
+                      }
+                    </span>
+                    <span class="st-version__when">{{ age(v.createdAt) }}</span>
+                  </div>
+
+                  <p class="st-version__text">{{ v.text }}</p>
+
+                  <div class="st-version__foot">
+                    <span class="st-version__words">{{ v.wordCount }} words</span>
+                    @if (v.audioUrl) {
+                      <audio
+                        class="st-version__player"
+                        controls
+                        preload="metadata"
+                        [src]="v.audioUrl"
+                      ></audio>
+                      @if (v.voiceName) {
+                        <span class="st-version__voice">{{ v.voiceName }}</span>
+                      }
+                    } @else {
+                      <span class="st-version__novoice">no take recorded</span>
+                    }
+
+                    @if (editable() && !isCurrent(segment, v)) {
+                      <button mat-stroked-button class="st-version__restore" (click)="restore(segment, v)">
+                        <mat-icon aria-hidden="true">restore</mat-icon>
+                        {{ v.audioUrl ? 'Restore with audio' : 'Restore' }}
+                      </button>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </li>
+    }
+  </ol>
+</div>

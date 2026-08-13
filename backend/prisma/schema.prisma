@@ -44,15 +44,80 @@ model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique
   passwordHash String
+  /// Account tier. SUPER_ADMIN always has every permission regardless of role,
+  /// so the instance can never be locked out of its own administration.
   role         UserRole  @default(ADMIN)
+  /// Assigned role, which decides the feature permissions. Null falls back to
+  /// the legacy ADMIN set (everything except users and roles).
+  roleId       String?   @db.Uuid
+  accessRole   Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive     Boolean   @default(true)
+  /// Bumped to invalidate every token already issued to this account — logout
+  /// everywhere, and any password change. Tokens carry the value they were
+  /// signed with and are rejected once it no longer matches.
+  tokenVersion Int       @default(0)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   uploadedMedia MediaAsset[] @relation("UploadedByUser")
 
+  @@index([roleId])
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+//  Trash: deleted records held for a retention window, restorable until purged
+// ---------------------------------------------------------------------------
+
+/// A deleted record, kept whole so it can be put back.
+///
+/// The rows are *removed* from their own tables and serialised into `payload`
+/// rather than being flagged in place. That keeps every existing list, count and
+/// join correct without a `deletedAt IS NULL` filter threaded through the app —
+/// a filter missed in one query is how "deleted" content reappears.
+model TrashItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Which adapter can restore this: 'voiceoverScript' | 'page' | 'category'.
+  entityType  String
+  /// The original record's id, so a restore recreates it unchanged.
+  entityId    String
+  /// What the user sees in the trash list.
+  label       String
+  description String   @default("")
+  /// The record and its children, exactly as they were.
+  payload     Json
+  deletedById String?  @db.Uuid
+  deletedAt   DateTime @default(now())
+  /// Stamped at delete time, so changing the retention window never silently
+  /// re-dates what is already in the trash.
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@index([entityType])
+  @@map("trash_items")
+}
+
+// ---------------------------------------------------------------------------
+//  Roles: a named set of feature permissions, assignable to users
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String   @default("")
+  /// Permission keys from src/config/permissions.ts, stored expanded (implied
+  /// keys included) so a check is a plain membership test.
+  permissions String[]
+  /// Seeded roles: renameable, but their permissions and existence are fixed so
+  /// there is always a coherent role to fall back on.
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+
+  @@map("roles")
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +134,11 @@ model Page {
   // Module grouping for the help-center landing & admin list.
   category      String? // e.g. 'Chat', 'Campaigns', 'Configuration'
   categoryOrder Int     @default(99) // section order on the landing page
+
+  // Publish state. Off (false) hides the manual from the end-user help center
+  // (public API) while keeping it fully editable in the admin so it can be
+  // reworked and switched back on. Defaults to live for backward compatibility.
+  isPublished Boolean @default(true)
 
   // --- SEO / AI-SEO metadata (consumed by SSR + JSON-LD in Phase 3/4) ---
   metaTitle       String?
@@ -263,10 +333,24 @@ model MediaAsset {
   uploadedById String?  @db.Uuid
   createdAt    DateTime @default(now())
 
+  // --- Annotation editor (non-destructive) ---
+  // The untouched base image is preserved on first edit; each save re-renders
+  // the annotation layer over it, so edits are reversible and re-editable.
+  annotations         Json?     // editable vector shapes drawn over the image
+  originalStoragePath String?   // disk path of the untouched base (set on first edit)
+  originalUrl         String?   // public URL of the untouched base
+  editedAt            DateTime? // last annotation save
+
+  // --- Trash (soft delete) ---
+  // When set, the asset is in the trash; a lazy sweep purges rows whose
+  // deletedAt is older than the 30-day retention window on the next list load.
+  deletedAt DateTime? // moved-to-trash timestamp; null = live
+
   uploadedBy User?          @relation("UploadedByUser", fields: [uploadedById], references: [id], onDelete: SetNull)
   steps      TutorialStep[]
 
   @@index([uploadedById])
+  @@index([deletedAt])
   @@map("media_assets")
 }
 
@@ -298,4 +382,208 @@ model AnalyticsEvent {
   @@index([pageId])
   @@index([createdAt])
   @@map("analytics_events")
+}
+
+/// Runtime-editable Voiceover Studio tunables. A single row ("default").
+/// When absent, the values fall back to the environment defaults, so a fresh
+/// deployment behaves exactly as before this table existed.
+model VoiceoverSetting {
+  id                  String   @id @default(uuid()) @db.Uuid
+  name                String   @unique @default("default")
+  maxVideoUploadMb    Int      @default(500)
+  provider            String   @default("anthropic") // anthropic | openai | gemini
+  model               String   @default("claude-opus-5")
+  effort              String   @default("medium")   // low | medium | high | xhigh | max
+  maxTokens           Int      @default(12000)
+  maxFrames           Int      @default(48)
+  framesPerBatch      Int      @default(12)
+  frameWidth          Int      @default(960)
+  frameQuality        Int      @default(4)          // ffmpeg -q:v, 1 best … 31 worst
+  sceneThreshold      Float    @default(0.3)        // 0–1, lower catches more transitions
+  minFrameGapSec      Float    @default(1.5)
+  minSegmentSec       Float    @default(4)
+  maxSegmentSec       Float    @default(14)
+  wordsPerMinute      Int      @default(150)
+  jobRetentionMinutes Int      @default(60)
+  updatedById         String?  @db.Uuid
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("voiceover_settings")
+}
+
+/// A generated voiceover script, kept so the output survives navigation,
+/// job expiry and restarts. One row per run; segments are children.
+model VoiceoverScript {
+  id           String   @id @default(uuid()) @db.Uuid
+  videoName    String
+  appName      String
+  audience     String
+  tone         String
+  provider     String
+  model        String
+  /// Source video facts, for the review header.
+  durationSec  Float    @default(0)
+  width        Int      @default(0)
+  height       Int      @default(0)
+  fps          Float    @default(0)
+  sizeBytes    Int      @default(0)
+  /// Speaking pace this run used — word budgets are meaningless without it.
+  wordsPerMinute Int    @default(150)
+  frameCount   Int      @default(0)
+  totalWords   Int      @default(0)
+  /// running | done | error | cancelled
+  status       String   @default("running")
+  error        String?
+  /// Set when this run re-used another script's frames with a different tone,
+  /// so every tone of one video groups together as variants.
+  sourceScriptId String? @db.Uuid
+  createdById  String?  @db.Uuid
+  /// The voice this script is narrated in. Pinned on the first render so every
+  /// later take — including a re-record months later — matches, rather than
+  /// following whatever the voice dropdown happened to show.
+  voiceId      String?
+  voiceName    String?
+  ttsModelId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  segments VoiceoverSegment[]
+  segmentVersions VoiceoverSegmentVersion[]
+  frames   VoiceoverFrame[]
+  audio    VoiceoverAudio[]
+  source   VoiceoverScript?  @relation("ScriptVariants", fields: [sourceScriptId], references: [id], onDelete: SetNull)
+  variants VoiceoverScript[] @relation("ScriptVariants")
+
+  @@index([createdAt])
+  @@index([sourceScriptId])
+  @@map("voiceover_scripts")
+}
+
+/// The sampled stills for a run, kept so a different tone can be generated
+/// without re-uploading the video (the upload is deleted after extraction).
+model VoiceoverFrame {
+  id            String   @id @default(uuid()) @db.Uuid
+  scriptId      String   @db.Uuid
+  at            Float
+  isSceneChange Boolean  @default(false)
+  imageUrl      String?
+  /// On-disk path, needed to re-read the bytes when regenerating.
+  storagePath   String
+  createdAt     DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@index([scriptId])
+  @@map("voiceover_frames")
+}
+
+/// One narration segment, locked to a span of the source video.
+model VoiceoverSegment {
+  id         String   @id @default(uuid()) @db.Uuid
+  scriptId   String   @db.Uuid
+  index      Int
+  startSec   Float
+  endSec     Float
+  onScreen   String
+  script     String
+  wordBudget Int
+  wordCount  Int
+  imageUrl   String?
+  /// Set when a human rewrote this line, so edits are visible as such.
+  editedAt   DateTime?
+  /// Which stored version `script` currently holds. Rendered audio is filed
+  /// against the version it was spoken from, so restoring a version brings its
+  /// audio back instead of requiring a re-record.
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, index])
+  @@index([scriptId])
+  @@map("voiceover_segments")
+}
+
+/// Every wording a line has ever had. Append-only: an edit adds a version rather
+/// than overwriting, so a rewrite is never a one-way door.
+model VoiceoverSegmentVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  scriptId     String   @db.Uuid
+  segmentIndex Int
+  version      Int
+  text         String
+  wordCount    Int      @default(0)
+  /// 'generated' for the model's wording, 'edited' for a human rewrite.
+  source       String   @default("generated")
+  createdAt    DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, segmentIndex, version])
+  @@index([scriptId, segmentIndex])
+  @@map("voiceover_segment_versions")
+}
+
+/// Rendered narration audio, one row per script segment. Keyed by segment index
+/// so re-rendering a single line replaces just that clip.
+model VoiceoverAudio {
+  id           String   @id @default(uuid()) @db.Uuid
+  scriptId     String   @db.Uuid
+  /// 'segment' for one line; 'timeline' for the full-length stitched track,
+  /// which is stored at segmentIndex -1.
+  kind         String   @default("segment")
+  segmentIndex Int
+  voiceId      String
+  voiceName    String
+  modelId      String
+  filename     String
+  storagePath  String
+  publicUrl    String
+  sizeBytes    Int      @default(0)
+  /// The segment version this clip was spoken from. For a stitched timeline this
+  /// is the build number instead, so earlier mixes are kept as history. Clips are
+  /// kept per version so editing a line no longer throws its recording away.
+  segmentVersion Int    @default(1)
+  /// Timeline rows only: the `index:version` pairs mixed into this track. Compared
+  /// against the script to tell whether the track still matches the words.
+  sourceSignature String?
+  createdAt    DateTime @default(now())
+
+  scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptId, segmentIndex, segmentVersion])
+  @@index([scriptId])
+  @@map("voiceover_audio")
+}
+
+/// One row per billable API call the Voiceover Studio makes, so usage can be
+/// reported per provider, model and script. Units are recorded raw (tokens,
+/// characters, requests) rather than priced — provider rates change, and a
+/// wrong hardcoded price is worse than no price.
+model VoiceoverUsage {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Deliberately not a foreign key: deleting a script must not erase what it
+  /// cost. The report shows such rows without a name.
+  scriptId     String?  @db.Uuid
+  /// 'script' for a vision call, 'tts' for narration audio, 'sample' for an
+  /// audition. Timeline assembly is local ffmpeg work and is not recorded.
+  kind         String
+  provider     String
+  model        String
+  /// Vision calls: tokens reported by the provider.
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  /// Vision calls: how many stills were sent in this request.
+  frames       Int      @default(0)
+  /// TTS calls: characters submitted, which is what ElevenLabs bills on.
+  characters   Int      @default(0)
+  /// False when the call failed; kept so failures are visible in the report.
+  ok           Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([scriptId])
+  @@index([provider, kind])
+  @@map("voiceover_usage")
 }

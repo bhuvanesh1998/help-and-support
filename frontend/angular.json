@@ -52,7 +52,9 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": [
+              "src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {
@@ -68,7 +70,17 @@
                   "maximumError": "28kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": true
+                },
+                "fonts": {
+                  "inline": false
+                }
+              }
             },
             "development": {
               "optimization": false,
@@ -91,7 +103,8 @@
               "buildTarget": "help-assistant-ui:build:production"
             },
             "development": {
-              "buildTarget": "help-assistant-ui:build:development"
+              "buildTarget": "help-assistant-ui:build:development",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "development"

@@ -41,6 +41,29 @@ export class Landing implements OnInit {
   /** Which category is open (level 2); null = show the summary cards. */
   readonly activeCategory = signal<string | null>(null);
 
+  /** "New" view: show every recently-added manual across all modules. */
+  readonly newOnly = signal(false);
+
+  /** A manual counts as "new" for this many days after it is created. */
+  private static readonly NEW_DAYS = 14;
+
+  isNew(t: Tutorial): boolean {
+    if (!t.createdAt) return false;
+    const created = new Date(t.createdAt).getTime();
+    if (Number.isNaN(created)) return false;
+    const ageMs = Date.now() - created;
+    return ageMs >= 0 && ageMs <= Landing.NEW_DAYS * 24 * 60 * 60 * 1000;
+  }
+
+  /** All new manuals, newest first — powers the "New" filter view. */
+  readonly newManuals = computed(() =>
+    this.tutorials()
+      .filter((t) => this.isNew(t))
+      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')),
+  );
+
+  readonly newCount = computed(() => this.newManuals().length);
+
   /** Manuals inside the open category, sorted by title. */
   readonly activeManuals = computed(() => {
     const cat = this.activeCategory();
@@ -66,6 +89,7 @@ export class Landing implements OnInit {
   }
 
   openCategory(name: string): void {
+    this.newOnly.set(false);
     this.activeCategory.set(name);
     if (typeof window !== 'undefined') {
       document.getElementById('tutorials')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -74,6 +98,16 @@ export class Landing implements OnInit {
 
   backToCategories(): void {
     this.activeCategory.set(null);
+    this.newOnly.set(false);
+  }
+
+  /** Toggle the flat "New manuals" view (mutually exclusive with a category). */
+  showNew(): void {
+    this.activeCategory.set(null);
+    this.newOnly.set(true);
+    if (typeof window !== 'undefined') {
+      document.getElementById('tutorials')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   open(id: string): void {

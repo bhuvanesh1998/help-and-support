@@ -16,12 +16,13 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminApiService } from '../../../../core/services/admin-api';
 import { AuthStore } from '../../../../core/services/auth-store';
-import type { AdminUser } from '../../../../core/models/admin';
+import { RouterLink } from '@angular/router';
+import type { AdminRole, AdminUser } from '../../../../core/models/admin';
 
 @Component({
   selector: 'ha-users-list',
   imports: [
-    FormsModule, DatePipe,
+    FormsModule, DatePipe, RouterLink,
     MatButtonModule, MatIconModule, MatSelectModule,
     MatSlideToggleModule, MatSnackBarModule, MatTooltipModule,
   ],
@@ -39,21 +40,44 @@ export class UsersList implements OnInit {
   readonly users    = signal<AdminUser[]>([]);
   readonly showForm = signal(false);
   readonly search   = signal('');
+  /** Assignable roles. Empty when the account cannot manage roles. */
+  readonly roles    = signal<AdminRole[]>([]);
 
   readonly filtered = computed(() => {
     const q   = this.search().toLowerCase().trim();
     const all = this.users();
     if (!q) return all;
     return all.filter(
-      u => u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q),
+      u =>
+        u.email.toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q) ||
+        (u.roleName ?? '').toLowerCase().includes(q),
     );
   });
 
   newEmail    = '';
   newPassword = '';
   newRole: 'SUPER_ADMIN' | 'ADMIN' = 'ADMIN';
+  /** '' means no role assigned — the account falls back to legacy admin access. */
+  newRoleId   = '';
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+    this.loadRoles();
+  }
+
+  /**
+   * Roles for the assignment dropdown. Needs `roles.manage`, which a user
+   * manager may not hold, so a failure here leaves the dropdown out rather than
+   * showing an error for something optional.
+   */
+  private loadRoles(): void {
+    if (!this.auth.can('roles.manage')) return;
+    this.api.listRoles().subscribe({
+      next: res => this.roles.set(res.roles),
+      error: () => this.roles.set([]),
+    });
+  }
 
   load(): void {
     this.loading.set(true);
@@ -67,6 +91,7 @@ export class UsersList implements OnInit {
     this.newEmail    = '';
     this.newPassword = '';
     this.newRole     = 'ADMIN';
+    this.newRoleId   = '';
     this.showForm.set(true);
   }
 
@@ -74,7 +99,12 @@ export class UsersList implements OnInit {
 
   createUser(): void {
     this.saving.set(true);
-    this.api.createUser({ email: this.newEmail, password: this.newPassword, role: this.newRole }).subscribe({
+    this.api.createUser({
+      email: this.newEmail,
+      password: this.newPassword,
+      role: this.newRole,
+      roleId: this.newRoleId || null,
+    }).subscribe({
       next: () => {
         this.saving.set(false);
         this.showForm.set(false);
@@ -107,11 +137,29 @@ export class UsersList implements OnInit {
     });
   }
 
+  /** The account tier — SUPER_ADMIN bypasses every permission check. */
   changeRole(user: AdminUser, role: string): void {
     this.api.updateUser(user.id, { role }).subscribe({
-      next:  () => { this.snack.open('Role updated', undefined, { duration: 2000 }); this.load(); },
+      next:  () => { this.snack.open('Account type updated', undefined, { duration: 2000 }); this.load(); },
       error: () => this.snack.open('Update failed', 'OK', { duration: 3000 }),
     });
+  }
+
+  /** The assigned role, which decides which features the account can reach. */
+  changeAccessRole(user: AdminUser, roleId: string): void {
+    this.api.updateUser(user.id, { roleId: roleId || null }).subscribe({
+      next: () => {
+        this.snack.open(roleId ? 'Role assigned' : 'Role cleared', undefined, { duration: 2000 });
+        this.load();
+      },
+      error: (err: { error?: { message?: string } }) =>
+        this.snack.open(err.error?.message ?? 'Update failed', 'OK', { duration: 3000 }),
+    });
+  }
+
+  /** Super admins hold everything, so an assigned role would be misleading. */
+  canAssignRole(user: AdminUser): boolean {
+    return this.roles().length > 0 && user.role !== 'SUPER_ADMIN';
   }
 
   isSelf(user: AdminUser): boolean {

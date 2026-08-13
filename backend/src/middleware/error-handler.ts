@@ -41,7 +41,10 @@ export function errorHandler(
     message = 'Invalid database query input';
     code = 'PRISMA_VALIDATION';
   } else if (err instanceof Error) {
-    message = err.message || message;
+    // Deliberately *not* forwarded to the client in production: an unexpected
+    // error's message routinely carries file paths, SQL and connection details.
+    // It is logged in full below.
+    if (!env.isProduction) message = err.message || message;
   }
 
   if (statusCode >= 500) {

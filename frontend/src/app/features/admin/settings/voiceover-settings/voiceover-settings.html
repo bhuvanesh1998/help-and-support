@@ -1,0 +1,346 @@
+<div class="vos">
+  <header class="vos-top">
+    <div class="vos-top__text">
+      <h2 class="vos-title">Voiceover settings</h2>
+      <p class="vos-sub">
+        Which model reads your video, and the cost, quality and limit controls
+        around it. Saved here and applied to the next job — no redeploy.
+      </p>
+    </div>
+    <!-- Actions live in the header: the form is long, and a bottom bar meant
+         scrolling past every field to save. -->
+    <div class="vos-top__actions">
+      @if (isCustomised()) {
+        <span class="vos-pill vos-pill--on">
+          <mat-icon aria-hidden="true">tune</mat-icon> Customised
+        </span>
+      } @else {
+        <span class="vos-pill vos-pill--off">Server defaults</span>
+      }
+
+      @if (saved()) {
+        <span class="vos-saved">
+          <mat-icon aria-hidden="true">check</mat-icon> Saved
+        </span>
+      }
+
+      @if (settings()) {
+        <button
+          mat-stroked-button
+          [disabled]="saving() || !isCustomised()"
+          matTooltip="Discard saved values and fall back to the server environment defaults"
+          (click)="resetToDefaults()"
+        >
+          <mat-icon aria-hidden="true">restart_alt</mat-icon>
+          Reset to defaults
+        </button>
+        <button mat-flat-button color="primary" [disabled]="saving()" (click)="save()">
+          <mat-icon aria-hidden="true">save</mat-icon>
+          {{ saving() ? 'Saving…' : 'Save settings' }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="vos-alert vos-alert--error" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error() }}</span>
+    </p>
+  }
+
+  @if (loading()) {
+    <p class="vos-sub">Loading…</p>
+  } @else if (settings(); as s) {
+    <!-- ── Provider ──────────────────────────────────────────────────────── -->
+    <section class="vos-card">
+      <div class="vos-card__head">
+        <h3>Vision provider</h3>
+        <p>The model that looks at the frames and writes the script.</p>
+      </div>
+
+      <div class="vos-grid">
+        <div class="vos-field">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Provider</mat-label>
+            <mat-select [value]="s.provider" (valueChange)="setProvider($event)">
+              @for (p of providers(); track p.id) {
+                <mat-option [value]="p.id">
+                  {{ p.label }}
+                  <!-- Key status inline, so picking a provider with no key is
+                       visibly a dead end rather than a later error. -->
+                  @if (hasKey(p.id)) { — key connected } @else { — no key }
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <p class="vos-hint">Needs a connected key for that provider, below.</p>
+        </div>
+
+        <div class="vos-field">
+          @if (liveModels().length) {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Model</mat-label>
+              <mat-select [value]="s.model" (valueChange)="setModel($event)">
+                @for (m of liveModels(); track m) {
+                  <mat-option [value]="m">{{ m }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <p class="vos-hint">
+              {{ liveModels().length }} models available on this account.
+              <button type="button" class="vos-link" (click)="loadModels()">Refresh</button>
+            </p>
+          } @else {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Model</mat-label>
+              <input
+                matInput
+                [value]="s.model"
+                (input)="setModel($any($event.target).value)"
+                placeholder="model id"
+              />
+            </mat-form-field>
+            <p class="vos-hint">
+              @if (loadingModels()) {
+                Loading models from the provider…
+              } @else if (modelsError()) {
+                {{ modelsError() }}
+              } @else if (!hasKey(s.provider)) {
+                Connect this provider's key below to load its live model list.
+              } @else {
+                <button type="button" class="vos-link" (click)="loadModels()">
+                  Load available models
+                </button>
+              }
+            </p>
+          }
+        </div>
+
+        @if (effortApplies()) {
+          <div class="vos-field">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Reasoning effort</mat-label>
+              <mat-select [value]="s.effort" (valueChange)="setEffort($event)">
+                @for (e of efforts(); track e) {
+                  <mat-option [value]="e">{{ e }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <p class="vos-hint">Higher spends more thinking tokens per request.</p>
+          </div>
+        }
+      </div>
+
+      @if (activeKey(); as k) {
+        @if (!k.connected) {
+          <p class="vos-alert vos-alert--warn">
+            <mat-icon aria-hidden="true">warning_amber</mat-icon>
+            <span>
+              <strong>{{ k.label }} is selected but has no key connected.</strong>
+              Connect one below, or switch to a provider that already has a key —
+              jobs will otherwise fail at the script step.
+            </span>
+          </p>
+        }
+      }
+      @if (autoSwitched()) {
+        <p class="vos-alert vos-alert--ok">
+          <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+          <span>
+            Provider switched to <strong>{{ activeProvider()?.label }}</strong> because
+            that is the key you just connected. Press <strong>Save settings</strong>
+            to apply it.
+          </span>
+        </p>
+      }
+    </section>
+
+    <!-- ── API keys ──────────────────────────────────────────────────────── -->
+    <section class="vos-card">
+      <div class="vos-card__head">
+        <h3>API keys</h3>
+        <p>
+          Verified against the provider before saving, then encrypted at rest.
+          Keys are never sent back to this page.
+        </p>
+      </div>
+
+      @if (keyError()) {
+        <p class="vos-alert vos-alert--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ keyError() }}</span>
+        </p>
+      }
+
+      <ul class="vos-keys">
+        @for (k of keys(); track k.provider) {
+          <li class="vos-key" [class.vos-key--active]="k.provider === s.provider">
+            <div class="vos-key__id">
+              <strong>{{ k.label }}</strong>
+              @if (k.connected) {
+                <span class="vos-pill vos-pill--on">
+                  <mat-icon aria-hidden="true">check_circle</mat-icon>
+                  Connected ····{{ k.keyLast4 }}
+                </span>
+              } @else {
+                <span class="vos-pill vos-pill--off">Not connected</span>
+              }
+            </div>
+
+            <div class="vos-key__form">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="vos-key__input">
+                <mat-label>{{ k.connected ? 'Replace key' : 'API key' }}</mat-label>
+                <input
+                  matInput
+                  type="password"
+                  autocomplete="off"
+                  [placeholder]="k.keyHint"
+                  [(ngModel)]="keyInput[k.provider]"
+                />
+              </mat-form-field>
+              <button
+                mat-flat-button
+                color="primary"
+                [disabled]="connecting() === k.provider || !keyInput[k.provider]"
+                (click)="connectKey(k.provider)"
+              >
+                {{ connecting() === k.provider ? 'Verifying…' : 'Connect' }}
+              </button>
+              @if (k.connected) {
+                <button
+                  mat-stroked-button
+                  [disabled]="connecting() === k.provider"
+                  (click)="disconnectKey(k.provider)"
+                >
+                  Disconnect
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+
+      <p class="vos-note">
+        The Claude key is shared with the AI Pipeline — connect it once and both
+        features use it.
+      </p>
+    </section>
+
+    <!-- ── Upload & retention ────────────────────────────────────────────── -->
+    <section class="vos-card">
+      <div class="vos-card__head"><h3>Upload &amp; retention</h3></div>
+      <div class="vos-grid">
+        @for (field of uploadFields; track field.key) {
+          <div class="vos-field">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ field.label }}</mat-label>
+              <input
+                matInput
+                type="number"
+                [value]="value(field.key)"
+                [min]="min(field.key)"
+                [max]="max(field.key)"
+                [step]="field.step"
+                (input)="setValue(field.key, $any($event.target).value)"
+              />
+              @if (field.suffix) { <span matTextSuffix>{{ field.suffix }}</span> }
+            </mat-form-field>
+            <p class="vos-hint">{{ field.hint }}</p>
+          </div>
+        }
+      </div>
+      <p class="vos-note">
+        Raising the size limit costs upload time and disk, not model tokens — a
+        500 MB and a 50 MB video are both reduced to the same frame count below.
+      </p>
+    </section>
+
+    <!-- ── Frames & cost ─────────────────────────────────────────────────── -->
+    <section class="vos-card">
+      <div class="vos-card__head"><h3>Frames &amp; cost</h3></div>
+      <div class="vos-grid">
+        @for (field of costFields; track field.key) {
+          <div class="vos-field">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ field.label }}</mat-label>
+              <input
+                matInput
+                type="number"
+                [value]="value(field.key)"
+                [min]="min(field.key)"
+                [max]="max(field.key)"
+                [step]="field.step"
+                (input)="setValue(field.key, $any($event.target).value)"
+              />
+              @if (field.suffix) { <span matTextSuffix>{{ field.suffix }}</span> }
+            </mat-form-field>
+            <p class="vos-hint">{{ field.hint }}</p>
+          </div>
+        }
+      </div>
+      <p class="vos-note">
+        Current settings send up to <strong>{{ s.maxFrames }}</strong> frames as
+        <strong>{{ requestsPerJob() }}</strong> request(s) per job, at
+        {{ s.frameWidth }}px wide.
+      </p>
+    </section>
+
+    <!-- ── Scene detection ───────────────────────────────────────────────── -->
+    <section class="vos-card">
+      <div class="vos-card__head"><h3>Scene detection</h3></div>
+      <div class="vos-grid">
+        @for (field of detectionFields; track field.key) {
+          <div class="vos-field">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ field.label }}</mat-label>
+              <input
+                matInput
+                type="number"
+                [value]="value(field.key)"
+                [min]="min(field.key)"
+                [max]="max(field.key)"
+                [step]="field.step"
+                (input)="setValue(field.key, $any($event.target).value)"
+              />
+              @if (field.suffix) { <span matTextSuffix>{{ field.suffix }}</span> }
+            </mat-form-field>
+            <p class="vos-hint">{{ field.hint }}</p>
+          </div>
+        }
+      </div>
+      <p class="vos-note">
+        Detection decides where timecodes fall. A uniform grid always backfills
+        the gaps, so a raised threshold degrades accuracy rather than breaking a job.
+      </p>
+    </section>
+
+    <!-- ── Narration ─────────────────────────────────────────────────────── -->
+    <section class="vos-card">
+      <div class="vos-card__head"><h3>Narration</h3></div>
+      <div class="vos-grid">
+        @for (field of narrationFields; track field.key) {
+          <div class="vos-field">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ field.label }}</mat-label>
+              <input
+                matInput
+                type="number"
+                [value]="value(field.key)"
+                [min]="min(field.key)"
+                [max]="max(field.key)"
+                [step]="field.step"
+                (input)="setValue(field.key, $any($event.target).value)"
+              />
+              @if (field.suffix) { <span matTextSuffix>{{ field.suffix }}</span> }
+            </mat-form-field>
+            <p class="vos-hint">{{ field.hint }}</p>
+          </div>
+        }
+      </div>
+      <p class="vos-note">
+        Speaking pace sets every word budget: at {{ s.wordsPerMinute }} wpm a
+        10-second segment is capped at
+        <strong>{{ wordsPerTenSeconds() }}</strong> words.
+      </p>
+    </section>
+  }
+</div>

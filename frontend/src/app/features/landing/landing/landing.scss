@@ -541,3 +541,48 @@
   &:hover { border-color: var(--mat-sys-primary); color: var(--mat-sys-primary); }
   mat-icon { font-size: 18px; width: 18px; height: 18px; }
 }
+
+/* ── New filter chip + badge (added) ───────────────────────────────────────── */
+.landing-filters {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 20px;
+}
+.new-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--mat-sys-on-primary-container);
+  background: var(--mat-sys-primary-container);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 40%, transparent);
+  transition: filter 0.15s ease;
+
+  &:hover { filter: brightness(1.05); }
+  mat-icon { font-size: 20px; width: 20px; height: 20px; }
+}
+.new-chip-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--mat-sys-on-primary);
+  background: var(--mat-sys-primary);
+}
+.new-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+  color: var(--mat-sys-on-primary);
+  background: var(--mat-sys-primary);
+}

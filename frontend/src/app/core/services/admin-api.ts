@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
+import { AppConfigService } from '../config/app-config.service';
 import type {
   AdminCategory,
   AdminPage,
@@ -19,19 +19,71 @@ import type {
   LoginResponse,
   MediaAsset,
   PaginatedResponse,
+  VoiceoverConfig,
+  TtsVoice,
+  VoAudioClip,
+  VoCredentialId,
+  VoKeyStatus,
+  VoProviderId,
+  VoiceoverSettings,
+  VoJobSnapshot,
+  VoScriptDetail,
+  VoScriptFilters,
+  VoScriptSummary,
+  VoSegment,
+  VoTone,
+  VoUsageReport,
+  AdminRole,
+  PermissionGroup,
+  TrashItem,
 } from '../models/admin';
 
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private readonly http = inject(HttpClient);
-  private readonly b = `${environment.apiBaseUrl}/admin`;
+  private readonly b = `${inject(AppConfigService).apiBaseUrl}/admin`;
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   login(email: string, password: string) {
     return this.http.post<LoginResponse>(`${this.b}/auth/login`, { email, password });
   }
+  /**
+   * Ends the session server-side by invalidating every token issued to this
+   * account. Without it, clearing browser storage left a copied token usable
+   * until it expired.
+   */
+  logout() {
+    return this.http.post<void>(`${this.b}/auth/logout`, {});
+  }
   me() {
     return this.http.get<{ user: AdminUser }>(`${this.b}/auth/me`);
+  }
+
+  // ── Trash ───────────────────────────────────────────────────────────────────
+  /** Deleted items the caller may see, newest first. */
+  listTrash() {
+    return this.http.get<{ items: TrashItem[]; retentionDays: number }>(`${this.b}/trash`);
+  }
+  restoreFromTrash(type: string, id: string) {
+    return this.http.post<{ restored: boolean }>(`${this.b}/trash/${type}/${id}/restore`, {});
+  }
+  deleteFromTrash(type: string, id: string) {
+    return this.http.delete<{ deleted: boolean }>(`${this.b}/trash/${type}/${id}`);
+  }
+
+  // ── Roles & permissions ─────────────────────────────────────────────────────
+  /** Roles plus the permission catalogue, so the UI never hardcodes the list. */
+  listRoles() {
+    return this.http.get<{ roles: AdminRole[]; groups: PermissionGroup[] }>(`${this.b}/roles`);
+  }
+  createRole(body: { name: string; description: string; permissions: string[] }) {
+    return this.http.post<{ role: AdminRole }>(`${this.b}/roles`, body);
+  }
+  updateRole(id: string, body: { name?: string; description?: string; permissions?: string[] }) {
+    return this.http.patch<{ role: AdminRole }>(`${this.b}/roles/${id}`, body);
+  }
+  deleteRole(id: string) {
+    return this.http.delete<{ deleted: boolean }>(`${this.b}/roles/${id}`);
   }
 
   // ── Connect (embed widget config) ───────────────────────────────────────────
@@ -117,11 +169,47 @@ export class AdminApiService {
     fd.append('file', file);
     return this.http.post<{ asset: MediaAsset }>(`${this.b}/media`, fd);
   }
+  getMedia(id: string) {
+    return this.http.get<{ asset: MediaAsset }>(`${this.b}/media/${id}`);
+  }
   updateMedia(id: string, altText: string) {
     return this.http.patch<{ asset: MediaAsset }>(`${this.b}/media/${id}`, { altText });
   }
+  /** Save an annotated render (non-destructive): rendered PNG + editable shapes. */
+  annotateMedia(
+    id: string,
+    rendered: Blob,
+    annotations: unknown,
+    width: number,
+    height: number,
+    altText?: string,
+  ) {
+    const fd = new FormData();
+    fd.append('file', rendered, 'annotated.png');
+    fd.append('annotations', JSON.stringify(annotations ?? []));
+    fd.append('width', String(width));
+    fd.append('height', String(height));
+    if (altText !== undefined) fd.append('altText', altText);
+    return this.http.post<{ asset: MediaAsset }>(`${this.b}/media/${id}/annotate`, fd);
+  }
+  /** Move an asset to the trash (soft delete). */
   deleteMedia(id: string) {
     return this.http.delete(`${this.b}/media/${id}`);
+  }
+  /** List trashed assets (soft-deleted, awaiting restore or 30-day purge). */
+  /** The media library's own trash — images only. See listTrash() for all types. */
+  listMediaTrash(page = 1, limit = 20) {
+    return this.http.get<PaginatedResponse<MediaAsset>>(`${this.b}/media/trash`, {
+      params: { page, limit },
+    });
+  }
+  /** Restore a trashed asset back to the library. */
+  restoreMedia(id: string) {
+    return this.http.post<{ asset: MediaAsset }>(`${this.b}/media/${id}/restore`, {});
+  }
+  /** Permanently delete a trashed asset (removes DB record + files). */
+  purgeMedia(id: string) {
+    return this.http.delete(`${this.b}/media/${id}/permanent`);
   }
 
   // ── Analytics ─────────────────────────────────────────────────────────────
@@ -157,6 +245,147 @@ export class AdminApiService {
   }
   deleteAiCredential() {
     return this.http.delete<{ disconnected: boolean }>(`${this.b}/ai-pipeline/credential`);
+  }
+
+  // ── Voiceover Studio ────────────────────────────────────────────────────────
+  getVoiceoverConfig() {
+    return this.http.get<VoiceoverConfig>(`${this.b}/voiceover/config`);
+  }
+  saveVoiceoverSettings(settings: Partial<VoiceoverSettings>) {
+    return this.http.put<{ settings: VoiceoverSettings }>(`${this.b}/voiceover/settings`, settings);
+  }
+  /** Drop the saved row so the server's environment baseline applies again. */
+  resetVoiceoverSettings() {
+    return this.http.delete<{ settings: VoiceoverSettings }>(`${this.b}/voiceover/settings`);
+  }
+  /** Upload the walkthrough video and start a script job. */
+  startVoiceoverJob(video: File, data: { appName: string; audience: string; tone: VoTone }) {
+    const form = new FormData();
+    form.append('video', video);
+    form.append('appName', data.appName);
+    form.append('audience', data.audience);
+    form.append('tone', data.tone);
+    return this.http.post<{ jobId: string }>(`${this.b}/voiceover/jobs`, form);
+  }
+  getVoiceoverJob(id: string) {
+    return this.http.get<VoJobSnapshot>(`${this.b}/voiceover/jobs/${id}`);
+  }
+  cancelVoiceoverJob(id: string) {
+    return this.http.post<{ cancelled: boolean }>(`${this.b}/voiceover/jobs/${id}/cancel`, {});
+  }
+  /** Full SSE URL for an EventSource (token in query — EventSource can't set headers). */
+  voiceoverStreamUrl(jobId: string, token: string): string {
+    return `${this.b}/voiceover/jobs/${jobId}/stream?token=${encodeURIComponent(token)}`;
+  }
+  /**
+   * The script library — searched and filtered server-side so results stay
+   * correct as the collection grows.
+   */
+  listVoiceoverScripts(query: {
+    search?: string;
+    status?: string;
+    tone?: string;
+    provider?: string;
+  } = {}) {
+    const params: Record<string, string> = {};
+    if (query.search) params['search'] = query.search;
+    if (query.status) params['status'] = query.status;
+    if (query.tone) params['tone'] = query.tone;
+    if (query.provider) params['provider'] = query.provider;
+    return this.http.get<{ scripts: VoScriptSummary[]; filters: VoScriptFilters }>(
+      `${this.b}/voiceover/scripts`,
+      { params },
+    );
+  }
+  // ── Narration audio (ElevenLabs) ──────────────────────────────────────────
+  /** Voices and TTS models on the connected account. */
+  listTtsVoices() {
+    return this.http.get<{ voices: TtsVoice[]; models: string[]; defaultModel: string }>(
+      `${this.b}/voiceover/tts/voices`,
+    );
+  }
+  listScriptAudio(scriptId: string) {
+    return this.http.get<{ audio: VoAudioClip[] }>(`${this.b}/voiceover/scripts/${scriptId}/audio`);
+  }
+  /** Render one segment. One call per line, so a bad take is a single re-render. */
+  renderSegmentAudio(
+    scriptId: string,
+    index: number,
+    body: { voiceId: string; voiceName: string; modelId?: string },
+  ) {
+    return this.http.post<{ clip: VoAudioClip }>(
+      `${this.b}/voiceover/scripts/${scriptId}/audio/${index}`,
+      body,
+    );
+  }
+  deleteScriptAudio(scriptId: string) {
+    return this.http.delete<{ deleted: number }>(
+      `${this.b}/voiceover/scripts/${scriptId}/audio`,
+    );
+  }
+  /** Short listening test, not stored server-side. Returns raw audio. */
+  sampleVoice(body: { voiceId: string; modelId?: string; text?: string }) {
+    return this.http.post(`${this.b}/voiceover/tts/sample`, body, { responseType: 'blob' });
+  }
+  /** Stitch the rendered lines into one track matching the video length. */
+  buildAudioTimeline(scriptId: string) {
+    return this.http.post<{ clip: VoAudioClip; lines: number; missing: number }>(
+      `${this.b}/voiceover/scripts/${scriptId}/audio/timeline`,
+      {},
+    );
+  }
+  /** Save a hand-edited narration line. */
+  updateSegmentText(scriptId: string, index: number, script: string) {
+    return this.http.patch<{ segment: VoSegment }>(
+      `${this.b}/voiceover/scripts/${scriptId}/segments/${index}`,
+      { script },
+    );
+  }
+  /** Point a line back at an earlier wording; its take becomes current again. */
+  restoreSegmentVersion(scriptId: string, index: number, version: number) {
+    return this.http.post<{ segment: VoSegment }>(
+      `${this.b}/voiceover/scripts/${scriptId}/segments/${index}/versions/${version}/restore`,
+      {},
+    );
+  }
+  voiceoverAudioExportUrl(scriptId: string, token: string): string {
+    return `${this.b}/voiceover/scripts/${scriptId}/audio/export?token=${encodeURIComponent(token)}`;
+  }
+
+  /** Re-run a script's stored frames in another tone. Returns a job to watch. */
+  regenerateVoiceoverScript(id: string, tone: VoTone) {
+    return this.http.post<{ jobId: string }>(`${this.b}/voiceover/scripts/${id}/regenerate`, {
+      tone,
+    });
+  }
+  getVoiceoverScript(id: string) {
+    return this.http.get<{ script: VoScriptDetail }>(`${this.b}/voiceover/scripts/${id}`);
+  }
+  deleteVoiceoverScript(id: string) {
+    return this.http.delete<{ deleted: boolean }>(`${this.b}/voiceover/scripts/${id}`);
+  }
+  /** Download URL — plain navigation, so the token travels in the query. */
+  voiceoverExportUrl(scriptId: string, token: string): string {
+    return `${this.b}/voiceover/scripts/${scriptId}/export?token=${encodeURIComponent(token)}`;
+  }
+  /** Provider API keys. Validated server-side; the key is never read back. */
+  connectVoiceoverKey(provider: VoCredentialId, apiKey: string) {
+    return this.http.put<{ keys: VoKeyStatus[] }>(`${this.b}/voiceover/keys/${provider}`, {
+      apiKey,
+    });
+  }
+  disconnectVoiceoverKey(provider: VoCredentialId) {
+    return this.http.delete<{ keys: VoKeyStatus[] }>(`${this.b}/voiceover/keys/${provider}`);
+  }
+  /** Models the connected account can actually use, asked of the provider. */
+  listProviderModels(provider: VoProviderId) {
+    return this.http.get<{ models: string[] }>(`${this.b}/voiceover/models/${provider}`);
+  }
+  /** Consumption over the last `days`, in provider units. */
+  getVoiceoverUsage(days: number) {
+    return this.http.get<VoUsageReport>(`${this.b}/voiceover/usage`, {
+      params: { days: String(days) },
+    });
   }
 
   // ── MCP connector ───────────────────────────────────────────────────────────
@@ -211,10 +440,13 @@ export class AdminApiService {
   listUsers() {
     return this.http.get<{ users: AdminUser[] }>(`${this.b}/users`);
   }
-  createUser(data: { email: string; password: string; role: string }) {
+  createUser(data: { email: string; password: string; role: string; roleId?: string | null }) {
     return this.http.post<{ user: AdminUser }>(`${this.b}/users`, data);
   }
-  updateUser(id: string, data: Partial<{ password: string; isActive: boolean; role: string }>) {
+  updateUser(
+    id: string,
+    data: Partial<{ password: string; isActive: boolean; role: string; roleId: string | null }>,
+  ) {
     return this.http.patch<{ user: AdminUser }>(`${this.b}/users/${id}`, data);
   }
   deleteUser(id: string) {

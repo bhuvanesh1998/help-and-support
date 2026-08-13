@@ -3,6 +3,7 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'node:path';
+import fs from 'node:fs';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { uploadDir } from './lib/upload.js';
@@ -16,14 +17,19 @@ import { mediaRouter } from './routes/admin/media.routes.js';
 import { usersRouter } from './routes/admin/users.routes.js';
 import { analyticsRouter } from './routes/admin/analytics.routes.js';
 import { aiPipelineRouter } from './routes/admin/ai-pipeline.routes.js';
+import { voiceoverRouter } from './routes/admin/voiceover.routes.js';
 import { mcpAdminRouter } from './routes/admin/mcp-admin.routes.js';
 import { exportsRouter } from './routes/admin/exports.routes.js';
+import { rolesRouter } from './routes/admin/roles.routes.js';
+import { trashRouter } from './routes/admin/trash.routes.js';
 import { mcpRouter } from './routes/mcp.routes.js';
 import { connectorRouter } from './routes/connector.routes.js';
 import { buildLoaderJs } from './services/widget/loader.js';
 import { getWidgetConfig } from './services/widget/config.js';
 import { connectRouter } from './routes/admin/connect.routes.js';
 import { authenticate } from './middleware/auth.middleware.js';
+import { requireFeature, requirePermission } from './middleware/permission.middleware.js';
+import { adminLimiter, authLimiter, publicLimiter } from './middleware/rate-limit.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -86,16 +92,28 @@ export function createApp(): Express {
     (_req: Request, res: Response, next: NextFunction) => {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.setHeader('Access-Control-Allow-Origin', '*');
+      // The global CORS layer sets credentials:true, which browsers refuse to
+      // honour alongside `*` — and these files are public anyway, so the header
+      // is removed rather than left contradicting itself.
+      res.removeHeader('Access-Control-Allow-Credentials');
+      // Static user-supplied files: allow no script, style, frame or fetch, and
+      // sandbox anything the browser still decides to treat as a document. Images
+      // and audio are unaffected; a stray .html or .svg cannot run anything.
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
       next();
     },
     express.static(path.resolve(uploadDir)),
   );
 
   // ── Angular SPA (production) / dev redirect ──────────────────────────────
+  // Only when the built SPA is actually colocated (single-image deploy). When the
+  // frontend is deployed as a separate app (e.g. Coolify), this dir is absent and
+  // the backend serves the API only — unmatched GETs fall through to the 404 handler.
   const angularDist = path.resolve('..', 'frontend', 'dist', 'help-assistant-ui', 'browser');
-  if (env.isProduction) {
+  const spaAvailable = fs.existsSync(path.join(angularDist, 'index.html'));
+  if (env.isProduction && spaAvailable) {
     app.use(express.static(angularDist));
-  } else {
+  } else if (!env.isProduction) {
     const frontendOrigin = env.corsOrigin.split(',')[0]?.trim() ?? 'http://localhost:4200';
     app.get('/', (_req: Request, res: Response) => {
       res.redirect(frontendOrigin);
@@ -121,10 +139,12 @@ export function createApp(): Express {
   app.use('/api', healthRouter);
 
   // ── Auth (unauthenticated) ───────────────────────────────────────────────
-  app.use('/api/admin/auth', authRouter);
+  // Strictest limiter in the app: these are the only endpoints an attacker can
+  // use without already having an account.
+  app.use('/api/admin/auth', authLimiter, authRouter);
 
   // ── Public API (unauthenticated) ─────────────────────────────────────────
-  app.use('/api/public', publicRouter);
+  app.use('/api/public', publicLimiter, publicRouter);
 
   // ── Embeddable widget loader (public script include) ─────────────────────
   app.get('/widget.js', async (_req: Request, res: Response) => {
@@ -237,6 +257,11 @@ function applyCfg(){
   });
 
   // ── MCP server (Claude-host transport; bearer connector token, NOT a JWT) ─
+  // Applies to every admin route below, including the ones that authenticate
+  // per-route (Voiceover Studio, AI pipeline) and are mounted before the global
+  // `authenticate`.
+  app.use('/api/admin', adminLimiter);
+
   // Mounted before the global authenticate — Claude hosts present the MCP
   // connector token, not an admin JWT.
   app.use('/mcp', mcpRouter);
@@ -246,22 +271,34 @@ function applyCfg(){
   // authenticate via query param (EventSource cannot set headers).
   app.use('/api/admin/ai-pipeline', aiPipelineRouter);
 
+  // ── Voiceover Studio (self-authenticating: Bearer for JSON, ?token= for the
+  // SSE stream and the zip downloads, neither of which can set headers) ─────
+  app.use('/api/admin/voiceover', voiceoverRouter);
+
   // ── Admin API (JWT required for all routes below) ────────────────────────
   app.use('/api/admin', authenticate);
-  app.use('/api/admin/pages/:pageId/steps', stepsRouter);
-  app.use('/api/admin/pages', pagesRouter);
-  app.use('/api/admin/categories', categoriesRouter);
-  app.use('/api/admin/connect', connectRouter);
-  app.use('/api/admin/media', mediaRouter);
+  // Each feature guard reads `<feature>.view` for GET and `<feature>.manage` for
+  // anything that changes state, so one line per router covers both.
+  app.use('/api/admin/pages/:pageId/steps', requireFeature('pages'), stepsRouter);
+  app.use('/api/admin/pages', requireFeature('pages'), pagesRouter);
+  app.use('/api/admin/categories', requireFeature('categories'), categoriesRouter);
+  app.use('/api/admin/connect', requireFeature('embed'), connectRouter);
+  app.use('/api/admin/media', requireFeature('media'), mediaRouter);
+  // Users and roles carry their own guards: users.routes still enforces the
+  // SUPER_ADMIN-only rules on top of the permission.
   app.use('/api/admin/users', usersRouter);
-  app.use('/api/admin/analytics', analyticsRouter);
-  app.use('/api/admin/mcp', mcpAdminRouter);
-  app.use('/api/admin/exports', exportsRouter);
+  app.use('/api/admin/roles', rolesRouter);
+  // Per-type permissions are enforced inside: restoring a page is a page edit.
+  app.use('/api/admin/trash', requirePermission('trash.view'), trashRouter);
+  // Analytics is read-only, so one key covers it.
+  app.use('/api/admin/analytics', requirePermission('analytics.view'), analyticsRouter);
+  app.use('/api/admin/mcp', requireFeature('mcp', true), mcpAdminRouter);
+  app.use('/api/admin/exports', requireFeature('exports'), exportsRouter);
 
   // SPA fallback in production — serve index.html for any unmatched non-API GET.
   // Express 5 / path-to-regexp v8 rejects a bare '*' route, so use middleware
   // (and let API/upload/asset misses fall through to the JSON 404 handler).
-  if (env.isProduction) {
+  if (env.isProduction && spaAvailable) {
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
         return next();

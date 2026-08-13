@@ -272,6 +272,12 @@ export function buildMcpServer(userId: string | null): McpServer {
         routePath: z.string().describe('Route the help applies to, e.g. /login'),
         title: z.string().describe('Action-oriented tutorial title'),
         description: z.string().optional().describe('1-2 sentence summary'),
+        update: z
+          .boolean()
+          .optional()
+          .describe(
+            'Set true to overwrite an existing manual for this route: the title/description are updated and the steps + API endpoints are fully replaced with the ones supplied. When false/omitted, publishing to a route that already has a manual returns an error.',
+          ),
         steps: z
           .array(
             z.object({
@@ -301,20 +307,32 @@ export function buildMcpServer(userId: string | null): McpServer {
           .describe('API reference for this screen (e.g. the apiCalls returned by capture_screens). Rendered in the manual\'s API tab.'),
       },
     },
-    async ({ routePath, title, description, steps, apiEndpoints }) => {
+    async ({ routePath, title, description, steps, apiEndpoints, update }) => {
       try {
         const existing = await prisma.page.findUnique({ where: { routePath: routePath.trim() } });
-        if (existing) {
+        if (existing && !update) {
           record('publish_tutorial', false, `route in use: ${routePath}`);
           return {
             isError: true,
-            content: [{ type: 'text', text: `A page already exists for route "${routePath}" (id ${existing.id}). Pick a different route or update it.` }],
+            content: [{ type: 'text', text: `A page already exists for route "${routePath}" (id ${existing.id}). Re-run with update: true to overwrite it, or pick a different route.` }],
           };
         }
 
-        const page = await prisma.page.create({
-          data: { routePath: routePath.trim(), title: title.trim(), description: description ?? null },
-        });
+        // Create a new page, or update the existing one in place (replacing its
+        // steps + API endpoints) when update: true was supplied.
+        const page = existing
+          ? await prisma.page.update({
+              where: { id: existing.id },
+              data: { title: title.trim(), description: description ?? null },
+            })
+          : await prisma.page.create({
+              data: { routePath: routePath.trim(), title: title.trim(), description: description ?? null },
+            });
+
+        if (existing) {
+          await prisma.tutorialStep.deleteMany({ where: { pageId: page.id } });
+          await prisma.apiEndpoint.deleteMany({ where: { pageId: page.id } });
+        }
 
         const mediaIds = steps.map((s) => s.mediaId).filter((m): m is string => !!m);
         const assets = mediaIds.length
@@ -354,10 +372,11 @@ export function buildMcpServer(userId: string | null): McpServer {
         }
 
         const viewUrl = `${env.corsOrigin.split(',')[0] ?? ''}/admin/pages/${page.id}`;
-        record('publish_tutorial', true, `${title} (${steps.length} steps)`);
+        const action = existing ? 'updated' : 'created';
+        record('publish_tutorial', true, `${action}: ${title} (${steps.length} steps)`);
         return {
           content: [
-            { type: 'text', text: JSON.stringify({ pageId: page.id, routePath: page.routePath, steps: steps.length, viewUrl }, null, 2) },
+            { type: 'text', text: JSON.stringify({ action, pageId: page.id, routePath: page.routePath, steps: steps.length, viewUrl }, null, 2) },
           ],
         };
       } catch (err) {

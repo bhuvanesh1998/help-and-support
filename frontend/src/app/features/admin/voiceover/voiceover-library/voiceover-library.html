@@ -1,0 +1,262 @@
+<div class="lib">
+  <!-- ── Toolbar (matches the Pages screen) ──────────────────────────────── -->
+  <div class="list-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <mat-icon class="search-icon">search</mat-icon>
+        <input
+          class="search-input"
+          placeholder="Search scripts…"
+          [(ngModel)]="search"
+          (input)="onSearchInput()"
+          aria-label="Search scripts"
+        />
+        @if (search) {
+          <button
+            mat-icon-button
+            class="search-clear"
+            aria-label="Clear search"
+            (click)="search = ''; load(true)"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+
+      <button type="button" class="cat-filter" [matMenuTriggerFor]="toneMenu" aria-label="Filter by tone">
+        <mat-icon class="cat-filter-icon" aria-hidden="true">filter_list</mat-icon>
+        <span class="cat-filter-text">{{ tone || 'All tones' }}</span>
+        <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #toneMenu="matMenu">
+        <button mat-menu-item (click)="tone = ''; load(true)">
+          <mat-icon>{{ tone ? 'remove' : 'check' }}</mat-icon>
+          <span>All tones</span>
+        </button>
+        @for (t of filters().tones; track t) {
+          <button mat-menu-item (click)="tone = t; load(true)">
+            <mat-icon>{{ tone === t ? 'check' : 'label_outline' }}</mat-icon>
+            <span>{{ t }}</span>
+          </button>
+        }
+      </mat-menu>
+
+      <button type="button" class="cat-filter" [matMenuTriggerFor]="statusMenu" aria-label="Filter by status">
+        <mat-icon class="cat-filter-icon" aria-hidden="true">flag</mat-icon>
+        <span class="cat-filter-text">{{ status || 'Any status' }}</span>
+        <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #statusMenu="matMenu">
+        <button mat-menu-item (click)="status = ''; load(true)">
+          <mat-icon>{{ status ? 'remove' : 'check' }}</mat-icon>
+          <span>Any status</span>
+        </button>
+        @for (s of filters().statuses; track s) {
+          <button mat-menu-item (click)="status = s; load(true)">
+            <mat-icon>{{ status === s ? 'check' : 'circle' }}</mat-icon>
+            <span>{{ s }}</span>
+          </button>
+        }
+      </mat-menu>
+
+      <!-- Only worth offering once more than one provider has been used. -->
+      @if (filters().providers.length > 1) {
+        <button
+          type="button"
+          class="cat-filter"
+          [matMenuTriggerFor]="providerMenu"
+          aria-label="Filter by provider"
+        >
+          <mat-icon class="cat-filter-icon" aria-hidden="true">smart_toy</mat-icon>
+          <span class="cat-filter-text">{{ provider || 'Any provider' }}</span>
+          <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #providerMenu="matMenu">
+          <button mat-menu-item (click)="provider = ''; load(true)">
+            <mat-icon>{{ provider ? 'remove' : 'check' }}</mat-icon>
+            <span>Any provider</span>
+          </button>
+          @for (p of filters().providers; track p) {
+            <button mat-menu-item (click)="provider = p; load(true)">
+              <mat-icon>{{ provider === p ? 'check' : 'memory' }}</mat-icon>
+              <span>{{ p }}</span>
+            </button>
+          }
+        </mat-menu>
+      }
+
+      @if (anyFilterActive()) {
+        <button type="button" class="cat-filter" (click)="clearFilters()">
+          <mat-icon class="cat-filter-icon" aria-hidden="true">filter_alt_off</mat-icon>
+          <span class="cat-filter-text">Clear</span>
+        </button>
+      }
+    </div>
+
+    <div class="toolbar-right">
+      <div class="stat-chip">
+        <mat-icon>graphic_eq</mat-icon>
+        <span>{{ scripts().length }} scripts</span>
+      </div>
+      <a
+        mat-stroked-button
+        routerLink="/admin/voiceover/usage"
+        matTooltip="Tokens and characters consumed"
+      >
+        <mat-icon aria-hidden="true">insights</mat-icon>
+        Usage
+      </a>
+      <div class="lib-view" role="group" aria-label="Layout">
+        <button
+          type="button"
+          class="lib-view__btn"
+          [class.lib-view__btn--on]="view() === 'cards'"
+          matTooltip="Card view"
+          aria-label="Card view"
+          (click)="setView('cards')"
+        >
+          <mat-icon>grid_view</mat-icon>
+        </button>
+        <button
+          type="button"
+          class="lib-view__btn"
+          [class.lib-view__btn--on]="view() === 'list'"
+          matTooltip="List view"
+          aria-label="List view"
+          (click)="setView('list')"
+        >
+          <mat-icon>view_list</mat-icon>
+        </button>
+      </div>
+      <a mat-flat-button color="primary" routerLink="/admin/voiceover/new">
+        <mat-icon aria-hidden="true">add</mat-icon>
+        Generate voiceover
+      </a>
+    </div>
+  </div>
+
+  @if (error()) {
+    <p class="lib-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error() }}</span>
+    </p>
+  }
+
+  <!-- ── Cards ───────────────────────────────────────────────────────────── -->
+  @if (loading()) {
+    <p class="lib-sub">Loading…</p>
+  } @else if (!scripts().length) {
+    <section class="lib-card lib-empty">
+      <mat-icon aria-hidden="true">graphic_eq</mat-icon>
+      @if (anyFilterActive()) {
+        <p><strong>Nothing matches those filters.</strong></p>
+        <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
+      } @else {
+        <p><strong>No scripts yet.</strong></p>
+        <p class="lib-sub">
+          Upload a walkthrough recording and the configured model will write a
+          narration script locked to min:sec.
+        </p>
+        <a mat-flat-button color="primary" routerLink="/admin/voiceover/new">
+          <mat-icon aria-hidden="true">add</mat-icon>
+          Generate voiceover
+        </a>
+      }
+    </section>
+  } @else if (view() === 'cards') {
+    <div class="lib-grid">
+      @for (s of scripts(); track s.id) {
+        <a class="lib-item" [routerLink]="['/admin/voiceover', s.id]">
+          <header class="lib-item__head">
+            <span class="lib-item__tone">{{ s.tone }}</span>
+            @switch (s.status) {
+              @case ('done') {
+                <span class="lib-pill lib-pill--ok">
+                  <mat-icon aria-hidden="true">check_circle</mat-icon> Ready
+                </span>
+              }
+              @case ('running') {
+                <span class="lib-pill lib-pill--live">
+                  <mat-icon aria-hidden="true">autorenew</mat-icon> Generating
+                </span>
+              }
+              @default {
+                <span class="lib-pill lib-pill--bad">{{ s.status }}</span>
+              }
+            }
+          </header>
+
+          <h3 class="lib-item__name">{{ s.appName }}</h3>
+          <p class="lib-item__app">{{ s.videoName }}</p>
+
+          <dl class="lib-item__stats">
+            <div><dt>Length</dt><dd>{{ timecode(s.durationSec) }}</dd></div>
+            <div><dt>Segments</dt><dd>{{ s.segmentCount }}</dd></div>
+            <div><dt>Words</dt><dd>{{ s.totalWords }}</dd></div>
+          </dl>
+
+          <footer class="lib-item__foot">
+            <span class="lib-item__meta">
+              {{ when(s.createdAt) }} · {{ s.model }}
+              @if (s.variantCount > 0) {
+                · {{ s.variantCount + 1 }} tones
+              } @else if (s.sourceScriptId) {
+                · variant
+              }
+            </span>
+            <span class="lib-item__actions">
+              <button
+                mat-icon-button
+                [attr.aria-label]="'Delete ' + s.tone + ' script for ' + s.videoName"
+                matTooltip="Delete"
+                (click)="deleteScript(s, $event)"
+              >
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </span>
+          </footer>
+        </a>
+      }
+    </div>
+  } @else {
+    <ul class="lib-list" role="list">
+      @for (s of scripts(); track s.id) {
+        <li class="lib-row">
+          <a class="lib-row__link" [routerLink]="['/admin/voiceover', s.id]">
+            <span class="lib-row__main">
+              <span class="lib-row__name">{{ s.appName }}</span>
+              <span class="lib-row__video">{{ s.videoName }}</span>
+            </span>
+            <span class="lib-row__tone">{{ s.tone }}</span>
+            <span class="lib-row__stat">{{ timecode(s.durationSec) }}</span>
+            <span class="lib-row__stat">{{ s.segmentCount }} lines</span>
+            <span class="lib-row__stat">{{ s.totalWords }} words</span>
+            <span class="lib-row__when">{{ when(s.createdAt) }}</span>
+            @switch (s.status) {
+              @case ('done') {
+                <span class="lib-pill lib-pill--ok">
+                  <mat-icon aria-hidden="true">check_circle</mat-icon> Ready
+                </span>
+              }
+              @case ('running') {
+                <span class="lib-pill lib-pill--live">
+                  <mat-icon aria-hidden="true">autorenew</mat-icon> Generating
+                </span>
+              }
+              @default {
+                <span class="lib-pill lib-pill--bad">{{ s.status }}</span>
+              }
+            }
+          </a>
+          <button
+            mat-icon-button
+            [attr.aria-label]="'Delete ' + s.tone + ' script for ' + s.videoName"
+            matTooltip="Delete"
+            (click)="deleteScript(s, $event)"
+          >
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</div>

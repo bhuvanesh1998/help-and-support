@@ -14,7 +14,7 @@
     </div>
 
     <nav class="nav" role="navigation" aria-label="Admin navigation">
-      @for (item of navItems; track item.route) {
+      @for (item of navItems(); track item.route) {
         <a
           class="nav-item"
           [routerLink]="item.route"
@@ -29,6 +29,28 @@
             <span class="nav-label">{{ item.label }}</span>
           }
         </a>
+      }
+
+      <!-- Trash sits apart at the bottom: it is where things go, not a place to
+           work. `margin-top: auto` pushes it down past the working screens. -->
+      @if (footerNavItems().length) {
+        <div class="nav-spacer"></div>
+        @for (item of footerNavItems(); track item.route) {
+          <a
+            class="nav-item nav-item--footer"
+            [routerLink]="item.route"
+            routerLinkActive="nav-item--active"
+            [matTooltip]="sidenavOpen() ? '' : item.label"
+            matTooltipPosition="right"
+            [attr.aria-label]="item.label"
+            matRipple
+          >
+            <mat-icon class="nav-icon">{{ item.icon }}</mat-icon>
+            @if (sidenavOpen()) {
+              <span class="nav-label">{{ item.label }}</span>
+            }
+          </a>
+        }
       }
     </nav>
 
@@ -111,7 +133,7 @@
 </div>
 
 <!-- ── Palette menu ────────────────────────────────────────────────────────── -->
-<mat-menu #paletteMenu="matMenu" class="palette-menu-panel">
+<mat-menu #paletteMenu="matMenu" class="palette-menu-panel" xPosition="before" yPosition="below">
   <div class="palette-menu-title" (click)="$event.stopPropagation()">Color theme</div>
 
   @for (p of theme.paletteOptions; track p.key) {

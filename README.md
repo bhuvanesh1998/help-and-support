@@ -112,3 +112,18 @@ npm run start    # http://localhost:4200
 - Signals-based state (`AuthStore`, all component state)
 - Lazy-loaded routes per feature
 - `authInterceptor` injects `Authorization: Bearer <token>` on all `/admin/` requests
+- Runtime config: `apiBaseUrl` is loaded from `/app-config.json` at bootstrap
+  (`AppConfigService` + `provideAppInitializer`), so one build targets any backend origin
+
+## Deployment
+
+Production deploys as **two separate apps** (backend API + Angular SPA), each built
+from its own `Dockerfile`:
+
+- `backend/Dockerfile` → Express API on port 3000 (Node 24, Playwright/Chromium).
+- `frontend/Dockerfile` → Angular SPA on nginx port 80; `API_BASE_URL` is injected at
+  container start (no rebuild to retarget the backend).
+
+See **[COOLIFY.md](COOLIFY.md)** for the full Coolify setup (base directories, env vars,
+uploads volume, ordering, and verification). For a single-origin/local stack, the
+backend still serves the SPA automatically when `frontend/dist` is present.

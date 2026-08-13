@@ -14,6 +14,7 @@ export const publicRouter: Router = Router();
  */
 publicRouter.get('/tutorials', async (_req: Request, res: Response) => {
   const pages = await prisma.page.findMany({
+    where: { isPublished: true },
     orderBy: { createdAt: 'asc' },
     include: {
       steps: {
@@ -38,8 +39,8 @@ publicRouter.get('/tutorials', async (_req: Request, res: Response) => {
  */
 publicRouter.get('/tutorials/:id', async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
-  const page = await prisma.page.findUnique({
-    where: { id },
+  const page = await prisma.page.findFirst({
+    where: { id, isPublished: true },
     include: {
       steps: {
         orderBy: { stepNumber: 'asc' },
@@ -80,7 +81,7 @@ publicRouter.get('/tutorials/:id', async (req: Request, res: Response) => {
 publicRouter.get('/categories', async (_req: Request, res: Response) => {
   const [cats, grouped] = await Promise.all([
     prisma.category.findMany({ orderBy: [{ order: 'asc' }, { name: 'asc' }] }),
-    prisma.page.groupBy({ by: ['category'], _count: { _all: true } }),
+    prisma.page.groupBy({ by: ['category'], where: { isPublished: true }, _count: { _all: true } }),
   ]);
   const counts = new Map<string, number>();
   for (const g of grouped) if (g.category) counts.set(g.category, g._count._all);
@@ -109,8 +110,8 @@ publicRouter.get('/pages', async (req: Request, res: Response) => {
     throw AppError.badRequest('routePath query parameter is required');
   }
 
-  const page = await prisma.page.findUnique({
-    where: { routePath: routePath.trim() },
+  const page = await prisma.page.findFirst({
+    where: { routePath: routePath.trim(), isPublished: true },
     include: {
       steps: {
         orderBy: { stepNumber: 'asc' },
