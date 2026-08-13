@@ -174,10 +174,15 @@
                 </span>
               </div>
               <audio class="sd-track__player" controls preload="metadata" [src]="track.publicUrl"></audio>
-              <a mat-flat-button color="primary" [href]="track.publicUrl" download>
+              <button
+                mat-flat-button
+                color="primary"
+                [disabled]="savingTrack()"
+                (click)="saveTrack(track)"
+              >
                 <mat-icon aria-hidden="true">download</mat-icon>
-                MP3
-              </a>
+                {{ savingTrack() ? 'Saving…' : 'MP3' }}
+              </button>
             </div>
 
             @if (trackStale()) {
@@ -204,9 +209,14 @@
                     <li>
                       <span class="sd-mixes__label">build {{ mix.segmentVersion }}</span>
                       <audio controls preload="none" [src]="mix.publicUrl"></audio>
-                      <a mat-stroked-button [href]="mix.publicUrl" download>
+                      <button
+                        mat-stroked-button
+                        matTooltip="Download this mix"
+                        [disabled]="savingTrack()"
+                        (click)="saveTrack(mix)"
+                      >
                         <mat-icon aria-hidden="true">download</mat-icon>
-                      </a>
+                      </button>
                     </li>
                   }
                 </ul>

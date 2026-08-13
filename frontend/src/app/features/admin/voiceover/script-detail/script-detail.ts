@@ -17,6 +17,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { AdminApiService } from '../../../../core/services/admin-api';
+import { downloadFile, safeFilename } from '../../../../core/utils/download-file';
 import { ConfirmService } from '../../../../core/services/confirm.service';
 import { AuthStore } from '../../../../core/services/auth-store';
 import { ScriptTable } from '../script-table/script-table';
@@ -91,6 +92,7 @@ export class ScriptDetail implements OnInit, OnDestroy {
   readonly sampling = signal(false);
   readonly sampleUrl = signal<string | null>(null);
   readonly building = signal(false);
+  readonly savingTrack = signal(false);
   readonly editError = signal('');
   voiceId = '';
   ttsModelId = '';
@@ -471,6 +473,29 @@ export class ScriptDetail implements OnInit, OnDestroy {
       next: () => this.audio.set([]),
       error: (err) => this.ttsError.set(err.error?.error?.message ?? 'Could not clear audio.'),
     });
+  }
+
+  /**
+   * Save a stitched track to disk under a name that says what it is.
+   *
+   * Goes through a blob rather than a plain link: the file is served from the API
+   * origin, and `download` on a cross-origin anchor is ignored — the browser
+   * navigated to the MP3 and played it in the tab instead of saving it.
+   */
+  async saveTrack(clip: VoAudioClip): Promise<void> {
+    const s = this.script();
+    if (!s) return;
+
+    this.savingTrack.set(true);
+    this.ttsError.set('');
+    try {
+      const name = `${safeFilename(s.videoName)}-${s.tone}-track-build-${clip.segmentVersion}.mp3`;
+      await downloadFile(clip.publicUrl, name);
+    } catch (err) {
+      this.ttsError.set((err as Error).message || 'Could not download that track.');
+    } finally {
+      this.savingTrack.set(false);
+    }
   }
 
   downloadAudio(): void {

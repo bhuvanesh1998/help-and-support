@@ -316,6 +316,13 @@ In-process counters (`src/middleware/rate-limit.ts`):
 **With more than one replica, move the store to Redis** — otherwise the effective
 limit multiplies by the replica count.
 
+`npm audit` reports **0 vulnerabilities**. `adm-zip` is on 0.6.x, whose only
+behavioural change (`extractEntryTo` preserving subdirectories) this code does not
+use — the backup path reads entries with `getData()` and writes them under
+`path.basename()`. Backup export/import was round-tripped after the upgrade: a
+35 MB archive of 543 entries written and re-read, a deleted page restored with its
+steps, and every table count back to its starting value.
+
 ### Known gaps
 
 - **`/uploads` is unauthenticated by design** (the embed widget needs public
@@ -332,9 +339,6 @@ limit multiplies by the replica count.
   and browser history. A short-lived, download-scoped token would be better.
 - **`SETTINGS_ENCRYPTION_KEY` defaults to `JWT_SECRET`**, which also salts the
   analytics IP HMAC. One leak forfeits all three; set it separately in production.
-- **`adm-zip` has an open advisory** (crafted ZIP → 4 GB allocation) whose fix is a
-  major version bump. Reachable only by an admin uploading a backup. `npm audit
-  fix` cleared the other seven advisories.
 - **MCP bypasses roles**: `/mcp` and `/connector` run with `userId = null` and the
   full tool surface. That is deliberate for a machine credential, but nothing
   scopes it further.
