@@ -194,7 +194,7 @@
             </span>
           } @else if (clipFor(segment.index); as clip) {
             <div class="st-take">
-              <audio class="st-take__player" controls preload="none" [src]="clip.publicUrl"></audio>
+              <audio class="st-take__player" controls preload="metadata" [src]="clip.publicUrl"></audio>
               <div class="st-take__foot">
                 <span class="st-take__voice">{{ clip.voiceName }}</span>
                 <button
@@ -268,7 +268,7 @@
                       <audio
                         class="st-version__player"
                         controls
-                        preload="none"
+                        preload="metadata"
                         [src]="v.audioUrl"
                       ></audio>
                       @if (v.voiceName) {

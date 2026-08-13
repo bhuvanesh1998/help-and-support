@@ -95,6 +95,35 @@ real data, and dev and prod share this database. Write the migration SQL by hand
 under `prisma/migrations/<timestamp>_<name>/migration.sql`, apply it with
 `npm run prisma:deploy`, then `npm run prisma:generate`.
 
+### The merged track is the deliverable
+
+`POST /scripts/:id/audio/timeline` mixes each line's take at its own timecode and
+pads the result to the video's length, so the MP3 drops under the video as a
+single layer with no nudging (verified: a 346.0s video produced a 346.3s track).
+
+- Builds are **numbered and kept** (`voiceover_audio.segmentVersion` doubles as
+  the build number for `kind = 'timeline'`). Losing the last good mix because a
+  re-assembly went wrong is the worst outcome here, so an edit no longer deletes
+  it. The four most recent builds are kept; older ones are pruned with their files.
+- Each build records a `sourceSignature` — the `index:version` pairs it mixed. The
+  UI compares it with the script and shows "lines have changed since this was
+  assembled" rather than letting a stale track look current.
+- Only takes matching each line's **current** wording are mixed, and the response
+  reports `missing` so a track with silent gaps does not look finished.
+
+### One voice per script
+
+`voiceover_scripts.voiceId/voiceName/ttsModelId` pin the voice a script is
+narrated in. It is set on the first render, and `POST /scripts/:id/audio/:index`
+falls back to it when the request omits a voice — so a re-record months later
+matches the takes around it.
+
+This fixes a real defect: the UI defaulted its voice dropdown to the first voice
+the account returned, so a single re-record could land in a different voice from
+every other line (one script had 28 lines in one voice and 2 in another). The
+detail page now reports takes that are off-voice and offers to re-record just
+those.
+
 ### Narration version history
 
 Editing a line **appends a version** instead of overwriting it, and the take

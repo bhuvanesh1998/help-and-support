@@ -403,6 +403,12 @@ model VoiceoverScript {
   /// so every tone of one video groups together as variants.
   sourceScriptId String? @db.Uuid
   createdById  String?  @db.Uuid
+  /// The voice this script is narrated in. Pinned on the first render so every
+  /// later take — including a re-record months later — matches, rather than
+  /// following whatever the voice dropdown happened to show.
+  voiceId      String?
+  voiceName    String?
+  ttsModelId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -499,10 +505,13 @@ model VoiceoverAudio {
   storagePath  String
   publicUrl    String
   sizeBytes    Int      @default(0)
-  /// The segment version this clip was spoken from; 0 for the stitched timeline,
-  /// which is derived rather than spoken. Clips are kept per version so editing a
-  /// line no longer throws its recording away.
+  /// The segment version this clip was spoken from. For a stitched timeline this
+  /// is the build number instead, so earlier mixes are kept as history. Clips are
+  /// kept per version so editing a line no longer throws its recording away.
   segmentVersion Int    @default(1)
+  /// Timeline rows only: the `index:version` pairs mixed into this track. Compared
+  /// against the script to tell whether the track still matches the words.
+  sourceSignature String?
   createdAt    DateTime @default(now())
 
   scriptRecord VoiceoverScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)

@@ -148,8 +148,8 @@
           <div>
             <h3>Voiceover audio</h3>
             <p>
-              One clip per line for re-recording, plus a single full-length track
-              timed to the video so it drops straight underneath it.
+              The full-length track below is the deliverable — drop it under the video as one
+              audio layer. Per-line clips exist so you can re-record a single line and reassemble.
             </p>
           </div>
           <button mat-flat-button color="primary" (click)="toggleVoicePanel()">
@@ -158,21 +158,113 @@
           </button>
         </div>
 
+        <!-- ── The merged track ─────────────────────────────────────────────── -->
         @if (timelineClip(); as track) {
-          <div class="sd-track">
+          <div class="sd-track" [class.sd-track--stale]="trackStale()">
+            <div class="sd-track__main">
+              <div class="sd-track__text">
+                <strong>
+                  <mat-icon aria-hidden="true">movie</mat-icon>
+                  Full-length track
+                  <span class="sd-track__build">build {{ track.segmentVersion }}</span>
+                </strong>
+                <span>
+                  {{ timecode(s.durationSec) }} · {{ track.voiceName }} · matches the video
+                  exactly — lay it under as one layer
+                </span>
+              </div>
+              <audio class="sd-track__player" controls preload="metadata" [src]="track.publicUrl"></audio>
+              <a mat-flat-button color="primary" [href]="track.publicUrl" download>
+                <mat-icon aria-hidden="true">download</mat-icon>
+                MP3
+              </a>
+            </div>
+
+            @if (trackStale()) {
+              <p class="sd-track__warn">
+                <mat-icon aria-hidden="true">update</mat-icon>
+                <span>
+                  Lines have changed since this was assembled, so it still speaks the older
+                  wording. It stays playable until you replace it.
+                </span>
+                <button mat-flat-button color="primary" [disabled]="building()" (click)="buildTimeline()">
+                  <mat-icon aria-hidden="true">merge</mat-icon>
+                  {{ building() ? 'Reassembling…' : 'Reassemble' }}
+                </button>
+              </p>
+            }
+
+            @if (previousMixes().length) {
+              <details class="sd-mixes">
+                <summary>
+                  {{ previousMixes().length }} earlier mix(es) kept
+                </summary>
+                <ul>
+                  @for (mix of previousMixes(); track mix.segmentVersion) {
+                    <li>
+                      <span class="sd-mixes__label">build {{ mix.segmentVersion }}</span>
+                      <audio controls preload="none" [src]="mix.publicUrl"></audio>
+                      <a mat-stroked-button [href]="mix.publicUrl" download>
+                        <mat-icon aria-hidden="true">download</mat-icon>
+                      </a>
+                    </li>
+                  }
+                </ul>
+              </details>
+            }
+          </div>
+        } @else if (lineClips().length) {
+          <div class="sd-track sd-track--todo">
             <div class="sd-track__text">
-              <strong>Full timeline track</strong>
+              <strong>
+                <mat-icon aria-hidden="true">merge</mat-icon>
+                No full-length track yet
+              </strong>
               <span>
-                {{ timecode(s.durationSec) }} · {{ track.voiceName }} ·
-                lay this under the video as-is
+                {{ lineClips().length }} of {{ lineCount() }} lines recorded. Assemble them into
+                one {{ timecode(s.durationSec) }} track timed to the video.
               </span>
             </div>
-            <audio class="sd-track__player" controls preload="metadata" [src]="track.publicUrl"></audio>
-            <a mat-stroked-button [href]="track.publicUrl" download>
-              <mat-icon aria-hidden="true">download</mat-icon>
-              MP3
-            </a>
+            <button mat-flat-button color="primary" [disabled]="building()" (click)="buildTimeline()">
+              <mat-icon aria-hidden="true">merge</mat-icon>
+              {{ building() ? 'Assembling…' : 'Assemble track' }}
+            </button>
           </div>
+        }
+
+        <!-- Voice consistency: what this script is narrated in, and any stragglers -->
+        @if (scriptVoiceName()) {
+          <p class="sd-voiceline">
+            <mat-icon aria-hidden="true">record_voice_over</mat-icon>
+            <span>
+              Narrated by <strong>{{ scriptVoiceName() }}</strong> — re-records use this voice
+              automatically.
+            </span>
+            @if (offVoiceLines().length) {
+              <span class="sd-voiceline__off">
+                {{ offVoiceLines().length }} line(s) were recorded in another voice
+                (#{{ offVoiceLines().join(', #') }})
+              </span>
+              <button
+                mat-stroked-button
+                [disabled]="renderingAll() || renderingIndex() !== null"
+                (click)="reRecordOffVoice()"
+              >
+                <mat-icon aria-hidden="true">autorenew</mat-icon>
+                Re-record in {{ scriptVoiceName() }}
+              </button>
+            }
+          </p>
+        }
+
+        @if (unrecordedLines().length && lineClips().length) {
+          <p class="sd-alert sd-alert--info">
+            <mat-icon aria-hidden="true">info_outline</mat-icon>
+            <span>
+              {{ unrecordedLines().length }} line(s) have no take for their current wording
+              (#{{ unrecordedLines().join(', #') }}) and would be silent in the track.
+            </span>
+          </p>
         }
 
         @if (voicePanelOpen()) {
@@ -237,13 +329,6 @@
                   Generate all audio &amp; timeline track
                 }
               </button>
-
-              @if (allLinesRendered() && !timelineClip()) {
-                <button mat-stroked-button [disabled]="building()" (click)="buildTimeline()">
-                  <mat-icon aria-hidden="true">merge</mat-icon>
-                  Assemble timeline track
-                </button>
-              }
 
               @if (lineClips().length) {
                 <button mat-stroked-button (click)="downloadAudio()">

@@ -92,6 +92,8 @@ export class ScriptDetail implements OnInit, OnDestroy {
   readonly editError = signal('');
   voiceId = '';
   ttsModelId = '';
+  /** The account's default TTS model, used when the script has not pinned one. */
+  private defaultTtsModel = '';
 
   private source: EventSource | null = null;
 
@@ -146,8 +148,13 @@ export class ScriptDetail implements OnInit, OnDestroy {
     ).length;
   });
 
-  /** The full-length track, once assembled. */
-  readonly timelineClip = computed(() => this.audio().find((c) => c.kind === 'timeline') ?? null);
+  /** The newest full-length track, once assembled. */
+  readonly timelineClip = computed(
+    () =>
+      this.audio()
+        .filter((c) => c.kind === 'timeline')
+        .sort((a, b) => b.segmentVersion - a.segmentVersion)[0] ?? null,
+  );
 
   readonly lineCount = computed(
     () => this.script()?.segments.filter((s) => s.script.trim()).length ?? 0,
@@ -187,6 +194,8 @@ export class ScriptDetail implements OnInit, OnDestroy {
         const first = this.availableTones()[0];
         if (first) this.newTone = first.value;
         this.loadVariants(res.script);
+        // Whichever of the two loads finishes second settles the voice.
+        this.applyScriptVoice();
       },
       error: () => {
         this.loading.set(false);
@@ -225,10 +234,10 @@ export class ScriptDetail implements OnInit, OnDestroy {
         this.ttsAvailable.set(true);
         this.voices.set(res.voices);
         this.ttsModels.set(res.models);
-        this.voiceId = res.voices[0]?.voiceId ?? '';
-        this.ttsModelId = res.models.includes(res.defaultModel)
+        this.defaultTtsModel = res.models.includes(res.defaultModel)
           ? res.defaultModel
           : (res.models[0] ?? res.defaultModel);
+        this.applyScriptVoice();
       },
       error: (err) => {
         // No key connected is the normal case, not an error worth shouting about.
@@ -245,6 +254,108 @@ export class ScriptDetail implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Select the voice this script is actually narrated in.
+   *
+   * Previously the dropdown defaulted to the first voice the account happened to
+   * return, so a re-record could silently land in a different voice from every
+   * other line. The script's pinned voice wins; the account default is only a
+   * fallback for a script with nothing recorded yet.
+   *
+   * Called from both the voice list and the script load, since either may finish
+   * first.
+   */
+  private applyScriptVoice(): void {
+    const s = this.script();
+    const voices = this.voices();
+    if (voices.length === 0) return;
+
+    const pinned = s?.voiceId ?? '';
+    const available = pinned && voices.some((v) => v.voiceId === pinned);
+
+    this.voiceId = available ? pinned : (voices[0]?.voiceId ?? '');
+    this.ttsModelId = s?.ttsModelId || this.defaultTtsModel;
+
+    // A pinned voice missing from the account is worth saying out loud: every
+    // re-record from here would quietly change how the script sounds.
+    if (pinned && !available) {
+      this.ttsError.set(
+        `The voice this script was recorded in (${s?.voiceName ?? pinned}) is no longer in your ElevenLabs account. Pick a replacement — existing lines keep their audio until re-recorded.`,
+      );
+    }
+  }
+
+  /** Voice actually used for a render: the panel's choice, else the script's. */
+  private effectiveVoice(): { voiceId: string; voiceName: string; modelId: string } | null {
+    const s = this.script();
+    const chosen = this.voiceId || s?.voiceId || '';
+    if (!chosen) return null;
+
+    const known = this.voices().find((v) => v.voiceId === chosen);
+    return {
+      voiceId: chosen,
+      voiceName: known?.name ?? s?.voiceName ?? chosen,
+      modelId: this.ttsModelId || s?.ttsModelId || this.defaultTtsModel,
+    };
+  }
+
+  /** The voice the script is pinned to, for display. */
+  readonly scriptVoiceName = computed(() => this.script()?.voiceName ?? '');
+
+  /**
+   * Current takes recorded in some other voice than the script's — the symptom
+   * of the old defaulting bug, and worth offering to fix in one click.
+   */
+  readonly offVoiceLines = computed(() => {
+    const pinned = this.script()?.voiceId;
+    if (!pinned) return [];
+    return [...this.audioByIndex().entries()]
+      .filter(([, clip]) => clip.voiceId !== pinned)
+      .map(([index]) => index)
+      .sort((a, b) => a - b);
+  });
+
+  /** Newest stitched track; earlier builds are kept as history. */
+  readonly timelineBuilds = computed(() =>
+    this.audio()
+      .filter((c) => c.kind === 'timeline')
+      .sort((a, b) => b.segmentVersion - a.segmentVersion),
+  );
+
+  readonly previousMixes = computed(() => this.timelineBuilds().slice(1));
+
+  /**
+   * Which takes the current script would mix from. Mirrors the server's
+   * `timelineSignature` — keep both in step.
+   */
+  private currentSignature(): string {
+    return (this.script()?.segments ?? [])
+      .map((seg) => `${seg.index}:${seg.version ?? 1}`)
+      .join(',');
+  }
+
+  /**
+   * True when the track was mixed from wordings that have since changed. The
+   * track is kept and still playable — it is the deliverable — but it must not
+   * look current when it no longer matches the script.
+   */
+  readonly trackStale = computed(() => {
+    const track = this.timelineClip();
+    if (!track) return false;
+    // Tracks built before signatures existed cannot be judged; treat them as
+    // current rather than nagging about something unknowable.
+    if (!track.sourceSignature) return false;
+    return track.sourceSignature !== this.currentSignature();
+  });
+
+  /** Lines with no take for their current wording — silent in a fresh mix. */
+  readonly unrecordedLines = computed(() => {
+    const recorded = this.audioByIndex();
+    return (this.script()?.segments ?? [])
+      .filter((seg) => seg.script.trim() && !recorded.has(seg.index))
+      .map((seg) => seg.index);
+  });
+
   clipFor(index: number): VoAudioClip | undefined {
     return this.audioByIndex().get(index);
   }
@@ -252,18 +363,21 @@ export class ScriptDetail implements OnInit, OnDestroy {
   /** Render a single line — used for one-off re-takes. */
   renderOne(index: number): void {
     const s = this.script();
-    if (!s || !this.voiceId) return;
+    if (!s) return;
 
-    const voice = this.voices().find((v) => v.voiceId === this.voiceId);
+    const voice = this.effectiveVoice();
+    if (!voice) {
+      // Nothing recorded yet and no voice chosen: open the panel rather than
+      // failing silently, which is what the old early-return did.
+      this.voicePanelOpen.set(true);
+      this.ttsError.set('Choose a voice first, then record.');
+      return;
+    }
+
     this.renderingIndex.set(index);
     this.ttsError.set('');
 
-    this.api
-      .renderSegmentAudio(s.id, index, {
-        voiceId: this.voiceId,
-        voiceName: voice?.name ?? this.voiceId,
-        modelId: this.ttsModelId,
-      })
+    this.api.renderSegmentAudio(s.id, index, voice)
       .subscribe({
         next: (res) => {
           // Replace only the take for this wording: other lines and earlier
@@ -296,9 +410,15 @@ export class ScriptDetail implements OnInit, OnDestroy {
    */
   async renderAll(): Promise<void> {
     const s = this.script();
-    if (!s || !this.voiceId) return;
+    if (!s) return;
 
-    const voice = this.voices().find((v) => v.voiceId === this.voiceId);
+    const voice = this.effectiveVoice();
+    if (!voice) {
+      this.voicePanelOpen.set(true);
+      this.ttsError.set('Choose a voice first, then record.');
+      return;
+    }
+
     this.renderingAll.set(true);
     this.ttsError.set('');
 
@@ -309,11 +429,7 @@ export class ScriptDetail implements OnInit, OnDestroy {
       this.renderingIndex.set(segment.index);
       try {
         const res = await firstValueFrom(
-          this.api.renderSegmentAudio(s.id, segment.index, {
-            voiceId: this.voiceId,
-            voiceName: voice?.name ?? this.voiceId,
-            modelId: this.ttsModelId,
-          }),
+          this.api.renderSegmentAudio(s.id, segment.index, voice),
         );
         this.audio.update((list) => [...list, res.clip].sort((a, b) => a.segmentIndex - b.segmentIndex));
       } catch (err) {
@@ -413,6 +529,48 @@ export class ScriptDetail implements OnInit, OnDestroy {
       error: (err) =>
         this.editError.set(err.error?.error?.message ?? 'Could not restore that version.'),
     });
+  }
+
+  /**
+   * Re-record the lines that ended up in a different voice, one at a time.
+   *
+   * Sequential for the same reason as renderAll: ElevenLabs rate-limits
+   * concurrent requests, and a serial loop stops at the failure with everything
+   * before it saved.
+   */
+  async reRecordOffVoice(): Promise<void> {
+    const s = this.script();
+    const voice = this.effectiveVoice();
+    const lines = this.offVoiceLines();
+    if (!s || !voice || lines.length === 0) return;
+
+    this.renderingAll.set(true);
+    this.ttsError.set('');
+
+    for (const index of lines) {
+      this.renderingIndex.set(index);
+      try {
+        const res = await firstValueFrom(this.api.renderSegmentAudio(s.id, index, voice));
+        this.audio.update((list) =>
+          [
+            ...list.filter(
+              (c) => c.segmentIndex !== index || c.segmentVersion !== res.clip.segmentVersion,
+            ),
+            res.clip,
+          ].sort((a, b) => a.segmentIndex - b.segmentIndex),
+        );
+      } catch (err) {
+        const message =
+          (err as { error?: { error?: { message?: string } } })?.error?.error?.message ??
+          'Audio generation failed.';
+        this.ttsError.set(`Stopped at line ${index}: ${message}`);
+        break;
+      }
+    }
+
+    this.renderingIndex.set(null);
+    this.renderingAll.set(false);
+    this.refreshSegments();
   }
 
   /**

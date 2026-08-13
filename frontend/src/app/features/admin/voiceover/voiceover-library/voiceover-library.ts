@@ -24,6 +24,9 @@ import type { VoScriptFilters, VoScriptSummary } from '../../../../core/models/a
  * one recording with three tones reads as one entry with three tones rather than
  * three unrelated rows.
  */
+/** Where the chosen layout is remembered. */
+const VIEW_KEY = 'ha.voiceover.libraryView';
+
 @Component({
   selector: 'ha-voiceover-library',
   imports: [
@@ -62,33 +65,17 @@ export class VoiceoverLibrary implements OnInit, OnDestroy {
   );
 
   /**
-   * Cards grouped by source video, so one recording narrated in three tones
-   * reads as one entry with three cards rather than three unrelated rows.
+   * Cards or a compact list, remembered between visits. One flat set either way:
+   * the source video is already on every card, so grouping by it only added
+   * headings to scroll past.
    */
-  readonly groups = computed(() => {
-    const byVideo = new Map<string, VoScriptSummary[]>();
-    for (const script of this.scripts()) {
-      const list = byVideo.get(script.videoName);
-      if (list) list.push(script);
-      else byVideo.set(script.videoName, [script]);
-    }
-    return [...byVideo.entries()].map(([videoName, scripts]) => ({ videoName, scripts }));
-  });
+  readonly view = signal<'cards' | 'list'>(
+    localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards',
+  );
 
-  /** Collapsed group headings, keyed by video name. */
-  readonly collapsed = signal<Set<string>>(new Set());
-
-  toggleGroup(videoName: string): void {
-    this.collapsed.update((set) => {
-      const next = new Set(set);
-      if (next.has(videoName)) next.delete(videoName);
-      else next.add(videoName);
-      return next;
-    });
-  }
-
-  isCollapsed(videoName: string): boolean {
-    return this.collapsed().has(videoName);
+  setView(view: 'cards' | 'list'): void {
+    this.view.set(view);
+    localStorage.setItem(VIEW_KEY, view);
   }
 
   ngOnInit(): void {

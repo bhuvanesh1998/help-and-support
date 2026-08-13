@@ -357,60 +357,119 @@
   mat-icon { font-size: 14px; width: 14px; height: 14px; }
 }
 
-// ── Grouped sections (one per source video) ─────────────────────────────────
+// ── View switch ─────────────────────────────────────────────────────────────
 
-.lib-group {
+.lib-view {
+  display: inline-flex;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--mat-sys-surface-container);
+
+  &__btn {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    background: none;
+    color: var(--mat-sys-on-surface-variant);
+    cursor: pointer;
+
+    mat-icon { font-size: 19px; width: 19px; height: 19px; }
+
+    &:hover { background: var(--mat-sys-surface-container-high); }
+
+    &--on {
+      color: var(--mat-sys-on-primary);
+      background: var(--mat-sys-primary);
+
+      &:hover { background: var(--mat-sys-primary); }
+    }
+  }
+}
+
+// ── List view ───────────────────────────────────────────────────────────────
+
+.lib-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+}
 
-  &__head {
+.lib-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container-low);
+
+  &:hover { border-color: var(--mat-sys-primary); }
+
+  &__link {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: none;
-    border: 0;
-    padding: 4px 0;
-    font: inherit;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+    text-decoration: none;
     color: inherit;
-    cursor: pointer;
-    text-align: left;
+  }
 
-    mat-icon { color: var(--mat-sys-on-surface-variant); }
-
-    &:focus-visible {
-      outline: 2px solid var(--mat-sys-primary);
-      outline-offset: 2px;
-      border-radius: 6px;
-    }
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1 1 240px;
+    min-width: 0;
   }
 
   &__name {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: var(--mat-sys-on-surface);
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  &__count {
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 2px 8px;
+  &__video {
+    font-size: 0.75rem;
+    color: var(--mat-sys-on-surface-variant);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__tone {
+    flex: none;
+    padding: 2px 9px;
     border-radius: 20px;
-    background: color-mix(in srgb, var(--mat-sys-primary) 16%, transparent);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--mat-sys-primary);
+    background: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent);
   }
-}
 
-.lib-item__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
+  &__stat,
+  &__when {
+    flex: none;
+    font-size: 0.775rem;
+    color: var(--mat-sys-on-surface-variant);
+    font-variant-numeric: tabular-nums;
+  }
 
-.lib-item__hint {
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
-  color: var(--mat-sys-on-surface-variant);
+  // Secondary detail goes first on narrow screens.
+  @media (max-width: 900px) {
+    &__stat:nth-of-type(n + 2),
+    &__when { display: none; }
+  }
 }

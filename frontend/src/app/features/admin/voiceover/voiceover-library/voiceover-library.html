@@ -106,6 +106,28 @@
         <mat-icon aria-hidden="true">insights</mat-icon>
         Usage
       </a>
+      <div class="lib-view" role="group" aria-label="Layout">
+        <button
+          type="button"
+          class="lib-view__btn"
+          [class.lib-view__btn--on]="view() === 'cards'"
+          matTooltip="Card view"
+          aria-label="Card view"
+          (click)="setView('cards')"
+        >
+          <mat-icon>grid_view</mat-icon>
+        </button>
+        <button
+          type="button"
+          class="lib-view__btn"
+          [class.lib-view__btn--on]="view() === 'list'"
+          matTooltip="List view"
+          aria-label="List view"
+          (click)="setView('list')"
+        >
+          <mat-icon>view_list</mat-icon>
+        </button>
+      </div>
       <a mat-flat-button color="primary" routerLink="/admin/voiceover/new">
         <mat-icon aria-hidden="true">add</mat-icon>
         Generate voiceover
@@ -140,25 +162,9 @@
         </a>
       }
     </section>
-  } @else {
-    @for (group of groups(); track group.videoName) {
-      <section class="lib-group">
-        <button
-          type="button"
-          class="lib-group__head"
-          [attr.aria-expanded]="!isCollapsed(group.videoName)"
-          (click)="toggleGroup(group.videoName)"
-        >
-          <mat-icon aria-hidden="true">
-            {{ isCollapsed(group.videoName) ? 'chevron_right' : 'expand_more' }}
-          </mat-icon>
-          <span class="lib-group__name">{{ group.videoName }}</span>
-          <span class="lib-group__count">{{ group.scripts.length }}</span>
-        </button>
-
-        @if (!isCollapsed(group.videoName)) {
-          <div class="lib-grid">
-            @for (s of group.scripts; track s.id) {
+  } @else if (view() === 'cards') {
+    <div class="lib-grid">
+      @for (s of scripts(); track s.id) {
         <a class="lib-item" [routerLink]="['/admin/voiceover', s.id]">
           <header class="lib-item__head">
             <span class="lib-item__tone">{{ s.tone }}</span>
@@ -180,7 +186,7 @@
           </header>
 
           <h3 class="lib-item__name">{{ s.appName }}</h3>
-          <p class="lib-item__app">{{ s.tone }} narration · {{ s.provider }}</p>
+          <p class="lib-item__app">{{ s.videoName }}</p>
 
           <dl class="lib-item__stats">
             <div><dt>Length</dt><dd>{{ timecode(s.durationSec) }}</dd></div>
@@ -198,14 +204,6 @@
               }
             </span>
             <span class="lib-item__actions">
-              @if (s.canRegenerate) {
-                <mat-icon
-                  class="lib-item__hint"
-                  matTooltip="Open to re-tone or generate audio"
-                  aria-hidden="true"
-                  >autorenew</mat-icon
-                >
-              }
               <button
                 mat-icon-button
                 [attr.aria-label]="'Delete ' + s.tone + ' script for ' + s.videoName"
@@ -216,11 +214,49 @@
               </button>
             </span>
           </footer>
-            </a>
+        </a>
+      }
+    </div>
+  } @else {
+    <ul class="lib-list" role="list">
+      @for (s of scripts(); track s.id) {
+        <li class="lib-row">
+          <a class="lib-row__link" [routerLink]="['/admin/voiceover', s.id]">
+            <span class="lib-row__main">
+              <span class="lib-row__name">{{ s.appName }}</span>
+              <span class="lib-row__video">{{ s.videoName }}</span>
+            </span>
+            <span class="lib-row__tone">{{ s.tone }}</span>
+            <span class="lib-row__stat">{{ timecode(s.durationSec) }}</span>
+            <span class="lib-row__stat">{{ s.segmentCount }} lines</span>
+            <span class="lib-row__stat">{{ s.totalWords }} words</span>
+            <span class="lib-row__when">{{ when(s.createdAt) }}</span>
+            @switch (s.status) {
+              @case ('done') {
+                <span class="lib-pill lib-pill--ok">
+                  <mat-icon aria-hidden="true">check_circle</mat-icon> Ready
+                </span>
+              }
+              @case ('running') {
+                <span class="lib-pill lib-pill--live">
+                  <mat-icon aria-hidden="true">autorenew</mat-icon> Generating
+                </span>
+              }
+              @default {
+                <span class="lib-pill lib-pill--bad">{{ s.status }}</span>
+              }
             }
-          </div>
-        }
-      </section>
-    }
+          </a>
+          <button
+            mat-icon-button
+            [attr.aria-label]="'Delete ' + s.tone + ' script for ' + s.videoName"
+            matTooltip="Delete"
+            (click)="deleteScript(s, $event)"
+          >
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </li>
+      }
+    </ul>
   }
 </div>

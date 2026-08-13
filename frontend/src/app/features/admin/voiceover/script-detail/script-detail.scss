@@ -216,15 +216,22 @@
 }
 
 // The finished track gets its own emphasis: it is the deliverable.
+// The merged track is the deliverable, so it gets the emphasis on this page.
 .sd-track {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 12px;
   padding: 14px 16px;
   border-radius: 10px;
   border: 1px solid var(--mat-sys-primary);
   background: color-mix(in srgb, var(--mat-sys-primary) 6%, var(--mat-sys-surface));
+
+  &__main {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
 
   &__text {
     display: flex;
@@ -233,14 +240,119 @@
     flex: 1 1 220px;
     min-width: 0;
 
-    strong { font-size: 0.92rem; color: var(--mat-sys-on-surface); }
+    strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.95rem;
+      color: var(--mat-sys-on-surface);
+
+      mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--mat-sys-primary); }
+    }
+
     span { font-size: 0.78rem; color: var(--mat-sys-on-surface-variant); }
+  }
+
+  &__build {
+    padding: 1px 8px;
+    border-radius: 20px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mat-sys-on-surface-variant);
+    background: var(--mat-sys-surface-container-high);
   }
 
   &__player {
     flex: 2 1 320px;
     min-width: 240px;
     height: 36px;
+  }
+
+  // Out of date: still playable, but it must not look current.
+  &--stale {
+    border-color: #f59e0b;
+    background: color-mix(in srgb, #f59e0b 8%, var(--mat-sys-surface));
+  }
+
+  &__warn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 0;
+    padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #92400e;
+
+    mat-icon { flex: none; font-size: 18px; width: 18px; height: 18px; }
+    span { flex: 1 1 260px; }
+  }
+
+  // Nothing assembled yet — a prompt rather than an empty space.
+  &--todo {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    border-style: dashed;
+    background: var(--mat-sys-surface-container-low);
+    border-color: var(--mat-sys-outline);
+  }
+}
+
+.sd-mixes {
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant);
+
+  summary { cursor: pointer; font-weight: 600; }
+
+  ul {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  audio { height: 30px; flex: 1 1 240px; }
+
+  &__label {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.sd-voiceline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon { flex: none; font-size: 18px; width: 18px; height: 18px; }
+
+  &__off {
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #92400e;
+    background: color-mix(in srgb, #f59e0b 14%, transparent);
   }
 }
 

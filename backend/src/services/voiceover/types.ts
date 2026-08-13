@@ -84,6 +84,25 @@ export interface VoSegmentVersion {
   voiceName: string | null;
 }
 
+/**
+ * Which takes a stitched track was mixed from, as a comparable string.
+ *
+ * The track is a mix of specific wordings; if any line has moved to another
+ * version since, the track no longer matches the script. Comparing signatures is
+ * how that is detected without re-reading every clip.
+ *
+ * The client mirrors this format to show a "reassemble" prompt, so keep both in
+ * step if it ever changes.
+ */
+export function timelineSignature(
+  segments: Array<{ index: number; version?: number }>,
+): string {
+  return [...segments]
+    .sort((a, b) => a.index - b.index)
+    .map((s) => `${s.index}:${s.version ?? 1}`)
+    .join(',');
+}
+
 /** Events streamed to the client over SSE. */
 export type VoEvent =
   | { type: 'phase'; phase: VoJobPhase; message: string }

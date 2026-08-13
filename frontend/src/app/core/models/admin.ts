@@ -355,8 +355,10 @@ export interface TtsVoice {
 export interface VoAudioClip {
   kind: string;
   segmentIndex: number;
-  /** Which wording of the line this clip speaks; 0 for the stitched track. */
+  /** The wording this clip speaks; for a timeline, its build number. */
   segmentVersion: number;
+  /** Timeline clips only: the takes mixed in, for staleness checks. */
+  sourceSignature?: string | null;
   voiceId: string;
   voiceName: string;
   modelId: string;
@@ -486,6 +488,10 @@ export interface VoScriptFilters {
 /** A saved script with its segments — the durable form of a run's output. */
 export interface VoScriptDetail extends VoScriptSummary {
   audience: string;
+  /** The voice this script is narrated in; re-records follow it. */
+  voiceId?: string | null;
+  voiceName?: string | null;
+  ttsModelId?: string | null;
   tone: VoTone;
   width: number;
   height: number;

@@ -49,6 +49,10 @@ export interface ScriptQuery {
 
 export interface ScriptDetail extends ScriptSummary {
   audience: string;
+  /** The voice this script is narrated in, once anything has been recorded. */
+  voiceId: string | null;
+  voiceName: string | null;
+  ttsModelId: string | null;
   tone: string;
   width: number;
   height: number;
@@ -356,6 +360,9 @@ export async function getScript(id: string): Promise<ScriptDetail | null> {
     videoName: row.videoName,
     appName: row.appName,
     audience: row.audience,
+    voiceId: row.voiceId,
+    voiceName: row.voiceName,
+    ttsModelId: row.ttsModelId,
     tone: row.tone,
     sourceScriptId: row.sourceScriptId,
     variantCount: row._count.variants,
@@ -560,6 +567,31 @@ async function syncTotalWords(scriptId: string): Promise<void> {
     where: { id: scriptId },
     data: { totalWords: total._sum.wordCount ?? 0 },
   });
+}
+
+/**
+ * Pin the voice a script is narrated in.
+ *
+ * Set on the first render and thereafter only when the user deliberately picks a
+ * different voice, so a re-record months later matches the takes around it rather
+ * than whatever the dropdown defaulted to.
+ */
+export async function setScriptVoice(
+  scriptId: string,
+  voice: { voiceId: string; voiceName: string; ttsModelId: string },
+): Promise<void> {
+  try {
+    await prisma.voiceoverScript.update({
+      where: { id: scriptId },
+      data: {
+        voiceId: voice.voiceId,
+        voiceName: voice.voiceName,
+        ttsModelId: voice.ttsModelId,
+      },
+    });
+  } catch (err) {
+    logger.warn('voiceover: could not pin script voice', { error: (err as Error).message });
+  }
 }
 
 /** One segment with its full version history, as the client consumes it. */

@@ -23,8 +23,10 @@ export const DERIVED_VERSION = 0;
 export interface AudioClip {
   kind: string;
   segmentIndex: number;
-  /** Which wording of the line this clip speaks; 0 for the stitched track. */
+  /** The wording this clip speaks; for a timeline, its build number. */
   segmentVersion: number;
+  /** Timeline rows only: the takes mixed in, for staleness checks. */
+  sourceSignature?: string | null;
   voiceId: string;
   voiceName: string;
   modelId: string;
@@ -42,6 +44,7 @@ export async function listAudio(scriptId: string): Promise<AudioClip[]> {
     kind: r.kind,
     segmentIndex: r.segmentIndex,
     segmentVersion: r.segmentVersion,
+    sourceSignature: r.sourceSignature,
     voiceId: r.voiceId,
     voiceName: r.voiceName,
     modelId: r.modelId,
@@ -100,6 +103,7 @@ export async function saveClip(
   clip: RenderedClip,
   kind: 'segment' | 'timeline' = 'segment',
   segmentVersion = 1,
+  sourceSignature: string | null = null,
 ): Promise<AudioClip> {
   const key = {
     scriptId_segmentIndex_segmentVersion: { scriptId, segmentIndex, segmentVersion },
@@ -114,6 +118,7 @@ export async function saveClip(
     where: key,
     update: {
       kind,
+      sourceSignature,
       voiceId: voice.voiceId,
       voiceName: voice.voiceName,
       modelId: voice.modelId,
@@ -127,6 +132,7 @@ export async function saveClip(
       kind,
       segmentIndex,
       segmentVersion,
+      sourceSignature,
       voiceId: voice.voiceId,
       voiceName: voice.voiceName,
       modelId: voice.modelId,
@@ -145,6 +151,7 @@ export async function saveClip(
     kind: row.kind,
     segmentIndex: row.segmentIndex,
     segmentVersion: row.segmentVersion,
+    sourceSignature: row.sourceSignature,
     voiceId: row.voiceId,
     voiceName: row.voiceName,
     modelId: row.modelId,
@@ -152,6 +159,40 @@ export async function saveClip(
     sizeBytes: row.sizeBytes,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/**
+ * The build number for the next stitched track.
+ *
+ * Timelines are numbered rather than overwritten so a previous mix stays playable
+ * while a new one is assembled — the merged track is the deliverable, and losing
+ * the last good one because a re-assembly went wrong is the worst outcome here.
+ * Legacy rows sit at 0, which this naturally continues from.
+ */
+export async function nextTimelineBuild(scriptId: string): Promise<number> {
+  const highest = await prisma.voiceoverAudio.aggregate({
+    where: { scriptId, kind: 'timeline' },
+    _max: { segmentVersion: true },
+  });
+  return (highest._max.segmentVersion ?? 0) + 1;
+}
+
+/**
+ * Keep the newest `keep` stitched tracks and delete the rest, files included.
+ * Each is a full-length MP3, so an unbounded history would quietly fill the disk.
+ */
+export async function pruneTimelines(scriptId: string, keep = 4): Promise<number> {
+  const rows = await prisma.voiceoverAudio.findMany({
+    where: { scriptId, kind: 'timeline' },
+    orderBy: { segmentVersion: 'desc' },
+    select: { id: true, storagePath: true },
+  });
+  const stale = rows.slice(keep);
+  if (stale.length === 0) return 0;
+
+  await prisma.voiceoverAudio.deleteMany({ where: { id: { in: stale.map((r) => r.id) } } });
+  for (const row of stale) removeClipFile(row.storagePath);
+  return stale.length;
 }
 
 /** Delete every clip for a script, files included. */

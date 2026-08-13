@@ -24,10 +24,10 @@ import {
   deleteKey,
 } from '../../services/voiceover/keys.service.js';
 import {
-  DERIVED_VERSION,
   TIMELINE_INDEX,
   deleteAudio,
-  deleteClip,
+  nextTimelineBuild,
+  pruneTimelines,
   listAudio,
   listAudioFiles,
   saveClip,
@@ -71,9 +71,10 @@ import {
   listFilterOptions,
   listScripts,
   restoreSegmentVersion,
+  setScriptVoice,
   updateSegmentText,
 } from '../../services/voiceover/script-store.service.js';
-import { timecode } from '../../services/voiceover/types.js';
+import { timecode, timelineSignature } from '../../services/voiceover/types.js';
 import type { VoSegment, VoTone } from '../../services/voiceover/types.js';
 
 export const voiceoverRouter: Router = Router();
@@ -614,13 +615,23 @@ voiceoverRouter.post(
     if (!segment.script.trim()) throw AppError.badRequest('That segment has no narration text');
 
     const body = req.body as Record<string, unknown>;
-    const voiceId = typeof body['voiceId'] === 'string' ? body['voiceId'].trim() : '';
-    if (!voiceId) throw AppError.badRequest('voiceId is required');
-    const voiceName = typeof body['voiceName'] === 'string' ? body['voiceName'] : voiceId;
-    const modelId =
-      typeof body['modelId'] === 'string' && body['modelId'].trim()
+    // The script's pinned voice is the default, so a re-record matches the takes
+    // around it instead of following whatever the client last had selected.
+    const requestedId = typeof body['voiceId'] === 'string' ? body['voiceId'].trim() : '';
+    const voiceId = requestedId || script.voiceId || '';
+    if (!voiceId) {
+      throw AppError.badRequest('No voice chosen yet — pick one under Generate voice first.');
+    }
+    const voiceName = requestedId
+      ? typeof body['voiceName'] === 'string' && body['voiceName'].trim()
+        ? body['voiceName'].trim()
+        : voiceId
+      : (script.voiceName ?? voiceId);
+    const modelId = requestedId
+      ? typeof body['modelId'] === 'string' && body['modelId'].trim()
         ? body['modelId'].trim()
-        : DEFAULT_TTS_MODEL;
+        : DEFAULT_TTS_MODEL
+      : (script.ttsModelId ?? DEFAULT_TTS_MODEL);
 
     const key = await requireTtsKey();
     try {
@@ -640,7 +651,12 @@ voiceoverRouter.post(
         model: modelId,
         characters: segment.script.length,
       });
-      res.json({ clip: saved });
+      // First render pins the voice; a deliberately different choice re-pins it,
+      // so later re-records follow the voice actually in use.
+      if (script.voiceId !== voiceId || script.ttsModelId !== modelId) {
+        await setScriptVoice(script.id, { voiceId, voiceName, ttsModelId: modelId });
+      }
+      res.json({ clip: saved, voiceId, voiceName, modelId });
     } catch (err) {
       await recordUsage({
         scriptId: script.id,
@@ -680,14 +696,22 @@ voiceoverRouter.get(
     if (files.length === 0) throw AppError.badRequest('No audio has been rendered for this script');
 
     const byIndex = new Map(script.segments.map((s) => [s.index, s]));
+    const latestBuild = files
+      .filter((f) => f.segmentIndex === TIMELINE_INDEX)
+      .reduce((max, f) => Math.max(max, f.segmentVersion), 0);
     const zip = new AdmZip();
     for (const file of files) {
       if (!fs.existsSync(file.storagePath)) continue;
 
       // The stitched track has no segment of its own; name it for what it is so
-      // the zip reads as "one track plus the takes that built it".
+      // the zip reads as "one track plus the takes that built it". Older mixes are
+      // kept, so only the newest can claim the plain name.
       if (file.segmentIndex === TIMELINE_INDEX) {
-        zip.addFile('full-timeline-track.mp3', fs.readFileSync(file.storagePath));
+        const name =
+          file.segmentVersion === latestBuild
+            ? 'full-timeline-track.mp3'
+            : `previous-mixes/timeline-build-${file.segmentVersion}.mp3`;
+        zip.addFile(name, fs.readFileSync(file.storagePath));
         continue;
       }
 
@@ -739,8 +763,9 @@ voiceoverRouter.patch(
     const segment = await updateSegmentText(scriptId, index, text);
     if (!segment) throw AppError.notFound('Segment not found');
 
-    await deleteClip(scriptId, TIMELINE_INDEX);
-
+    // The stitched track is kept: it is the deliverable, and the last good mix
+    // staying playable is worth more than hiding it. It now reads as out of date
+    // (its signature no longer matches the script) until reassembled.
     res.json({ segment });
   },
 );
@@ -764,9 +789,6 @@ voiceoverRouter.post(
 
     const segment = await restoreSegmentVersion(scriptId, index, version);
     if (!segment) throw AppError.notFound('That version no longer exists');
-
-    // The stitched track was mixed from the previous wording.
-    await deleteClip(scriptId, TIMELINE_INDEX);
 
     res.json({ segment });
   },
@@ -863,14 +885,19 @@ voiceoverRouter.post(
         script.id,
         TIMELINE_INDEX,
         {
-          voiceId: voice?.voiceId ?? 'mixed',
-          voiceName: voice?.voiceName ?? 'mixed',
-          modelId: voice?.modelId ?? DEFAULT_TTS_MODEL,
+          voiceId: script.voiceId ?? voice?.voiceId ?? 'mixed',
+          voiceName: script.voiceName ?? voice?.voiceName ?? 'mixed',
+          modelId: script.ttsModelId ?? voice?.modelId ?? DEFAULT_TTS_MODEL,
         },
         built,
         'timeline',
-        DERIVED_VERSION,
+        await nextTimelineBuild(script.id),
+        // Recorded so the UI can say "3 lines changed since this was assembled"
+        // instead of leaving a stale track looking current.
+        timelineSignature(script.segments),
       );
+      // Full-length MP3s add up; keep a short history, not every mix ever made.
+      await pruneTimelines(script.id);
       // `missing` is reported rather than silently mixed around: a track with
       // gaps looks finished until someone watches it.
       res.json({ clip: saved, lines: clips.length, missing });
