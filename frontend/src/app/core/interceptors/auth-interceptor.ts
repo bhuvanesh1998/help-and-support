@@ -52,12 +52,16 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
       // Exchange the refresh token for a new access token, then retry once.
       return http
-        .post<{ accessToken: string }>(`${config.apiBaseUrl}/admin/auth/refresh`, {
-          refreshToken,
-        })
+        .post<{ accessToken: string; refreshToken?: string }>(
+          `${config.apiBaseUrl}/admin/auth/refresh`,
+          { refreshToken },
+        )
         .pipe(
           switchMap((res) => {
-            auth.setToken(res.accessToken);
+            // The server rotates the refresh token on every exchange, so the new
+            // one must replace the old — keeping the old one would break the next
+            // refresh once rotation is enforced.
+            auth.setToken(res.accessToken, res.refreshToken);
             return next(
               req.clone({ setHeaders: { Authorization: `Bearer ${res.accessToken}` } }),
             );

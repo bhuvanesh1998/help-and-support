@@ -5,7 +5,20 @@ import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { env } from '../config/env.js';
 
-const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+/**
+ * Accepted image types, mapped to the extension they are stored with.
+ *
+ * The stored extension is taken from this table rather than from the uploaded
+ * filename: `/uploads` is served publicly by express.static, so a file named
+ * `x.html` but declared `image/png` would be served back as HTML from the API
+ * origin — stored XSS, reachable by anyone who can upload.
+ */
+const ALLOWED_MIME = new Map([
+  ['image/jpeg', '.jpg'],
+  ['image/png', '.png'],
+  ['image/gif', '.gif'],
+  ['image/webp', '.webp'],
+]);
 
 const uploadDir = path.resolve(env.uploadDir);
 if (!fs.existsSync(uploadDir)) {
@@ -15,8 +28,7 @@ if (!fs.existsSync(uploadDir)) {
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${randomUUID()}${ext}`);
+    cb(null, `${randomUUID()}${ALLOWED_MIME.get(file.mimetype) ?? '.bin'}`);
   },
 });
 

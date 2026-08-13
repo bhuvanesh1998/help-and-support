@@ -29,6 +29,7 @@ import { getWidgetConfig } from './services/widget/config.js';
 import { connectRouter } from './routes/admin/connect.routes.js';
 import { authenticate } from './middleware/auth.middleware.js';
 import { requireFeature, requirePermission } from './middleware/permission.middleware.js';
+import { adminLimiter, authLimiter, publicLimiter } from './middleware/rate-limit.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -91,6 +92,14 @@ export function createApp(): Express {
     (_req: Request, res: Response, next: NextFunction) => {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.setHeader('Access-Control-Allow-Origin', '*');
+      // The global CORS layer sets credentials:true, which browsers refuse to
+      // honour alongside `*` — and these files are public anyway, so the header
+      // is removed rather than left contradicting itself.
+      res.removeHeader('Access-Control-Allow-Credentials');
+      // Static user-supplied files: allow no script, style, frame or fetch, and
+      // sandbox anything the browser still decides to treat as a document. Images
+      // and audio are unaffected; a stray .html or .svg cannot run anything.
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
       next();
     },
     express.static(path.resolve(uploadDir)),
@@ -130,10 +139,12 @@ export function createApp(): Express {
   app.use('/api', healthRouter);
 
   // ── Auth (unauthenticated) ───────────────────────────────────────────────
-  app.use('/api/admin/auth', authRouter);
+  // Strictest limiter in the app: these are the only endpoints an attacker can
+  // use without already having an account.
+  app.use('/api/admin/auth', authLimiter, authRouter);
 
   // ── Public API (unauthenticated) ─────────────────────────────────────────
-  app.use('/api/public', publicRouter);
+  app.use('/api/public', publicLimiter, publicRouter);
 
   // ── Embeddable widget loader (public script include) ─────────────────────
   app.get('/widget.js', async (_req: Request, res: Response) => {
@@ -246,6 +257,11 @@ function applyCfg(){
   });
 
   // ── MCP server (Claude-host transport; bearer connector token, NOT a JWT) ─
+  // Applies to every admin route below, including the ones that authenticate
+  // per-route (Voiceover Studio, AI pipeline) and are mounted before the global
+  // `authenticate`.
+  app.use('/api/admin', adminLimiter);
+
   // Mounted before the global authenticate — Claude hosts present the MCP
   // connector token, not an admin JWT.
   app.use('/mcp', mcpRouter);

@@ -270,9 +270,71 @@ backend/
 └── tsconfig.json
 ```
 
-## Security posture (Phase 1)
+## Security posture
 
-- Secrets are env-only; the process refuses to boot without `DATABASE_URL` and `JWT_SECRET`.
+- Secrets are env-only; the process refuses to boot without `DATABASE_URL` and
+  `JWT_SECRET`, and requires ≥32 characters for it in production.
 - `helmet` sets hardened HTTP headers; CORS is an explicit env-driven allow-list.
-- Passwords are hashed with bcrypt (cost 12); IPs in analytics are stored only as salted hashes.
-- JSON/body size limited to 1 MB to blunt trivial payload-flood attempts.
+- Passwords are hashed with bcrypt (cost 12); IPs in analytics are stored only as
+  HMAC-SHA256 hashes. Login answers identically for an unknown address and a wrong
+  password, so accounts cannot be enumerated.
+- JSON/body size limited to 1 MB, with deliberately larger limits scoped to the
+  connector and to uploads.
+- The MCP connector token is 24 random bytes, encrypted at rest (AES-256-GCM),
+  compared in constant time, and rotatable/revocable.
+
+### Sessions and revocation
+
+**Every authenticated request resolves the account from the database**
+(`resolveTokenUser`). A valid signature is not sufficient — the account may have
+been deactivated, deleted, demoted or signed out since the token was issued. This
+closed a real hole: a deactivated user's access token kept working for the rest of
+its hour, and a *deleted* one fell through to the legacy admin permission set.
+
+| Mechanism | Effect |
+| --- | --- |
+| `users.tokenVersion` | Signed into every token as `tv`; a mismatch is a 401 |
+| `POST /api/admin/auth/logout` | Increments it — signs the account out on every device |
+| Password change | Increments it, so the old password's sessions die with it |
+| Refresh | Rotates the refresh token on every exchange, and checks `tv` |
+| Role changes | The **database** role is used, not the token's, so a demotion is immediate |
+
+Access tokens last 1 hour (`JWT_EXPIRES_IN`), refresh tokens 7 days
+(`JWT_REFRESH_EXPIRES_IN`). Tokens issued before `tv` existed are treated as
+version 0, so deploying this did not sign everyone out.
+
+### Rate limits
+
+In-process counters (`src/middleware/rate-limit.ts`):
+
+| Scope | Limit |
+| --- | --- |
+| `/api/admin/auth/*` | 10 failed attempts per 15 min, keyed by **IP + email** so one attacker cannot lock a colleague out, and successful requests do not count |
+| `/api/admin/*` | 1200 per 15 min, skipping SSE `/stream` routes that hold one long-lived request |
+| `/api/public/*` | 240 per minute |
+
+**With more than one replica, move the store to Redis** — otherwise the effective
+limit multiplies by the replica count.
+
+### Known gaps
+
+- **`/uploads` is unauthenticated by design** (the embed widget needs public
+  images). Responses now carry `Content-Security-Policy: default-src 'none';
+  sandbox` and `nosniff`, and stored filenames take their extension from the MIME
+  allow-list rather than the caller's filename — so a file uploaded as `x.html`
+  cannot be served back as a script. Restrict the path before exposing this to the
+  internet.
+- **Tokens live in `localStorage`** and the SPA ships no CSP (it is served by
+  nginx, not this process). Any script injection can read them; `tokenVersion`
+  gives you a way to revoke, but the CSP belongs in the frontend deployment.
+- **Access tokens travel in `?token=`** for SSE streams and file downloads, because
+  `EventSource` and plain navigation cannot set headers. They therefore reach logs
+  and browser history. A short-lived, download-scoped token would be better.
+- **`SETTINGS_ENCRYPTION_KEY` defaults to `JWT_SECRET`**, which also salts the
+  analytics IP HMAC. One leak forfeits all three; set it separately in production.
+- **`adm-zip` has an open advisory** (crafted ZIP → 4 GB allocation) whose fix is a
+  major version bump. Reachable only by an admin uploading a backup. `npm audit
+  fix` cleared the other seven advisories.
+- **MCP bypasses roles**: `/mcp` and `/connector` run with `userId = null` and the
+  full tool surface. That is deliberate for a machine credential, but nothing
+  scopes it further.

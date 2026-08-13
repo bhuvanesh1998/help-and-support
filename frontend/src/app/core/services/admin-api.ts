@@ -47,6 +47,14 @@ export class AdminApiService {
   login(email: string, password: string) {
     return this.http.post<LoginResponse>(`${this.b}/auth/login`, { email, password });
   }
+  /**
+   * Ends the session server-side by invalidating every token issued to this
+   * account. Without it, clearing browser storage left a copied token usable
+   * until it expired.
+   */
+  logout() {
+    return this.http.post<void>(`${this.b}/auth/logout`, {});
+  }
   me() {
     return this.http.get<{ user: AdminUser }>(`${this.b}/auth/me`);
   }

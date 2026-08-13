@@ -44,8 +44,9 @@ export class AuthStore {
     this._user.set(user);
   }
 
-  setToken(accessToken: string): void {
+  setToken(accessToken: string, refreshToken?: string): void {
     localStorage.setItem(TOKEN_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
     this._token.set(accessToken);
   }
 

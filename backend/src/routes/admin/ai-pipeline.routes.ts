@@ -9,7 +9,7 @@
 
 import { Router } from 'express';
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
-import { parseAccessToken } from '../../middleware/auth.middleware.js';
+import { resolveTokenUser } from '../../middleware/auth.middleware.js';
 import { requirePermission } from '../../middleware/permission.middleware.js';
 import { AppError } from '../../utils/app-error.js';
 import {
@@ -43,23 +43,27 @@ function p(req: Request, key: string): string {
 }
 
 /** Bearer-header auth for JSON endpoints. */
-function requireBearer(req: Request, _res: Response, next: NextFunction): void {
+async function requireBearer(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     throw AppError.unauthorized('Missing or malformed Authorization header');
   }
-  const payload = parseAccessToken(header.slice(7));
-  req.user = { id: payload.sub, email: payload.email, role: payload.role };
+  // Shared with the global middleware, so a deactivated or logged-out account
+  // loses these routes at the same moment it loses every other one.
+  req.user = await resolveTokenUser(header.slice(7));
   next();
 }
 
 /** Query-token auth for the SSE stream (EventSource can't set headers). */
-function requireQueryToken(req: Request, _res: Response, next: NextFunction): void {
+async function requireQueryToken(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
   const raw = req.query['token'];
   const token = typeof raw === 'string' ? raw : Array.isArray(raw) ? String(raw[0]) : '';
   if (!token) throw AppError.unauthorized('Missing token');
-  const payload = parseAccessToken(token);
-  req.user = { id: payload.sub, email: payload.email, role: payload.role };
+  req.user = await resolveTokenUser(token);
   next();
 }
 

@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatRippleModule } from '@angular/material/core';
 import { MatDividerModule } from '@angular/material/divider';
 import { AuthStore } from '../../../core/services/auth-store';
+import { AdminApiService } from '../../../core/services/admin-api';
 import { ThemeService } from '../../../core/services/theme.service';
 
 interface NavItem {
@@ -35,6 +36,7 @@ export class Layout {
   readonly auth  = inject(AuthStore);
   readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
+  private readonly api = inject(AdminApiService);
 
   readonly sidenavOpen = signal(true);
   readonly pageTitle   = signal('Pages');
@@ -90,7 +92,19 @@ export class Layout {
 
   toggleSidenav(): void { this.sidenavOpen.update((v) => !v); }
 
+  /**
+   * Sign out. The server call invalidates the tokens already issued; local
+   * storage is cleared either way, because a network failure must not leave
+   * someone stuck signed in on a machine they are walking away from.
+   */
   logout(): void {
+    this.api.logout().subscribe({
+      next: () => this.finishLogout(),
+      error: () => this.finishLogout(),
+    });
+  }
+
+  private finishLogout(): void {
     this.auth.logout();
     void this.router.navigate(['/admin/login']);
   }

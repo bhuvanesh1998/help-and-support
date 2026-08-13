@@ -52,6 +52,10 @@ model User {
   roleId       String?   @db.Uuid
   accessRole   Role?     @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive     Boolean   @default(true)
+  /// Bumped to invalidate every token already issued to this account — logout
+  /// everywhere, and any password change. Tokens carry the value they were
+  /// signed with and are rejected once it no longer matches.
+  tokenVersion Int       @default(0)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

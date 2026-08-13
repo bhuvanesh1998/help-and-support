@@ -120,6 +120,9 @@ usersRouter.patch('/:id', async (req: Request, res: Response) => {
 
   if (typeof body['password'] === 'string' && body['password'].length >= 8) {
     data['passwordHash'] = await bcrypt.hash(body['password'], 12);
+    // The old password's sessions must not survive it — that is the whole point
+    // of changing it after a suspected compromise.
+    data['tokenVersion'] = { increment: 1 };
   }
   if (typeof body['email'] === 'string') {
     data['email'] = body['email'].toLowerCase().trim();
