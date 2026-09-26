@@ -11,3 +11,4 @@ scratchpad/
 **/.env
 **/.env.*
 !backend/.env.production.example
+!backend/.env.example
