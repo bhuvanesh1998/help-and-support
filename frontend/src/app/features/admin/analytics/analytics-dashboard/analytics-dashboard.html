@@ -1,29 +1,33 @@
 <div class="analytics-page">
-
   <!-- Header -->
   <div class="page-top">
     <div class="top-left">
       <h1 class="page-title">Analytics</h1>
       @if (summary()) {
-        <span class="period-label">{{ summary()!.period.since | date:'MMM d' }} – today</span>
+        <span class="period-label">{{ summary()!.period.since | date: 'MMM d' }} – today</span>
       }
     </div>
     <div class="top-right">
       <!-- Period toggle -->
       <div class="period-tabs" role="group" aria-label="Select time period">
         @for (d of [7, 14, 30, 90]; track d) {
-          <button class="period-tab"
-                  [class.period-tab--active]="selectedDays() === d"
-                  (click)="setDays(d)"
-                  [attr.aria-pressed]="selectedDays() === d">
+          <button
+            class="period-tab"
+            [class.period-tab--active]="selectedDays() === d"
+            (click)="setDays(d)"
+            [attr.aria-pressed]="selectedDays() === d"
+          >
             {{ d }}d
           </button>
         }
       </div>
-      <button mat-icon-button class="refresh-btn"
-              aria-label="Refresh data"
-              matTooltip="Refresh"
-              (click)="load()">
+      <button
+        mat-icon-button
+        class="refresh-btn"
+        aria-label="Refresh data"
+        matTooltip="Refresh"
+        (click)="load()"
+      >
         <mat-icon>refresh</mat-icon>
       </button>
     </div>
@@ -32,7 +36,7 @@
   <!-- Loading skeletons -->
   @if (loading()) {
     <div class="kpi-row" aria-busy="true" aria-label="Loading analytics">
-      @for (_ of [1,2,3,4]; track $index) {
+      @for (_ of [1, 2, 3, 4]; track $index) {
         <div class="kpi-card kpi-card--skel" aria-hidden="true">
           <div class="skel-icon"></div>
           <div class="skel-body">
@@ -50,10 +54,8 @@
 
   <!-- Dashboard content -->
   @else if (summary(); as s) {
-
     <!-- KPI cards -->
     <div class="kpi-row">
-
       <div class="kpi-card">
         <span class="kpi-icon-wrap kpi-icon-wrap--primary" aria-hidden="true">
           <mat-icon>analytics</mat-icon>
@@ -75,12 +77,10 @@
           </div>
         </div>
       }
-
     </div>
 
     <!-- Charts row -->
     <div class="charts-row">
-
       <!-- Daily views sparkline -->
       <div class="chart-card">
         <div class="chart-header">
@@ -90,17 +90,25 @@
         @if (s.dailyViews.length === 0) {
           <div class="no-data" role="status">No data for this period</div>
         } @else {
-          <div class="bar-chart" role="img" [attr.aria-label]="'Daily views trend for last ' + selectedDays() + ' days'">
+          <div
+            class="bar-chart"
+            role="img"
+            [attr.aria-label]="'Daily views trend for last ' + selectedDays() + ' days'"
+          >
             @for (day of s.dailyViews; track day.day) {
-              <div class="bar-item"
-                   [matTooltip]="day.views + ' views on ' + (day.day | date:'MMM d')">
+              <div
+                class="bar-item"
+                [matTooltip]="day.views + ' views on ' + (day.day | date: 'MMM d')"
+              >
                 <div class="bar-fill" [style.height]="barHeight(day.views)"></div>
               </div>
             }
           </div>
           <div class="bar-axis">
-            <span>{{ s.dailyViews[0]?.day | date:'MMM d' }}</span>
-            <span>{{ s.dailyViews[s.dailyViews.length - 1]?.day | date:'MMM d' }}</span>
+            <span>{{ s.dailyViews[0]?.day | date: 'MMM d' }}</span>
+            <span>{{
+              s.dailyViews[s.dailyViews.length - 1]?.day | date: 'MMM d'
+            }}</span>
           </div>
         }
       </div>
@@ -119,12 +127,17 @@
               <div class="breakdown-row">
                 <span class="breakdown-dot" aria-hidden="true"></span>
                 <span class="breakdown-label">{{ item.eventType }}</span>
-                <div class="breakdown-bar-track" role="meter"
-                     [attr.aria-valuenow]="item.count"
-                     [attr.aria-valuemax]="s.totalEvents"
-                     [attr.aria-label]="item.eventType + ': ' + item.count">
-                  <div class="breakdown-bar-fill"
-                       [style.width.%]="(item.count / s.totalEvents) * 100"></div>
+                <div
+                  class="breakdown-bar-track"
+                  role="meter"
+                  [attr.aria-valuenow]="item.count"
+                  [attr.aria-valuemax]="s.totalEvents"
+                  [attr.aria-label]="item.eventType + ': ' + item.count"
+                >
+                  <div
+                    class="breakdown-bar-fill"
+                    [style.width.%]="(item.count / s.totalEvents) * 100"
+                  ></div>
                 </div>
                 <span class="breakdown-count">{{ item.count | number }}</span>
               </div>
@@ -132,7 +145,6 @@
           </div>
         }
       </div>
-
     </div>
 
     <!-- Top routes -->
@@ -162,11 +174,12 @@
       <div class="section-card events-section">
         <div class="chart-header">
           <span class="chart-title">Recent Events</span>
-          <span class="chart-sub">Latest {{ events()!.data.length }} of {{ events()!.meta.total | number }}</span>
+          <span class="chart-sub"
+            >Latest {{ events()!.data.length }} of {{ events()!.meta.total | number }}</span
+          >
         </div>
         <div class="events-table-wrap">
           <table mat-table [dataSource]="events()!.data" class="events-table">
-
             <ng-container matColumnDef="eventType">
               <th mat-header-cell *matHeaderCellDef>Type</th>
               <td mat-cell *matCellDef="let e">
@@ -204,16 +217,15 @@
 
             <ng-container matColumnDef="createdAt">
               <th mat-header-cell *matHeaderCellDef>Time</th>
-              <td mat-cell *matCellDef="let e">{{ e.createdAt | date:'MMM d, HH:mm' }}</td>
+              <td mat-cell *matCellDef="let e">{{ e.createdAt | date: 'MMM d, HH:mm' }}</td>
             </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="eventColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: eventColumns;"></tr>
+            <tr mat-row *matRowDef="let row; columns: eventColumns"></tr>
           </table>
         </div>
       </div>
     }
-
   } @else {
     <div class="empty-state" role="status">
       <mat-icon class="empty-icon" aria-hidden="true">bar_chart</mat-icon>
@@ -221,5 +233,4 @@
       <p class="empty-sub">Events will appear once the help widget is installed and used</p>
     </div>
   }
-
 </div>

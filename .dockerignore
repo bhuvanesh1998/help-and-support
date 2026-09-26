@@ -6,9 +6,9 @@
 backend/uploads
 **/.env
 **/.env.*
+**/.npmrc
 .git
 .gitignore
-extension
 **/*.log
 **/.DS_Store
 scratchpad

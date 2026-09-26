@@ -15,13 +15,13 @@ WORKDIR /app
 
 # ---- Frontend (install → build) ----
 COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm ci --legacy-peer-deps --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
+RUN cd frontend && npm ci --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
 COPY frontend/ ./frontend/
 RUN cd frontend && npm run build            # → frontend/dist/help-assistant-ui/browser
 
 # ---- Backend (install → generate client → compile) ----
 COPY backend/package*.json ./backend/
-RUN cd backend && npm ci --legacy-peer-deps --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
+RUN cd backend && npm ci --include=dev --fetch-retries=6 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
 COPY backend/ ./backend/
 RUN cd backend && npx prisma generate && npm run build   # → backend/dist
 
