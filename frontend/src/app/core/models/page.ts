@@ -27,6 +27,8 @@ export interface Page {
   description: string | null;
   category?: string | null;
   categoryOrder?: number;
+  /** ISO timestamp — present on the public list; powers the "New" badge/filter. */
+  createdAt?: string;
   steps: TutorialStep[];
   /** Auto-captured API reference for this screen (present on the detail endpoint). */
   apiEndpoints?: ApiEndpoint[];

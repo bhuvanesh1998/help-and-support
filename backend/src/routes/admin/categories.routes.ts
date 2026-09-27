@@ -7,6 +7,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../utils/app-error.js';
+import { TRASH_RETENTION_DAYS, trashCategory } from '../../services/trash.service.js';
 
 export const categoriesRouter: Router = Router();
 
@@ -81,15 +82,16 @@ categoriesRouter.patch('/:id', async (req: Request, res: Response) => {
 });
 
 /** DELETE /api/admin/categories/:id — unassigns pages (keeps the manuals). */
+/**
+ * DELETE /api/admin/categories/:id — moves the category to the trash.
+ *
+ * Pages filed under it are unfiled, and which ones they were is recorded, so a
+ * restore puts the category back with its pages in it.
+ */
 categoriesRouter.delete('/:id', async (req: Request, res: Response) => {
-  const id = p(req, 'id');
-  const existing = await prisma.category.findUnique({ where: { id } });
-  if (!existing) throw AppError.notFound('Category not found');
-  await prisma.$transaction([
-    prisma.page.updateMany({ where: { category: existing.name }, data: { category: null, categoryOrder: 99 } }),
-    prisma.category.delete({ where: { id } }),
-  ]);
-  res.status(204).send();
+  const moved = await trashCategory(p(req, 'id'), req.user?.id);
+  if (!moved) throw AppError.notFound('Category not found');
+  res.json({ trashed: true, retentionDays: TRASH_RETENTION_DAYS });
 });
 
 /** POST /api/admin/categories/reorder — body { order: [{id, order}] }. */

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import type { HttpErrorResponse } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -52,9 +53,15 @@ export class Login {
           },
         });
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        this.error.set('Invalid email or password.');
+        this.error.set(
+          err.status === 401
+            ? 'Invalid email or password.'
+            : err.status === 0
+              ? 'Cannot reach the server. Is the backend running?'
+              : `Login failed (HTTP ${err.status}). Please try again.`,
+        );
       },
     });
   }

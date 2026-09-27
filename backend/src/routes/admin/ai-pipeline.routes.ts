@@ -8,8 +8,9 @@
  */
 
 import { Router } from 'express';
-import type { Request, Response, NextFunction } from 'express';
-import { parseAccessToken } from '../../middleware/auth.middleware.js';
+import type { Request, RequestHandler, Response, NextFunction } from 'express';
+import { resolveTokenUser } from '../../middleware/auth.middleware.js';
+import { requirePermission } from '../../middleware/permission.middleware.js';
 import { AppError } from '../../utils/app-error.js';
 import {
   startJob,
@@ -42,24 +43,41 @@ function p(req: Request, key: string): string {
 }
 
 /** Bearer-header auth for JSON endpoints. */
-function requireBearer(req: Request, _res: Response, next: NextFunction): void {
+async function requireBearer(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     throw AppError.unauthorized('Missing or malformed Authorization header');
   }
-  const payload = parseAccessToken(header.slice(7));
-  req.user = { id: payload.sub, email: payload.email, role: payload.role };
+  // Shared with the global middleware, so a deactivated or logged-out account
+  // loses these routes at the same moment it loses every other one.
+  req.user = await resolveTokenUser(header.slice(7));
   next();
 }
 
 /** Query-token auth for the SSE stream (EventSource can't set headers). */
-function requireQueryToken(req: Request, _res: Response, next: NextFunction): void {
+async function requireQueryToken(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
   const raw = req.query['token'];
   const token = typeof raw === 'string' ? raw : Array.isArray(raw) ? String(raw[0]) : '';
   if (!token) throw AppError.unauthorized('Missing token');
-  const payload = parseAccessToken(token);
-  req.user = { id: payload.sub, email: payload.email, role: payload.role };
+  req.user = await resolveTokenUser(token);
   next();
+}
+
+/**
+ * Auth plus the permission a route needs. Reading a run is not the same as
+ * starting one — starting one spends API credit.
+ */
+function can(permission: string): RequestHandler[] {
+  return [requireBearer, requirePermission(permission)];
+}
+
+/** Same, for the SSE stream that authenticates by query token. */
+function canQuery(permission: string): RequestHandler[] {
+  return [requireQueryToken, requirePermission(permission)];
 }
 
 /**
@@ -67,7 +85,7 @@ function requireQueryToken(req: Request, _res: Response, next: NextFunction): vo
  * Body: { baseUrl, appName, email, password, anthropicKey, model?, navDepth? }
  * Starts a job and returns its id. Secrets are held in memory only.
  */
-aiPipelineRouter.post('/jobs', requireBearer, async (req: Request, res: Response) => {
+aiPipelineRouter.post('/jobs', ...can('ai.manage'), async (req: Request, res: Response) => {
   const body = req.body as Record<string, unknown>;
 
   const baseUrlRaw = typeof body['baseUrl'] === 'string' ? body['baseUrl'].trim() : '';
@@ -151,7 +169,7 @@ aiPipelineRouter.post('/jobs', requireBearer, async (req: Request, res: Response
 // ── Stored credential (connect once, reuse for every run) ────────────────────
 
 /** GET /api/admin/ai-pipeline/credential — connection status (never the key). */
-aiPipelineRouter.get('/credential', requireBearer, async (_req: Request, res: Response) => {
+aiPipelineRouter.get('/credential', ...can('ai.view'), async (_req: Request, res: Response) => {
   res.json(await getCredentialStatus());
 });
 
@@ -160,7 +178,7 @@ aiPipelineRouter.get('/credential', requireBearer, async (_req: Request, res: Re
  * Body: { anthropicKey, model? } — validates against Anthropic, then stores
  * the key encrypted. Returns the (masked) status.
  */
-aiPipelineRouter.put('/credential', requireBearer, async (req: Request, res: Response) => {
+aiPipelineRouter.put('/credential', ...can('ai.manage'), async (req: Request, res: Response) => {
   const body = req.body as Record<string, unknown>;
   const key = typeof body['anthropicKey'] === 'string' ? body['anthropicKey'].trim() : '';
   if (!key) throw AppError.badRequest('anthropicKey is required');
@@ -176,27 +194,27 @@ aiPipelineRouter.put('/credential', requireBearer, async (req: Request, res: Res
 });
 
 /** DELETE /api/admin/ai-pipeline/credential — disconnect (removes the key). */
-aiPipelineRouter.delete('/credential', requireBearer, async (_req: Request, res: Response) => {
+aiPipelineRouter.delete('/credential', ...can('ai.manage'), async (_req: Request, res: Response) => {
   await deleteCredential();
   res.json({ disconnected: true });
 });
 
 /** GET /api/admin/ai-pipeline/jobs/:id — current snapshot (polling / reconnect). */
-aiPipelineRouter.get('/jobs/:id', requireBearer, (req: Request, res: Response) => {
+aiPipelineRouter.get('/jobs/:id', ...can('ai.view'), (req: Request, res: Response) => {
   const job = getJob(p(req, 'id'));
   if (!job) throw AppError.notFound('Job not found or expired');
   res.json(snapshot(job));
 });
 
 /** POST /api/admin/ai-pipeline/jobs/:id/cancel */
-aiPipelineRouter.post('/jobs/:id/cancel', requireBearer, (req: Request, res: Response) => {
+aiPipelineRouter.post('/jobs/:id/cancel', ...can('ai.manage'), (req: Request, res: Response) => {
   const ok = cancelJob(p(req, 'id'));
   if (!ok) throw AppError.badRequest('Job not found or already finished');
   res.json({ cancelled: true });
 });
 
 /** GET /api/admin/ai-pipeline/jobs/:id/stream?token=... — SSE progress stream. */
-aiPipelineRouter.get('/jobs/:id/stream', requireQueryToken, (req: Request, res: Response) => {
+aiPipelineRouter.get('/jobs/:id/stream', ...canQuery('ai.view'), (req: Request, res: Response) => {
   const job = getJob(p(req, 'id'));
   if (!job) throw AppError.notFound('Job not found or expired');
 

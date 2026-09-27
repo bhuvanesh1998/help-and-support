@@ -12,6 +12,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AdminApiService } from '../../../../core/services/admin-api';
+import { ConfirmService } from '../../../../core/services/confirm.service';
 import type { AdminCategory } from '../../../../core/models/admin';
 
 @Component({
@@ -26,6 +27,7 @@ import type { AdminCategory } from '../../../../core/models/admin';
 })
 export class CategoriesList implements OnInit {
   private readonly api = inject(AdminApiService);
+  private readonly confirm = inject(ConfirmService);
   private readonly snack = inject(MatSnackBar);
 
   readonly loading = signal(true);
@@ -79,8 +81,12 @@ export class CategoriesList implements OnInit {
     });
   }
 
-  remove(c: AdminCategory): void {
-    if (!confirm(`Delete category "${c.name}"? Its ${c.pageCount ?? 0} manual(s) will become uncategorised (not deleted).`)) return;
+  async remove(c: AdminCategory): Promise<void> {
+    const ok = await this.confirm.confirmMoveToTrash(
+      `the category "${c.name}"`,
+      `Its ${c.pageCount ?? 0} manual(s) stay, but become uncategorised until it is restored.`,
+    );
+    if (!ok) return;
     this.api.deleteCategory(c.id).subscribe({
       next: () => { this.snack.open('Category deleted', undefined, { duration: 2000 }); this.load(); },
       error: () => this.snack.open('Delete failed', 'OK', { duration: 3000 }),

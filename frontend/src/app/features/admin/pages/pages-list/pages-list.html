@@ -35,6 +35,14 @@
         </button>
       }
     </mat-menu>
+
+    <!-- New-pages filter -->
+    <button type="button" class="cat-filter new-filter" [class.new-filter--active]="newOnly()"
+            (click)="toggleNewOnly()" [attr.aria-pressed]="newOnly()"
+            matTooltip="Show only pages added in the last 14 days">
+      <mat-icon class="cat-filter-icon" aria-hidden="true">fiber_new</mat-icon>
+      <span class="cat-filter-text">New</span>
+    </button>
   </div>
 
   <div class="toolbar-right">
@@ -169,6 +177,7 @@
             <article
               class="page-card"
               [class.page-card--selected]="isSelected(page.id)"
+              [class.page-card--off]="!page.isPublished"
               (click)="openDetail(page)"
               role="button"
               tabindex="0"
@@ -184,13 +193,25 @@
                 </label>
                 <code class="route-chip">{{ page.routePath }}</code>
                 <div class="card-actions" (click)="$event.stopPropagation()">
+                  <button mat-icon-button matTooltip="View live page" (click)="viewLive(page)" aria-label="View live page"><mat-icon>open_in_new</mat-icon></button>
+                  <button mat-icon-button
+                          [matTooltip]="page.isPublished ? 'Live — click to turn Off' : 'Off — click to make Live'"
+                          [attr.aria-label]="page.isPublished ? 'Turn page off' : 'Make page live'"
+                          [class.publish-on]="page.isPublished" [class.publish-off]="!page.isPublished"
+                          (click)="togglePublished(page)">
+                    <mat-icon>{{ page.isPublished ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+                  </button>
                   <button mat-icon-button matTooltip="Edit steps"    (click)="openDetail(page)" aria-label="Edit steps"><mat-icon>edit_note</mat-icon></button>
                   <button mat-icon-button matTooltip="Page settings" (click)="openEdit(page)"   aria-label="Edit page settings"><mat-icon>tune</mat-icon></button>
                   <button mat-icon-button matTooltip="Delete page"   (click)="deletePage(page)" aria-label="Delete page" class="delete-btn"><mat-icon>delete_outline</mat-icon></button>
                 </div>
               </div>
 
-              <h3 class="card-title">{{ page.title }}</h3>
+              <h3 class="card-title">
+                {{ page.title }}
+                @if (isNew(page)) { <span class="badge badge--new">New</span> }
+                @if (!page.isPublished) { <span class="badge badge--off">Off</span> }
+              </h3>
 
               @if (page.description) {
                 <p class="card-desc">{{ page.description }}</p>
@@ -230,6 +251,7 @@
       <div
         class="list-row"
         [class.list-row--selected]="isSelected(page.id)"
+        [class.list-row--off]="!page.isPublished"
         role="listitem"
         tabindex="0"
         (click)="openDetail(page)"
@@ -248,6 +270,8 @@
         <div class="list-info">
           <span class="list-title">
             {{ page.title }}
+            @if (isNew(page)) { <span class="badge badge--new">New</span> }
+            @if (!page.isPublished) { <span class="badge badge--off">Off</span> }
             @if (page.category) { <span class="category-chip">{{ page.category }}</span> }
           </span>
           @if (page.description) {
@@ -263,6 +287,14 @@
         <span class="card-date">{{ page.createdAt | date:'MMM d, y' }}</span>
 
         <div class="card-actions" (click)="$event.stopPropagation()">
+          <button mat-icon-button matTooltip="View live page" (click)="viewLive(page)" aria-label="View live page"><mat-icon>open_in_new</mat-icon></button>
+          <button mat-icon-button
+                  [matTooltip]="page.isPublished ? 'Live — click to turn Off' : 'Off — click to make Live'"
+                  [attr.aria-label]="page.isPublished ? 'Turn page off' : 'Make page live'"
+                  [class.publish-on]="page.isPublished" [class.publish-off]="!page.isPublished"
+                  (click)="togglePublished(page)">
+            <mat-icon>{{ page.isPublished ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+          </button>
           <button mat-icon-button matTooltip="Edit steps"    (click)="openDetail(page)" aria-label="Edit steps"><mat-icon>edit_note</mat-icon></button>
           <button mat-icon-button matTooltip="Page settings" (click)="openEdit(page)"   aria-label="Edit page settings"><mat-icon>tune</mat-icon></button>
           <button mat-icon-button matTooltip="Delete page"   (click)="deletePage(page)" aria-label="Delete page" class="delete-btn"><mat-icon>delete_outline</mat-icon></button>

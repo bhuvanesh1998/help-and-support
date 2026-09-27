@@ -590,3 +590,45 @@
   height: 20px;
   margin-left: 2px;
 }
+
+/* ── Publish state + New badge (added) ─────────────────────────────────────── */
+.new-filter {
+  cursor: pointer;
+  &.new-filter--active {
+    background: var(--mat-sys-primary-container);
+    border-color: var(--mat-sys-primary);
+    color: var(--mat-sys-primary);
+  }
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+.badge--new {
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+.badge--off {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+/* Off pages read as muted until switched back on. */
+.page-card--off,
+.list-row--off {
+  opacity: 0.62;
+}
+
+/* Publish toggle icon colours. */
+.publish-on  ::ng-deep .mat-icon,
+.publish-on  .mat-icon { color: var(--mat-sys-primary); }
+.publish-off ::ng-deep .mat-icon,
+.publish-off .mat-icon { color: var(--mat-sys-on-surface-variant); }

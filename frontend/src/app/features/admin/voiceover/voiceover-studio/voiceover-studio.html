@@ -1,0 +1,166 @@
+<div class="vo">
+  <a class="vo-back" routerLink="/admin/voiceover">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon> All scripts
+  </a>
+
+  <!-- ── Setup ───────────────────────────────────────────────────────────── -->
+  <section class="vo-card">
+    <header class="vo-card__head">
+      <h2>Generate voiceover</h2>
+      <p>
+        Upload a walkthrough recording. The configured model reads the frames and
+        writes a narration script locked to min:sec, with a word budget per
+        segment so the recorded audio fits the picture.
+      </p>
+      @if (config(); as cfg) {
+        <p class="vo-meta-line">
+          Generating with <strong>{{ cfg.settings.model }}</strong>
+          ({{ providerLabel() }}) ·
+          <a routerLink="/admin/settings/voiceover">change in VO Settings</a>
+        </p>
+      }
+    </header>
+
+    <div class="vo-drop">
+      <input
+        #videoInput
+        type="file"
+        class="vo-drop__input"
+        accept="video/mp4,video/quicktime,video/webm,video/x-matroska,video/x-msvideo,.mp4,.mov,.webm,.mkv,.avi"
+        [disabled]="running()"
+        (change)="onFileSelected($event)"
+        aria-label="Choose a walkthrough video"
+      />
+      <mat-icon aria-hidden="true">movie</mat-icon>
+      @if (file(); as picked) {
+        <div class="vo-drop__file">
+          <strong>{{ picked.name }}</strong>
+          <span>{{ mb(picked.size) }} MB</span>
+        </div>
+      } @else {
+        <div class="vo-drop__file">
+          <strong>Choose a walkthrough video</strong>
+          <span>
+            MP4, MOV, WebM, MKV or AVI
+            @if (config(); as cfg) { · up to {{ cfg.settings.maxVideoUploadMb }} MB }
+          </span>
+        </div>
+      }
+    </div>
+
+    <div class="vo-fields">
+      <mat-form-field appearance="outline">
+        <mat-label>Application name</mat-label>
+        <input matInput [(ngModel)]="appName" [disabled]="running()" placeholder="Twixor Console" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Audience</mat-label>
+        <input
+          matInput
+          [(ngModel)]="audience"
+          [disabled]="running()"
+          placeholder="End users of the application"
+        />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Tone</mat-label>
+        <mat-select [(ngModel)]="tone" [disabled]="running()">
+          @for (option of toneOptions; track option.value) {
+            <mat-option [value]="option.value">
+              {{ option.label }} — {{ option.hint }}
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+    </div>
+
+    @if (providerKeyMissing()) {
+      <p class="vo-alert vo-alert--warn">
+        <mat-icon aria-hidden="true">key_off</mat-icon>
+        <span>
+          <strong>{{ providerLabel() }} has no API key connected.</strong>
+          Connect one — or pick a provider that already has a key — in
+          <a routerLink="/admin/settings/voiceover">VO Settings</a>. Connecting a key
+          for a different provider does not switch which one runs.
+        </span>
+      </p>
+    }
+
+    @if (startError()) {
+      <p class="vo-alert vo-alert--error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>{{ startError() }}
+      </p>
+    }
+
+    <div class="vo-actions">
+      <button mat-flat-button color="primary" [disabled]="!canStart()" (click)="start()">
+        <mat-icon aria-hidden="true">graphic_eq</mat-icon>
+        Generate script
+      </button>
+      @if (running()) {
+        <button mat-stroked-button (click)="cancel()">Cancel</button>
+      }
+    </div>
+  </section>
+
+  <!-- ── Progress ────────────────────────────────────────────────────────── -->
+  @if (running() || phase() === 'error' || phase() === 'cancelled') {
+    <section class="vo-card">
+      @if (running()) {
+        <mat-progress-bar mode="indeterminate" />
+      }
+      <p class="vo-phase">
+        <strong>{{ phase() }}</strong>
+        @if (phaseMessage()) { — {{ phaseMessage() }} }
+      </p>
+
+      @if (meta(); as m) {
+        <ul class="vo-meta">
+          <li><span>Length</span><strong>{{ timecode(m.durationSec) }}</strong></li>
+          <li><span>Resolution</span><strong>{{ m.width }}×{{ m.height }}</strong></li>
+          <li><span>Frame rate</span><strong>{{ m.fps }} fps</strong></li>
+        </ul>
+      }
+
+      @if (error()) {
+        <p class="vo-alert vo-alert--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>{{ error() }}
+        </p>
+      }
+
+      @if (logs().length) {
+        <details class="vo-logs">
+          <summary>Activity log ({{ logs().length }})</summary>
+          <ol>
+            @for (entry of logs(); track $index) {
+              <li [class.vo-logs__warn]="entry.level === 'warn'"
+                  [class.vo-logs__error]="entry.level === 'error'">{{ entry.message }}</li>
+            }
+          </ol>
+        </details>
+      }
+    </section>
+  }
+
+  <!-- ── Result ──────────────────────────────────────────────────────────── -->
+  @if (hasResult()) {
+    <section class="vo-card">
+      <header class="vo-card__head">
+        <h3>Timed script</h3>
+        <p>
+          {{ segments().length }} segments · {{ totalWords() }} words · about
+          {{ timecode(spokenSec()) }} spoken
+          @if (meta(); as m) { against {{ timecode(m.durationSec) }} of video }
+        </p>
+        @if (phase() === 'done') {
+          <p class="vo-meta-line">Saved — opening the stored script…</p>
+        }
+      </header>
+
+      <ha-script-table [segments]="segments()" />
+    </section>
+  }
+</div>

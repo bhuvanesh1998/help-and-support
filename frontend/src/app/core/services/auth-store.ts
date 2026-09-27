@@ -15,6 +15,27 @@ export class AuthStore {
   readonly isAuthenticated = computed(() => !!this._token());
   readonly isSuperAdmin = computed(() => this._user()?.role === 'SUPER_ADMIN');
 
+  /**
+   * Effective permissions for the signed-in account, from /auth/me.
+   *
+   * A SUPER_ADMIN is treated as holding everything without consulting the list,
+   * and an account whose token predates roles (no list at all) is treated as
+   * permitted — the server is the authority either way, and guessing "denied"
+   * here would blank the UI for a user who is in fact allowed.
+   */
+  private readonly permissions = computed(() => this._user()?.permissions ?? null);
+
+  can(permission: string): boolean {
+    if (this.isSuperAdmin()) return true;
+    const list = this.permissions();
+    return list === null || list.includes(permission);
+  }
+
+  /** True when the account holds at least one of the given permissions. */
+  canAny(...permissions: string[]): boolean {
+    return permissions.some((p) => this.can(p));
+  }
+
   login(accessToken: string, refreshToken: string, user: AdminUser): void {
     localStorage.setItem(TOKEN_KEY, accessToken);
     localStorage.setItem(REFRESH_KEY, refreshToken);
@@ -23,8 +44,9 @@ export class AuthStore {
     this._user.set(user);
   }
 
-  setToken(accessToken: string): void {
+  setToken(accessToken: string, refreshToken?: string): void {
     localStorage.setItem(TOKEN_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
     this._token.set(accessToken);
   }
 

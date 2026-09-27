@@ -1,0 +1,331 @@
+.usg {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// ── Toolbar (mirrors the library screen so the two read as one system) ───────
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 200px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cat-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1.5px solid var(--mat-sys-outline-variant);
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container);
+  cursor: pointer;
+  text-decoration: none;
+
+  &:hover { border-color: var(--mat-sys-primary); }
+}
+
+.cat-filter-icon,
+.cat-filter-caret {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.cat-filter-text {
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface);
+  white-space: nowrap;
+}
+
+.stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant);
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  padding: 5px 12px;
+  border-radius: 20px;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+
+// ── Heading ─────────────────────────────────────────────────────────────────
+
+.usg-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+}
+
+.usg-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+  letter-spacing: -0.01em;
+}
+
+.usg-sub {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--mat-sys-on-surface-variant);
+  max-width: 720px;
+}
+
+.usg-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--mat-sys-error);
+
+  mat-icon { flex: none; font-size: 20px; width: 20px; height: 20px; }
+}
+
+.usg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  border: 1px dashed var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  text-align: center;
+
+  mat-icon {
+    font-size: 40px;
+    width: 40px;
+    height: 40px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  p {
+    margin: 0;
+    max-width: 420px;
+    font-size: 0.875rem;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+// ── Headline totals ─────────────────────────────────────────────────────────
+
+.usg-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.usg-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container-low);
+
+  &__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--mat-sys-on-surface);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__note {
+    font-size: 0.75rem;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  // Failed calls are spend with nothing to show for it — worth the colour.
+  &--warn {
+    border-color: color-mix(in srgb, var(--mat-sys-error) 45%, transparent);
+
+    .usg-stat__value { color: var(--mat-sys-error); }
+  }
+}
+
+// ── Cards ───────────────────────────────────────────────────────────────────
+
+.usg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container-low);
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    > mat-icon {
+      flex: none;
+      color: var(--mat-sys-primary);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--mat-sys-on-surface);
+    }
+
+    p {
+      margin: 2px 0 0;
+      font-size: 0.8125rem;
+      line-height: 1.45;
+      color: var(--mat-sys-on-surface-variant);
+    }
+  }
+}
+
+// ── Daily bars ──────────────────────────────────────────────────────────────
+
+.usg-days {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usg-day {
+  display: grid;
+  grid-template-columns: 48px 1fr 64px;
+  align-items: center;
+  gap: 10px;
+
+  &__label,
+  &__value {
+    font-size: 0.75rem;
+    color: var(--mat-sys-on-surface-variant);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__value { text-align: right; }
+
+  &__track {
+    height: 10px;
+    border-radius: 6px;
+    background: var(--mat-sys-surface-container-high);
+    overflow: hidden;
+  }
+
+  &__bar {
+    height: 100%;
+    // A busy-but-tiny day still shows something rather than nothing.
+    min-width: 2px;
+    border-radius: 6px;
+    background: var(--mat-sys-primary);
+  }
+}
+
+// ── Tables ──────────────────────────────────────────────────────────────────
+
+// Wide tables scroll inside the card rather than pushing the page sideways.
+.usg-table-wrap {
+  overflow-x: auto;
+}
+
+.usg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    white-space: nowrap;
+  }
+
+  thead th {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  tbody th {
+    font-weight: 600;
+    color: var(--mat-sys-on-surface);
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--mat-sys-on-surface);
+  }
+}
+
+.usg-fail { color: var(--mat-sys-error); font-weight: 700; }
+
+.usg-script {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.usg-tone {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  color: var(--mat-sys-on-surface-variant);
+  background: var(--mat-sys-surface-container-high);
+}

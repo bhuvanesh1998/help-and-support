@@ -77,3 +77,40 @@
 }
 .iv-caption { font-size: 0.9rem; font-weight: 600; }
 .iv-hint { font-size: 0.75rem; color: rgba(255, 255, 255, 0.6); }
+
+.iv-alt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(560px, 88vw);
+  margin: 4px 0 2px;
+}
+.iv-alt-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+
+  &::placeholder { color: rgba(255, 255, 255, 0.5); }
+  &:focus { border-color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.14); }
+}
+.iv-alt-save {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #14b8a6;
+  color: #04201c;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 150ms ease, opacity 150ms ease;
+
+  &:hover:not(:disabled) { background: #0fd6c0; }
+  &:disabled { opacity: 0.45; cursor: default; }
+}

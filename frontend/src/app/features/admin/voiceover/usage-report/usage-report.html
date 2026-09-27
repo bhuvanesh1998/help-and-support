@@ -1,0 +1,224 @@
+<div class="usg">
+  <!-- ── Toolbar (matches the library screen) ─────────────────────────────── -->
+  <div class="list-toolbar">
+    <div class="toolbar-left">
+      <a class="cat-filter" routerLink="/admin/voiceover" aria-label="Back to scripts">
+        <mat-icon class="cat-filter-icon" aria-hidden="true">arrow_back</mat-icon>
+        <span class="cat-filter-text">Scripts</span>
+      </a>
+
+      <button type="button" class="cat-filter" [matMenuTriggerFor]="rangeMenu" aria-label="Report window">
+        <mat-icon class="cat-filter-icon" aria-hidden="true">date_range</mat-icon>
+        <span class="cat-filter-text">{{ windowLabel(days()) }}</span>
+        <mat-icon class="cat-filter-caret" aria-hidden="true">arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #rangeMenu="matMenu">
+        @for (w of windows; track w) {
+          <button mat-menu-item (click)="setWindow(w)">
+            <mat-icon>{{ days() === w ? 'check' : 'schedule' }}</mat-icon>
+            <span>{{ windowLabel(w) }}</span>
+          </button>
+        }
+      </mat-menu>
+    </div>
+
+    <div class="toolbar-right">
+      @if (report(); as r) {
+        <div class="stat-chip">
+          <mat-icon>receipt_long</mat-icon>
+          <span>{{ r.totals.calls }} calls</span>
+        </div>
+      }
+      <button mat-stroked-button (click)="load()" [disabled]="loading()">
+        <mat-icon aria-hidden="true">refresh</mat-icon>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="usg-top">
+    <div class="usg-top__text">
+      <h1 class="usg-title">Usage report</h1>
+      <p class="usg-sub">
+        What the Voiceover Studio has consumed, in the units each provider bills in — tokens for
+        the vision models, characters for text-to-speech. Not converted to money: rates differ per
+        account and change, so apply your own.
+      </p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (error()) {
+    <p class="usg-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error() }}</span>
+    </p>
+  }
+
+  @if (report(); as r) {
+    @if (!hasData()) {
+      <div class="usg-empty">
+        <mat-icon aria-hidden="true">insights</mat-icon>
+        <p>Nothing recorded in this window. Generate a script or render narration and it will appear here.</p>
+        <a mat-flat-button color="primary" routerLink="/admin/voiceover/new">
+          <mat-icon aria-hidden="true">add</mat-icon>
+          Generate voiceover
+        </a>
+      </div>
+    } @else {
+      <!-- ── Headline totals ─────────────────────────────────────────────── -->
+      <div class="usg-stats">
+        <div class="usg-stat">
+          <span class="usg-stat__label">Vision tokens</span>
+          <strong class="usg-stat__value">{{ compact(totalTokens()) }}</strong>
+          <span class="usg-stat__note">
+            {{ compact(r.totals.inputTokens) }} in · {{ compact(r.totals.outputTokens) }} out
+          </span>
+        </div>
+        <div class="usg-stat">
+          <span class="usg-stat__label">TTS characters</span>
+          <strong class="usg-stat__value">{{ compact(r.totals.characters) }}</strong>
+          <span class="usg-stat__note">Narration and voice samples</span>
+        </div>
+        <div class="usg-stat">
+          <span class="usg-stat__label">Frames analysed</span>
+          <strong class="usg-stat__value">{{ compact(r.totals.frames) }}</strong>
+          <span class="usg-stat__note">Stills sent to the model</span>
+        </div>
+        <div class="usg-stat" [class.usg-stat--warn]="r.totals.failed > 0">
+          <span class="usg-stat__label">Failed calls</span>
+          <strong class="usg-stat__value">{{ r.totals.failed }}</strong>
+          <span class="usg-stat__note">of {{ r.totals.calls }} — spend with no output</span>
+        </div>
+      </div>
+
+      <!-- ── Daily activity ──────────────────────────────────────────────── -->
+      <section class="usg-card">
+        <header class="usg-card__head">
+          <mat-icon aria-hidden="true">show_chart</mat-icon>
+          <div>
+            <h2>Daily activity</h2>
+            <p>Tokens and characters together, so one bar reads as "how busy was that day".</p>
+          </div>
+        </header>
+
+        <div class="usg-days">
+          @for (d of dayRows(); track d.key) {
+            <div class="usg-day">
+              <span class="usg-day__label">{{ dayLabel(d.key) }}</span>
+              <div class="usg-day__track">
+                <div
+                  class="usg-day__bar"
+                  [style.width.%]="d.percent"
+                  [matTooltip]="d.calls + ' calls · ' + compact(d.units) + ' units'"
+                ></div>
+              </div>
+              <span class="usg-day__value">{{ compact(d.units) }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- ── Breakdowns ──────────────────────────────────────────────────── -->
+      @for (section of sections(); track section.title) {
+        @if (section.rows.length) {
+          <section class="usg-card">
+            <header class="usg-card__head">
+              <mat-icon aria-hidden="true">{{ section.icon }}</mat-icon>
+              <div>
+                <h2>{{ section.title }}</h2>
+                <p>{{ section.hint }}</p>
+              </div>
+            </header>
+
+            <div class="usg-table-wrap">
+              <table class="usg-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ section.label }}</th>
+                    <th scope="col" class="num">Calls</th>
+                    <th scope="col" class="num">In tokens</th>
+                    <th scope="col" class="num">Out tokens</th>
+                    <th scope="col" class="num">Characters</th>
+                    <th scope="col" class="num">Frames</th>
+                    <th scope="col" class="num">Failed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of section.rows; track row.key) {
+                    <tr>
+                      <th scope="row">{{ row.key }}</th>
+                      <td class="num">{{ row.calls }}</td>
+                      <td class="num">{{ compact(row.inputTokens) }}</td>
+                      <td class="num">{{ compact(row.outputTokens) }}</td>
+                      <td class="num">{{ compact(row.characters) }}</td>
+                      <td class="num">{{ compact(row.frames) }}</td>
+                      <td class="num" [class.usg-fail]="row.failed > 0">{{ row.failed }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+      }
+
+      <!-- ── Heaviest scripts ────────────────────────────────────────────── -->
+      @if (r.topScripts.length) {
+        <section class="usg-card">
+          <header class="usg-card__head">
+            <mat-icon aria-hidden="true">graphic_eq</mat-icon>
+            <div>
+              <h2>Heaviest scripts</h2>
+              <p>Where the spend went. A long video with many frames dominates quickly.</p>
+            </div>
+          </header>
+
+          <div class="usg-table-wrap">
+            <table class="usg-table">
+              <thead>
+                <tr>
+                  <th scope="col">Script</th>
+                  <th scope="col" class="num">Calls</th>
+                  <th scope="col" class="num">Tokens</th>
+                  <th scope="col" class="num">Characters</th>
+                  <th scope="col" class="num">Frames</th>
+                  <th scope="col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (s of r.topScripts; track s.key) {
+                  <tr>
+                    <th scope="row">
+                      <span class="usg-script">{{ s.videoName ?? 'Deleted script' }}</span>
+                      @if (s.tone) {
+                        <span class="usg-tone">{{ s.tone }}</span>
+                      }
+                    </th>
+                    <td class="num">{{ s.calls }}</td>
+                    <td class="num">{{ compact(s.inputTokens + s.outputTokens) }}</td>
+                    <td class="num">{{ compact(s.characters) }}</td>
+                    <td class="num">{{ compact(s.frames) }}</td>
+                    <td class="num">
+                      @if (s.videoName) {
+                        <a
+                          mat-icon-button
+                          [routerLink]="['/admin/voiceover', s.key]"
+                          aria-label="Open script"
+                        >
+                          <mat-icon>open_in_new</mat-icon>
+                        </a>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+    }
+  }
+</div>

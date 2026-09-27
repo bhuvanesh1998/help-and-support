@@ -1,0 +1,214 @@
+<div class="rol">
+  <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+  <div class="list-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <mat-icon class="search-icon" aria-hidden="true">search</mat-icon>
+        <input
+          class="search-input"
+          placeholder="Search roles…"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          aria-label="Search roles"
+        />
+        @if (search()) {
+          <button mat-icon-button class="search-clear" aria-label="Clear search" (click)="search.set('')">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="toolbar-right">
+      <div class="stat-chip">
+        <mat-icon>badge</mat-icon>
+        <span>{{ roles().length }} roles</span>
+      </div>
+      <button mat-flat-button color="primary" (click)="startCreate()">
+        <mat-icon aria-hidden="true">add</mat-icon>
+        New role
+      </button>
+    </div>
+  </div>
+
+  <div class="rol-top">
+    <div class="rol-top__text">
+      <h1 class="rol-title">Roles &amp; responsibilities</h1>
+      <p class="rol-sub">
+        A role is a named set of features. Assign one to a user on the Users screen and they see
+        only what the role allows — every API call is checked against it too, not just the menu.
+        Super admins always hold every permission.
+      </p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (error()) {
+    <p class="rol-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error() }}</span>
+    </p>
+  }
+  @if (notice()) {
+    <p class="rol-notice" role="status">
+      <mat-icon aria-hidden="true">check_circle</mat-icon><span>{{ notice() }}</span>
+    </p>
+  }
+
+  <!-- ── Editor ───────────────────────────────────────────────────────────── -->
+  @if (draft(); as d) {
+    <section class="rol-editor">
+      <header class="rol-editor__head">
+        <div class="rol-editor__title">
+          <mat-icon aria-hidden="true">{{ d.id ? 'edit' : 'add_moderator' }}</mat-icon>
+          <h2>{{ d.id ? 'Edit role' : 'New role' }}</h2>
+          @if (d.isSystem) {
+            <span class="rol-pill rol-pill--system">Built-in</span>
+          }
+        </div>
+        <div class="rol-editor__actions">
+          <button mat-stroked-button (click)="cancel()" [disabled]="saving()">Cancel</button>
+          <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
+            <mat-icon aria-hidden="true">save</mat-icon>
+            {{ d.id ? 'Save role' : 'Create role' }}
+          </button>
+        </div>
+      </header>
+
+      @if (d.isSystem) {
+        <p class="rol-hint">
+          Built-in roles can be renamed and re-described, but their permissions are fixed so there
+          is always a coherent role to fall back on. Use <strong>Duplicate</strong> to build a
+          custom role from this one.
+        </p>
+      }
+
+      <div class="rol-fields">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Role name</mat-label>
+          <input
+            matInput
+            [ngModel]="d.name"
+            (ngModelChange)="draft.set({ ...d, name: $event })"
+            maxlength="60"
+            placeholder="e.g. Support Lead"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>What this role is for</mat-label>
+          <input
+            matInput
+            [ngModel]="d.description"
+            (ngModelChange)="draft.set({ ...d, description: $event })"
+            maxlength="240"
+            placeholder="Answers tickets; reads the manual and analytics"
+          />
+        </mat-form-field>
+      </div>
+
+      <div class="rol-counter">
+        <mat-icon aria-hidden="true">key</mat-icon>
+        <span>{{ draftCount() }} of {{ totalPermissions() }} permissions selected</span>
+      </div>
+
+      <!-- ── Permission catalogue ───────────────────────────────────────── -->
+      <div class="rol-groups">
+        @for (group of groups(); track group.key) {
+          <fieldset class="rol-group">
+            <legend class="rol-group__legend">
+              <span class="rol-group__label">{{ group.label }}</span>
+              <span class="rol-group__count">
+                {{ groupCount(group) }}/{{ group.permissions.length }}
+              </span>
+              @if (!d.isSystem) {
+                <button
+                  type="button"
+                  class="rol-group__all"
+                  (click)="toggleGroup(group, !groupAllSelected(group))"
+                >
+                  {{ groupAllSelected(group) ? 'Clear all' : 'Select all' }}
+                </button>
+              }
+            </legend>
+
+            <div class="rol-perms">
+              @for (perm of group.permissions; track perm.key) {
+                <label class="rol-perm" [class.rol-perm--on]="isChecked(perm.key)">
+                  <mat-checkbox
+                    [checked]="isChecked(perm.key)"
+                    [disabled]="d.isSystem"
+                    (change)="toggle(perm.key, $event.checked)"
+                  >
+                    <span class="rol-perm__label">{{ perm.label }}</span>
+                  </mat-checkbox>
+                  <span class="rol-perm__desc">{{ perm.description }}</span>
+                </label>
+              }
+            </div>
+          </fieldset>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- ── Role cards ───────────────────────────────────────────────────────── -->
+  @if (!loading() && filtered().length === 0) {
+    <div class="rol-empty">
+      <mat-icon aria-hidden="true">badge</mat-icon>
+      <p>No roles match that search.</p>
+    </div>
+  }
+
+  <div class="rol-grid">
+    @for (role of filtered(); track role.id) {
+      <article class="rol-card">
+        <header class="rol-card__head">
+          <div class="rol-card__name">
+            <h3>{{ role.name }}</h3>
+            @if (role.isSystem) {
+              <span class="rol-pill rol-pill--system">Built-in</span>
+            }
+          </div>
+          <span class="rol-card__users" [matTooltip]="role.userCount + ' user(s) hold this role'">
+            <mat-icon aria-hidden="true">group</mat-icon>
+            {{ role.userCount }}
+          </span>
+        </header>
+
+        @if (role.description) {
+          <p class="rol-card__desc">{{ role.description }}</p>
+        }
+
+        <div class="rol-card__perms">
+          @for (label of labelsFor(role); track label) {
+            <span class="rol-chip">{{ label }}</span>
+          }
+        </div>
+
+        <footer class="rol-card__foot">
+          <span class="rol-card__count">
+            {{ role.permissions.length }} of {{ totalPermissions() }} permissions
+          </span>
+          <div class="rol-card__buttons">
+            <button mat-icon-button matTooltip="Duplicate" (click)="duplicate(role)">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Edit" (click)="startEdit(role)">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              matTooltip="{{ role.isSystem ? 'Built-in roles cannot be deleted' : 'Delete' }}"
+              [disabled]="role.isSystem || role.userCount > 0"
+              (click)="remove(role)"
+            >
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          </div>
+        </footer>
+      </article>
+    }
+  </div>
+</div>

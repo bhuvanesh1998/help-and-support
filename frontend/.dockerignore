@@ -1,0 +1,10 @@
+# Never copy host build output / deps / caches into the image
+node_modules
+dist
+.angular
+.cache
+.vscode
+.claude
+*.log
+.DS_Store
+.npmrc
