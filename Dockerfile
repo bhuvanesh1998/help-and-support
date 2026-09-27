@@ -49,6 +49,11 @@ COPY --from=build /app/frontend/dist ../frontend/dist
 # path.resolve('..', 'extension') from CWD /app/backend → /app/extension.
 COPY --from=build /app/extension /app/extension
 
+# curl: Coolify's health check runs curl (or wget) inside the container, and
+# the slim image ships neither — without it every deploy is marked unhealthy.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Chromium + all OS-level deps required by Playwright.
 # PLAYWRIGHT_BROWSERS_PATH is unset so it defaults to ~/.cache/ms-playwright
 # which is fine for a single-container image.
