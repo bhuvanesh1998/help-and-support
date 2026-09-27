@@ -104,6 +104,7 @@ export interface AdminPage {
   updatedAt: string;
   _count?: { steps: number };
   apiEndpoints?: AdminApiEndpoint[];
+  videos?: AdminVideo[];
 }
 
 export interface AdminCategory {
@@ -127,6 +128,27 @@ export interface AdminApiEndpoint {
   responseSample: string | null;
   description: string | null;
   order: number;
+}
+
+export interface AdminVideo {
+  id: string;
+  pageId: string;
+  /** null = feature overview (top of the manual); set = shown inside that step. */
+  stepId: string | null;
+  title: string;
+  description: string | null;
+  youtubeId: string;
+  startSec: number;
+  order: number;
+  createdAt: string;
+}
+
+/** Create/update body: the server parses `url` into youtubeId + startSec. */
+export interface AdminVideoInput {
+  url?: string;
+  title?: string;
+  description?: string;
+  stepId?: string | null;
 }
 
 export interface AdminStep {

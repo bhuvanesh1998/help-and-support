@@ -18,6 +18,7 @@ import AdmZip from 'adm-zip';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Prisma } from '@prisma/client';
+import { YOUTUBE_ID_RE } from '../../lib/youtube.js';
 import { prisma } from '../../lib/prisma.js';
 import { env } from '../../config/env.js';
 import { uploadDir } from '../../lib/upload.js';
@@ -46,6 +47,8 @@ interface BackupManifest {
     structuredData: unknown;
     steps: Array<{ stepNumber: number; title: string; instructionsMd: string; imageUrl: string | null; mediaAssetId: string | null }>;
     apiEndpoints: Array<{ method: string; path: string; query: string | null; host: string | null; status: number | null; contentType: string | null; description: string | null; order: number }>;
+    /** Step link is by stepNumber (ids are not portable). Absent in older backups. */
+    videos?: Array<{ title: string; description: string | null; youtubeId: string; startSec: number; order: number; stepNumber: number | null }>;
   }>;
   media: Array<{ id: string; filename: string; originalName: string; mimeType: string; sizeBytes: number; width: number | null; height: number | null; altText: string | null; checksum: string | null }>;
   widgetConfig: WidgetConfigData;
@@ -81,6 +84,7 @@ export async function createBackup(): Promise<{ filename: string; buffer: Buffer
       include: {
         steps: { orderBy: { stepNumber: 'asc' } },
         apiEndpoints: { orderBy: { order: 'asc' } },
+        videos: { orderBy: { order: 'asc' }, include: { step: { select: { stepNumber: true } } } },
       },
     }),
     prisma.mediaAsset.findMany({ orderBy: { createdAt: 'asc' } }),
@@ -128,6 +132,14 @@ export async function createBackup(): Promise<{ filename: string; buffer: Buffer
           contentType: a.contentType,
           description: a.description,
           order: a.order,
+        })),
+        videos: p.videos.map((v) => ({
+          title: v.title,
+          description: v.description,
+          youtubeId: v.youtubeId,
+          startSec: v.startSec,
+          order: v.order,
+          stepNumber: v.step?.stepNumber ?? null,
         })),
       };
     }),
@@ -300,6 +312,28 @@ export async function restoreBackup(buffer: Buffer): Promise<RestoreSummary> {
             },
           });
           summary.apiEndpoints += 1;
+        }
+
+        await tx.pageVideo.deleteMany({ where: { pageId: page.id } });
+        if (p.videos?.length) {
+          const stepIds = new Map(
+            (await tx.tutorialStep.findMany({ where: { pageId: page.id }, select: { id: true, stepNumber: true } }))
+              .map((s) => [s.stepNumber, s.id]),
+          );
+          for (const v of p.videos) {
+            if (!YOUTUBE_ID_RE.test(v.youtubeId ?? '')) continue;
+            await tx.pageVideo.create({
+              data: {
+                pageId: page.id,
+                stepId: v.stepNumber != null ? stepIds.get(v.stepNumber) ?? null : null,
+                title: v.title || 'Tutorial video',
+                description: v.description ?? null,
+                youtubeId: v.youtubeId,
+                startSec: v.startSec ?? 0,
+                order: v.order ?? 0,
+              },
+            });
+          }
         }
 
         summary.pages += 1;

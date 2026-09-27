@@ -19,6 +19,16 @@ export interface ApiEndpoint {
   description: string | null;
 }
 
+/** A YouTube tutorial video. stepId null = feature overview; set = that step's walkthrough. */
+export interface PageVideo {
+  id: string;
+  stepId: string | null;
+  title: string;
+  description: string | null;
+  youtubeId: string;
+  startSec: number;
+}
+
 export interface Page {
   id: string;
   routePath: string;
@@ -32,6 +42,8 @@ export interface Page {
   steps: TutorialStep[];
   /** Auto-captured API reference for this screen (present on the detail endpoint). */
   apiEndpoints?: ApiEndpoint[];
+  /** Tutorial videos (present on the detail and by-route endpoints). */
+  videos?: PageVideo[];
 }
 
 export interface PageResponse {
@@ -39,7 +51,7 @@ export interface PageResponse {
 }
 
 export interface TutorialsResponse {
-  tutorials: Array<Page & { _count: { steps: number } }>;
+  tutorials: Array<Page & { _count: { steps: number; videos?: number } }>;
 }
 
 export interface TutorialDetailResponse {

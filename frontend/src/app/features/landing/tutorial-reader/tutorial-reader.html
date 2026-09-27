@@ -88,6 +88,47 @@
       <hr class="section-rule" />
 
       @if (activeTab() === 'manual') {
+      <!-- Feature overview videos -->
+      @if (activeVideo(); as av) {
+        <section class="video-overview" aria-label="Video tutorials">
+          <div class="video-overview-head">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" stroke-width="2"/>
+              <path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/>
+            </svg>
+            <span>Watch the tutorial</span>
+            @if (overviewVideos().length > 1) {
+              <span class="video-count">{{ overviewVideos().length }} videos</span>
+            }
+          </div>
+
+          <div class="video-overview-body" [class.video-overview-body--list]="overviewVideos().length > 1">
+            <div class="video-main">
+              <ha-youtube-player [videoId]="av.youtubeId" [startSec]="av.startSec" [title]="av.title"
+                                 (started)="trackVideo(av)" />
+              <h2 class="video-main-title">{{ av.title }}</h2>
+              @if (av.description) { <p class="video-main-desc">{{ av.description }}</p> }
+            </div>
+
+            @if (overviewVideos().length > 1) {
+              <ol class="video-playlist">
+                @for (v of overviewVideos(); track v.id; let i = $index) {
+                  <li>
+                    <button type="button" class="video-pl-item" [class.active]="v.id === av.id"
+                            [attr.aria-current]="v.id === av.id ? 'true' : null" (click)="selectVideo(v)">
+                      <span class="video-pl-thumb">
+                        <img [src]="'https://i.ytimg.com/vi/' + v.youtubeId + '/mqdefault.jpg'" alt="" loading="lazy" />
+                        <span class="video-pl-num">{{ i + 1 }}</span>
+                      </span>
+                      <span class="video-pl-title">{{ v.title }}</span>
+                    </button>
+                  </li>
+                }
+              </ol>
+            }
+          </div>
+        </section>
+      }
       <!-- Step sections -->
       @for (step of t.steps; track step.id; let last = $last) {
         <section class="step-section" [id]="'step-' + step.id">
@@ -98,6 +139,19 @@
           </div>
 
           <div class="step-md" [innerHTML]="htmlFor(step.id)"></div>
+
+          @for (v of videosFor(step.id); track v.id) {
+            <figure class="step-video">
+              <ha-youtube-player [videoId]="v.youtubeId" [startSec]="v.startSec" [title]="v.title"
+                                 (started)="trackVideo(v)" />
+              <figcaption>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M8 5v14l11-7z" fill="currentColor"/>
+                </svg>
+                {{ v.title }}@if (v.description) { <span class="step-video-desc"> — {{ v.description }}</span> }
+              </figcaption>
+            </figure>
+          }
 
           @if (step.imageUrl) {
             <figure class="doc-screenshot">

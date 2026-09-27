@@ -245,15 +245,18 @@ interface PagePayload {
   page: Record<string, unknown>;
   steps: Record<string, unknown>[];
   apiEndpoints: Record<string, unknown>[];
+  /** Absent on items trashed before videos existed. */
+  videos?: Record<string, unknown>[];
 }
 
 export async function trashPage(id: string, userId?: string | null): Promise<boolean> {
   const page = await prisma.page.findUnique({ where: { id } });
   if (!page) return false;
 
-  const [steps, apiEndpoints] = await Promise.all([
+  const [steps, apiEndpoints, videos] = await Promise.all([
     prisma.tutorialStep.findMany({ where: { pageId: id } }),
     prisma.apiEndpoint.findMany({ where: { pageId: id } }),
+    prisma.pageVideo.findMany({ where: { pageId: id } }),
   ]);
 
   await capture({
@@ -261,7 +264,7 @@ export async function trashPage(id: string, userId?: string | null): Promise<boo
     entityId: id,
     label: page.title,
     description: [page.routePath, `${steps.length} steps`].filter(Boolean).join(' · '),
-    payload: { page, steps, apiEndpoints } as unknown as Prisma.InputJsonValue,
+    payload: { page, steps, apiEndpoints, videos } as unknown as Prisma.InputJsonValue,
     userId,
     remove: async () => {
       await prisma.page.delete({ where: { id } });
@@ -288,6 +291,8 @@ const pageAdapter: TrashAdapter = {
       if (data.apiEndpoints.length) {
         await tx.apiEndpoint.createMany({ data: data.apiEndpoints as never });
       }
+      // After the steps, so step-pinned videos find their step again.
+      if (data.videos?.length) await tx.pageVideo.createMany({ data: data.videos as never });
       await tx.trashItem.delete({ where: { id: handle } });
     });
   },

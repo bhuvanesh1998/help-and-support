@@ -1,3 +1,5 @@
+import { YoutubePlayer } from '../../core/components/youtube-player/youtube-player';
+import type { PageVideo } from '../../core/models/page';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,7 +22,7 @@ type LoadState = 'idle' | 'loading' | 'loaded' | 'not-found' | 'error';
 
 @Component({
   selector: 'ha-help-widget',
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, StepCard],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, StepCard, YoutubePlayer],
   templateUrl: './help-widget.html',
   styleUrl: './help-widget.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +39,14 @@ export class HelpWidget implements OnInit {
   readonly suppressed = signal(false);
   readonly state = signal<LoadState>('idle');
   readonly page = signal<Page | null>(null);
+
+  /** Overview videos lead on the first step; after that each step shows its own. */
+  readonly currentVideos = computed<PageVideo[]>(() => {
+    const videos = this.page()?.videos ?? [];
+    const stepId = this.currentStep()?.id;
+    const pinned = videos.filter((v) => v.stepId && v.stepId === stepId);
+    return this.activeStep() === 0 ? [...videos.filter((v) => !v.stepId), ...pinned] : pinned;
+  });
   readonly activeStep = signal<number>(0);
 
   readonly currentStep = computed<TutorialStep | null>(() => {

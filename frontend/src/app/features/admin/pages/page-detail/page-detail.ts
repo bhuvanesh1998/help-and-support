@@ -22,7 +22,9 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminApiService } from '../../../../core/services/admin-api';
 import { ImageViewer } from '../../../../core/components/image-viewer/image-viewer';
-import type { AdminApiEndpoint, AdminPage, AdminStep } from '../../../../core/models/admin';
+import { YoutubePlayer } from '../../../../core/components/youtube-player/youtube-player';
+import { parseYoutubeId, youtubeWatchUrl } from '../../../../core/utils/youtube';
+import type { AdminApiEndpoint, AdminPage, AdminStep, AdminVideo } from '../../../../core/models/admin';
 
 @Component({
   selector: 'ha-page-detail',
@@ -30,7 +32,7 @@ import type { AdminApiEndpoint, AdminPage, AdminStep } from '../../../../core/mo
     FormsModule,
     MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatCardModule, MatProgressSpinnerModule, MatSnackBarModule, MatChipsModule, MatTooltipModule,
-    ImageViewer,
+    ImageViewer, YoutubePlayer,
   ],
   templateUrl: './page-detail.html',
   styleUrl: './page-detail.scss',
@@ -93,6 +95,111 @@ export class PageDetail implements OnInit {
     this.api.deleteApiEndpoint(this.pageId(), e.id).subscribe({
       next: () => { this.snack.open('Endpoint removed', 'OK', { duration: 2000 }); this.load(); },
       error: () => this.snack.open('Delete failed', 'OK', { duration: 3000 }),
+    });
+  }
+
+  // ── Tutorial videos (YouTube) ────────────────────────────────────────────────
+  readonly videos = computed<AdminVideo[]>(() => this.page()?.videos ?? []);
+  /** Form state: null = closed, 'new' = adding, otherwise the id being edited. */
+  readonly videoFormFor = signal<string | 'new' | null>(null);
+  readonly savingVideo = signal(false);
+  videoUrl = '';
+  videoTitle = '';
+  videoDescription = '';
+  /** '' = feature overview (top of the manual); otherwise a step id. */
+  videoStepId = '';
+  /** Live preview id; updated on input so the OnPush view refreshes. */
+  readonly videoPreviewId = signal<string | null>(null);
+
+  readonly watchUrl = youtubeWatchUrl;
+
+  /** Where a video is shown, for the list label. */
+  videoPlacement(v: AdminVideo): string {
+    if (!v.stepId) return 'Feature overview';
+    const s = this.page()?.steps.find((x) => x.id === v.stepId);
+    return s ? `Step ${s.stepNumber} · ${s.title}` : 'Feature overview';
+  }
+
+  /** Videos pinned to one step (shown on that step's view screen). */
+  videosForStep(stepId: string): AdminVideo[] {
+    return this.videos().filter((v) => v.stepId === stepId);
+  }
+
+  onVideoUrlChange(value: string): void {
+    this.videoUrl = value;
+    this.videoPreviewId.set(parseYoutubeId(value));
+  }
+
+  openNewVideo(stepId = ''): void {
+    this.videoUrl = '';
+    this.videoTitle = '';
+    this.videoDescription = '';
+    this.videoStepId = stepId;
+    this.videoPreviewId.set(null);
+    this.videoFormFor.set('new');
+  }
+
+  editVideo(v: AdminVideo): void {
+    this.videoUrl = youtubeWatchUrl(v.youtubeId, v.startSec);
+    this.videoTitle = v.title;
+    this.videoDescription = v.description ?? '';
+    this.videoStepId = v.stepId ?? '';
+    this.videoPreviewId.set(v.youtubeId);
+    this.videoFormFor.set(v.id);
+  }
+
+  cancelVideo(): void {
+    this.videoFormFor.set(null);
+  }
+
+  saveVideo(): void {
+    const target = this.videoFormFor();
+    if (!target || !this.videoPreviewId() || !this.videoTitle.trim()) return;
+    const body = {
+      url: this.videoUrl.trim(),
+      title: this.videoTitle.trim(),
+      description: this.videoDescription.trim(),
+      stepId: this.videoStepId || null,
+    };
+    this.savingVideo.set(true);
+    const req = target === 'new'
+      ? this.api.createVideo(this.pageId(), body)
+      : this.api.updateVideo(this.pageId(), target, body);
+    req.subscribe({
+      next: () => {
+        this.savingVideo.set(false);
+        this.videoFormFor.set(null);
+        this.snack.open(target === 'new' ? 'Video added' : 'Video updated', undefined, { duration: 2000 });
+        this.load();
+      },
+      error: (err) => {
+        this.savingVideo.set(false);
+        this.snack.open(err.error?.error?.message ?? 'Save failed', 'OK', { duration: 4000 });
+      },
+    });
+  }
+
+  deleteVideo(v: AdminVideo): void {
+    if (!confirm(`Remove the video "${v.title}"? The YouTube upload itself is not touched.`)) return;
+    this.api.deleteVideo(this.pageId(), v.id).subscribe({
+      next: () => {
+        if (this.videoFormFor() === v.id) this.videoFormFor.set(null);
+        this.snack.open('Video removed', 'OK', { duration: 2000 });
+        this.load();
+      },
+      error: () => this.snack.open('Delete failed', 'OK', { duration: 3000 }),
+    });
+  }
+
+  moveVideo(v: AdminVideo, delta: -1 | 1): void {
+    const ids = this.videos().map((x) => x.id);
+    const from = ids.indexOf(v.id);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to]!, ids[from]!];
+    this.api.reorderVideos(this.pageId(), ids).subscribe({
+      next: () => this.load(),
+      error: () => this.snack.open('Reorder failed', 'OK', { duration: 3000 }),
     });
   }
 

@@ -34,6 +34,7 @@ enum AnalyticsEventType {
   TUTORIAL_COMPLETED
   SEARCH
   LINK_CLICK
+  VIDEO_PLAY
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,7 @@ model Page {
 
   steps        TutorialStep[]
   apiEndpoints ApiEndpoint[]
+  videos       PageVideo[]
   events       AnalyticsEvent[]
 
   @@index([slug])
@@ -190,12 +192,40 @@ model TutorialStep {
 
   page       Page             @relation(fields: [pageId], references: [id], onDelete: Cascade)
   mediaAsset MediaAsset?      @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  videos     PageVideo[]
   events     AnalyticsEvent[]
 
   // Prevents two steps claiming the same position within one page.
   @@unique([pageId, stepNumber])
   @@index([pageId])
   @@map("tutorial_steps")
+}
+
+// ---------------------------------------------------------------------------
+//  Tutorial videos for a screen, hosted on YouTube and linked from the admin.
+//  stepId null = a feature overview shown at the top of the manual; set = a
+//  walkthrough shown inside that step. Only the 11-char video id is stored —
+//  the embed URL is built client-side, so no admin-supplied URL is ever framed.
+// ---------------------------------------------------------------------------
+
+model PageVideo {
+  id          String   @id @default(uuid()) @db.Uuid
+  pageId      String   @db.Uuid
+  stepId      String?  @db.Uuid
+  title       String
+  description String?
+  youtubeId   String   @db.VarChar(11)
+  startSec    Int      @default(0) // start offset, from ?t= / &start= in the pasted link
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  page Page          @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  step TutorialStep? @relation(fields: [stepId], references: [id], onDelete: SetNull)
+
+  @@index([pageId, order])
+  @@index([stepId])
+  @@map("page_videos")
 }
 
 // ---------------------------------------------------------------------------

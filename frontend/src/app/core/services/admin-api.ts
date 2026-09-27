@@ -6,6 +6,8 @@ import type {
   AdminPage,
   BackupRestoreSummary,
   AdminStep,
+  AdminVideo,
+  AdminVideoInput,
   AdminUser,
   AiCredentialStatus,
   AiJobSnapshot,
@@ -150,6 +152,19 @@ export class AdminApiService {
   }
   deleteStep(pageId: string, stepId: string) {
     return this.http.delete(`${this.b}/pages/${pageId}/steps/${stepId}`);
+  }
+  // ── Tutorial videos ────────────────────────────────────────────────────────
+  createVideo(pageId: string, data: AdminVideoInput) {
+    return this.http.post<{ video: AdminVideo }>(`${this.b}/pages/${pageId}/videos`, data);
+  }
+  updateVideo(pageId: string, videoId: string, data: AdminVideoInput) {
+    return this.http.patch<{ video: AdminVideo }>(`${this.b}/pages/${pageId}/videos/${videoId}`, data);
+  }
+  deleteVideo(pageId: string, videoId: string) {
+    return this.http.delete(`${this.b}/pages/${pageId}/videos/${videoId}`);
+  }
+  reorderVideos(pageId: string, ids: string[]) {
+    return this.http.post<{ videos: AdminVideo[] }>(`${this.b}/pages/${pageId}/videos/reorder`, { ids });
   }
   reorderSteps(pageId: string, order: Array<{ id: string; stepNumber: number }>) {
     return this.http.post<{ steps: AdminStep[] }>(

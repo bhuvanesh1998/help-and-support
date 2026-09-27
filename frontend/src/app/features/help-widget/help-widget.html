@@ -67,6 +67,13 @@
             <ha-step-card [step]="step" />
           }
 
+          @for (v of currentVideos(); track v.id) {
+            <div class="ha-panel__video">
+              <ha-youtube-player [videoId]="v.youtubeId" [startSec]="v.startSec" [title]="v.title" />
+              <span class="ha-panel__video-title"><mat-icon>smart_display</mat-icon>{{ v.title }}</span>
+            </div>
+          }
+
           <nav class="ha-panel__nav" aria-label="User manual navigation">
             <button
               mat-stroked-button

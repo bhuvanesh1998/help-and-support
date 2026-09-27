@@ -27,7 +27,7 @@ publicRouter.get('/tutorials', async (_req: Request, res: Response) => {
           imageUrl: true,
         },
       },
-      _count: { select: { steps: true } },
+      _count: { select: { steps: true, videos: true } },
     },
   });
   res.json({ tutorials: pages });
@@ -51,6 +51,10 @@ publicRouter.get('/tutorials/:id', async (req: Request, res: Response) => {
           instructionsMd: true,
           imageUrl: true,
         },
+      },
+      videos: {
+        orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, stepId: true, title: true, description: true, youtubeId: true, startSec: true },
       },
       apiEndpoints: {
         orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
@@ -113,6 +117,10 @@ publicRouter.get('/pages', async (req: Request, res: Response) => {
   const page = await prisma.page.findFirst({
     where: { routePath: routePath.trim(), isPublished: true },
     include: {
+      videos: {
+        orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, stepId: true, title: true, description: true, youtubeId: true, startSec: true },
+      },
       steps: {
         orderBy: { stepNumber: 'asc' },
         select: {

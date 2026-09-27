@@ -23,6 +23,103 @@
 
   <!-- ── LIST: steps overview ────────────────────────────────────────── -->
   @if (mode() === 'list') {
+    <!-- ── Tutorial videos (YouTube) — shown on the public manual ────────── -->
+    <div class="video-section">
+      <div class="api-section-head">
+        <mat-icon>smart_display</mat-icon>
+        <span class="api-section-title">Tutorial videos</span>
+        @if (videos().length) { <span class="api-section-count">{{ videos().length }}</span> }
+        <span class="api-section-sub">Upload to YouTube (public or unlisted), paste the link here.</span>
+        <span class="api-item-spacer"></span>
+        @if (!videoFormFor()) {
+          <button mat-stroked-button (click)="openNewVideo()"><mat-icon>add</mat-icon> Add video</button>
+        }
+      </div>
+
+        @if (videoFormFor()) {
+          <div class="video-form">
+            <div class="video-form-fields">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>YouTube link</mat-label>
+                <input matInput [ngModel]="videoUrl" (ngModelChange)="onVideoUrlChange($event)"
+                       placeholder="https://youtu.be/… or https://www.youtube.com/watch?v=…" required />
+                <mat-icon matSuffix>smart_display</mat-icon>
+                @if (videoUrl && !videoPreviewId()) {
+                  <mat-hint class="video-hint-err">Not a YouTube link — use a watch, youtu.be, shorts or embed URL.</mat-hint>
+                } @else {
+                  <mat-hint>Unlisted videos work. Add &amp;t=90s to start at 1:30.</mat-hint>
+                }
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Title</mat-label>
+                <input matInput [(ngModel)]="videoTitle" maxlength="200" required
+                       placeholder="e.g. How to book an appointment" />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Show it</mat-label>
+                <select matNativeControl [(ngModel)]="videoStepId">
+                  <option value="">At the top — feature overview</option>
+                  @for (s of pg.steps; track s.id) {
+                    <option [value]="s.id">Inside step {{ s.stepNumber }} — {{ s.title }}</option>
+                  }
+                </select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Short description (optional)</mat-label>
+                <textarea matInput [(ngModel)]="videoDescription" rows="2" maxlength="2000"
+                          placeholder="What the viewer will learn"></textarea>
+              </mat-form-field>
+            </div>
+
+            <div class="video-form-preview">
+              @if (videoPreviewId(); as vid) {
+                <ha-youtube-player [videoId]="vid" [title]="videoTitle || 'Preview'" />
+              } @else {
+                <div class="video-preview-empty">
+                  <mat-icon>ondemand_video</mat-icon>
+                  <span>Paste a link to preview it</span>
+                </div>
+              }
+            </div>
+
+            <div class="form-foot video-form-foot">
+              <button mat-stroked-button (click)="cancelVideo()">Cancel</button>
+              <button mat-flat-button class="save-btn" (click)="saveVideo()"
+                      [disabled]="!videoPreviewId() || !videoTitle.trim() || savingVideo()">
+                @if (savingVideo()) { <mat-spinner diameter="18" /> }
+                @else { {{ videoFormFor() === 'new' ? 'Add video' : 'Save' }} }
+              </button>
+            </div>
+          </div>
+        }
+
+      @for (v of videos(); track v.id; let first = $first, last = $last) {
+        <div class="video-item" [class.video-item--editing]="videoFormFor() === v.id">
+          <img class="video-thumb" [src]="'https://i.ytimg.com/vi/' + v.youtubeId + '/mqdefault.jpg'" alt="" loading="lazy" />
+          <div class="video-meta">
+            <strong class="video-title">{{ v.title }}</strong>
+            <span class="video-place" [class.video-place--step]="!!v.stepId">
+              <mat-icon>{{ v.stepId ? 'format_list_numbered' : 'star_outline' }}</mat-icon>{{ videoPlacement(v) }}
+            </span>
+          </div>
+          <div class="step-actions">
+            <button mat-icon-button matTooltip="Move up" (click)="moveVideo(v, -1)" [disabled]="first" aria-label="Move video up"><mat-icon>arrow_upward</mat-icon></button>
+            <button mat-icon-button matTooltip="Move down" (click)="moveVideo(v, 1)" [disabled]="last" aria-label="Move video down"><mat-icon>arrow_downward</mat-icon></button>
+            <a mat-icon-button matTooltip="Open on YouTube" [href]="watchUrl(v.youtubeId, v.startSec)" target="_blank" rel="noopener noreferrer" aria-label="Open on YouTube"><mat-icon>open_in_new</mat-icon></a>
+            <button mat-icon-button matTooltip="Edit" (click)="editVideo(v)" aria-label="Edit video"><mat-icon>edit</mat-icon></button>
+            <button mat-icon-button matTooltip="Remove" (click)="deleteVideo(v)" aria-label="Remove video" class="delete-btn"><mat-icon>delete_outline</mat-icon></button>
+          </div>
+        </div>
+      } @empty {
+        @if (!videoFormFor()) {
+          <p class="video-empty">No videos yet. Add a feature overview, or pin a short clip to a single step.</p>
+        }
+      }
+    </div>
+
     <div class="steps-list">
       @for (step of pg.steps; track step.id) {
         <div class="step-card step-card--clickable"
@@ -120,6 +217,13 @@
           }
 
           <div class="step-view-body" [innerHTML]="htmlFor(st.id)"></div>
+
+          @for (v of videosForStep(st.id); track v.id) {
+            <div class="step-view-video">
+              <ha-youtube-player [videoId]="v.youtubeId" [startSec]="v.startSec" [title]="v.title" />
+              <span class="step-view-video-title"><mat-icon>smart_display</mat-icon>{{ v.title }}</span>
+            </div>
+          }
         </div>
       </div>
     }

@@ -11,14 +11,16 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { renderStepMarkdown } from '../../../core/utils/step-markdown';
 import { ImageViewer } from '../../../core/components/image-viewer/image-viewer';
+import { YoutubePlayer } from '../../../core/components/youtube-player/youtube-player';
+import { AnalyticsService } from '../../../core/services/analytics';
 import { HelpApiService } from '../../../core/services/help-api';
-import type { ApiEndpoint, Page, TutorialsResponse } from '../../../core/models/page';
+import type { ApiEndpoint, Page, PageVideo, TutorialsResponse } from '../../../core/models/page';
 
 type TutorialListItem = TutorialsResponse['tutorials'][number];
 
 @Component({
   selector: 'ha-tutorial-reader',
-  imports: [RouterLink, ImageViewer],
+  imports: [RouterLink, ImageViewer, YoutubePlayer],
   templateUrl: './tutorial-reader.html',
   styleUrl: './tutorial-reader.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +28,7 @@ type TutorialListItem = TutorialsResponse['tutorials'][number];
 export class TutorialReader implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly api   = inject(HelpApiService);
+  private readonly analytics = inject(AnalyticsService);
 
   readonly loading      = signal(true);
   readonly tutorial     = signal<Page | null>(null);
@@ -37,6 +40,49 @@ export class TutorialReader implements OnDestroy {
   readonly stepImages = computed<string[]>(() =>
     (this.tutorial()?.steps ?? []).map((s) => s.imageUrl).filter((u): u is string => !!u),
   );
+
+  // ── Tutorial videos ─────────────────────────────────────────────────────────
+  /** Feature-level videos (no step), shown above the steps. */
+  readonly overviewVideos = computed<PageVideo[]>(() =>
+    (this.tutorial()?.videos ?? []).filter((v) => !v.stepId),
+  );
+  /** Step id → its pinned videos. */
+  private readonly stepVideoMap = computed(() => {
+    const map = new Map<string, PageVideo[]>();
+    for (const v of this.tutorial()?.videos ?? []) {
+      if (!v.stepId) continue;
+      const list = map.get(v.stepId) ?? [];
+      list.push(v);
+      map.set(v.stepId, list);
+    }
+    return map;
+  });
+  /** The overview video currently in the main player. */
+  readonly activeVideoId = signal<string | null>(null);
+  readonly activeVideo = computed<PageVideo | null>(() => {
+    const list = this.overviewVideos();
+    return list.find((v) => v.id === this.activeVideoId()) ?? list[0] ?? null;
+  });
+
+  videosFor(stepId: string): PageVideo[] {
+    return this.stepVideoMap().get(stepId) ?? [];
+  }
+
+  selectVideo(v: PageVideo): void {
+    this.activeVideoId.set(v.id);
+  }
+
+  /** Playback is a meaningful engagement signal; record it like a step view. */
+  trackVideo(v: PageVideo): void {
+    const t = this.tutorial();
+    this.analytics.fire({
+      eventType: 'VIDEO_PLAY',
+      routePath: t?.routePath,
+      pageId: t?.id,
+      tutorialStepId: v.stepId ?? undefined,
+      metadata: { videoId: v.id, youtubeId: v.youtubeId, title: v.title },
+    });
+  }
 
   /** Which tab is showing: the step-by-step manual, or the API reference. */
   readonly activeTab    = signal<'manual' | 'api'>('manual');
@@ -114,6 +160,7 @@ export class TutorialReader implements OnDestroy {
   private loadTutorial(id: string): void {
     this.loading.set(true);
     this.tutorial.set(null);
+    this.activeVideoId.set(null);
     this.activeTab.set('manual');
     this.observer?.disconnect();
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 });

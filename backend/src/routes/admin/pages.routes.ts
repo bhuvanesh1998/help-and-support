@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../utils/app-error.js';
 import { TRASH_RETENTION_DAYS, trashPage } from '../../services/trash.service.js';
+import { parseYoutubeUrl } from '../../lib/youtube.js';
 
 export const pagesRouter: Router = Router();
 
@@ -98,6 +99,7 @@ pagesRouter.get('/:id', async (req: Request, res: Response) => {
     include: {
       steps: { orderBy: { stepNumber: 'asc' } },
       apiEndpoints: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
+      videos: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
     },
   });
   if (!page) throw AppError.notFound('Page not found');
@@ -148,7 +150,7 @@ pagesRouter.patch('/:id', async (req: Request, res: Response) => {
 /**
  * DELETE /api/admin/pages/:id — moves the page to the trash.
  *
- * The page, its steps and its API endpoints are kept whole for 30 days, so a
+ * The page, its steps, API endpoints and videos are kept whole for 30 days, so a
  * mistaken delete is a restore rather than a rewrite. Analytics events are not
  * part of the record; they detach (SET NULL) as they always did.
  */
@@ -224,5 +226,110 @@ pagesRouter.delete('/:id/api-endpoints/:endpointId', async (req: Request, res: R
   if (!existing) throw AppError.notFound('API endpoint not found');
 
   await prisma.apiEndpoint.delete({ where: { id: endpointId } });
+  res.status(204).send();
+});
+
+// ── Tutorial videos (YouTube links; feature overview or pinned to a step) ──────
+
+const MAX_VIDEOS_PER_PAGE = 50;
+
+/** Resolve a stepId from the body: null/'' clears it, a foreign/unknown id is a 400. */
+async function resolveStepId(pageId: string, raw: unknown): Promise<string | null | undefined> {
+  if (raw === undefined) return undefined;
+  if (raw === null || raw === '') return null;
+  if (typeof raw !== 'string') throw AppError.badRequest('stepId must be a string or null');
+  const step = await prisma.tutorialStep.findFirst({ where: { id: raw, pageId }, select: { id: true } });
+  if (!step) throw AppError.badRequest('stepId does not belong to this page');
+  return step.id;
+}
+
+function requireYoutube(raw: unknown) {
+  if (typeof raw !== 'string' || !raw.trim()) throw AppError.badRequest('url is required');
+  const ref = parseYoutubeUrl(raw);
+  if (!ref) throw AppError.badRequest('Not a valid YouTube link (watch, youtu.be, shorts or embed URL)');
+  return ref;
+}
+
+function optText(raw: unknown, max: number): string | null {
+  return typeof raw === 'string' && raw.trim() ? raw.trim().slice(0, max) : null;
+}
+
+/** POST /api/admin/pages/:id/videos — body { url, title, description?, stepId? } */
+pagesRouter.post('/:id/videos', async (req: Request, res: Response) => {
+  const pageId = p(req, 'id');
+  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { id: true } });
+  if (!page) throw AppError.notFound('Page not found');
+
+  const b = req.body as Record<string, unknown>;
+  const ref = requireYoutube(b['url']);
+  const title = optText(b['title'], 200);
+  if (!title) throw AppError.badRequest('title is required');
+  const stepId = await resolveStepId(pageId, b['stepId']);
+
+  const agg = await prisma.pageVideo.aggregate({ where: { pageId }, _max: { order: true }, _count: true });
+  if (agg._count >= MAX_VIDEOS_PER_PAGE) {
+    throw AppError.badRequest(`A page can hold at most ${MAX_VIDEOS_PER_PAGE} videos`);
+  }
+
+  const video = await prisma.pageVideo.create({
+    data: {
+      pageId,
+      stepId: stepId ?? null,
+      title,
+      description: optText(b['description'], 2000),
+      youtubeId: ref.youtubeId,
+      startSec: ref.startSec,
+      order: (agg._max.order ?? -1) + 1,
+    },
+  });
+  res.status(201).json({ video });
+});
+
+/** PATCH /api/admin/pages/:id/videos/:videoId — any of { url, title, description, stepId } */
+pagesRouter.patch('/:id/videos/:videoId', async (req: Request, res: Response) => {
+  const pageId = p(req, 'id');
+  const videoId = p(req, 'videoId');
+  const existing = await prisma.pageVideo.findFirst({ where: { id: videoId, pageId } });
+  if (!existing) throw AppError.notFound('Video not found');
+
+  const b = req.body as Record<string, unknown>;
+  const ref = b['url'] !== undefined ? requireYoutube(b['url']) : undefined;
+  const stepId = await resolveStepId(pageId, b['stepId']);
+  if (typeof b['title'] === 'string' && !b['title'].trim()) throw AppError.badRequest('title cannot be empty');
+
+  const video = await prisma.pageVideo.update({
+    where: { id: videoId },
+    data: {
+      ...(ref && { youtubeId: ref.youtubeId, startSec: ref.startSec }),
+      ...(typeof b['title'] === 'string' && { title: b['title'].trim().slice(0, 200) }),
+      ...(typeof b['description'] === 'string' && { description: optText(b['description'], 2000) }),
+      ...(stepId !== undefined && { stepId }),
+    },
+  });
+  res.json({ video });
+});
+
+/** POST /api/admin/pages/:id/videos/reorder — body { ids: string[] } in the new order. */
+pagesRouter.post('/:id/videos/reorder', async (req: Request, res: Response) => {
+  const pageId = p(req, 'id');
+  const ids = (req.body as { ids?: unknown }).ids;
+  if (!Array.isArray(ids) || !ids.every((x) => typeof x === 'string')) {
+    throw AppError.badRequest('ids must be an array of video ids');
+  }
+  await prisma.$transaction(
+    (ids as string[]).map((id, order) =>
+      prisma.pageVideo.updateMany({ where: { id, pageId }, data: { order } }),
+    ),
+  );
+  const videos = await prisma.pageVideo.findMany({ where: { pageId }, orderBy: { order: 'asc' } });
+  res.json({ videos });
+});
+
+/** DELETE /api/admin/pages/:id/videos/:videoId */
+pagesRouter.delete('/:id/videos/:videoId', async (req: Request, res: Response) => {
+  const pageId = p(req, 'id');
+  const videoId = p(req, 'videoId');
+  const { count } = await prisma.pageVideo.deleteMany({ where: { id: videoId, pageId } });
+  if (!count) throw AppError.notFound('Video not found');
   res.status(204).send();
 });
