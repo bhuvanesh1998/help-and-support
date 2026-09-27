@@ -1,0 +1,311 @@
+.tr {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// ── Toolbar (shared visual language with Pages / Voiceover) ──────────────────
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 200px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 10px;
+  padding: 0 12px;
+  height: 40px;
+  max-width: 380px;
+  flex: 1 1 240px;
+  transition: border-color 150ms, box-shadow 150ms;
+
+  &:focus-within {
+    border-color: var(--mat-sys-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mat-sys-primary) 15%, transparent);
+  }
+}
+
+.search-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--mat-sys-on-surface);
+  font-size: 0.875rem;
+  outline: none;
+  min-width: 0;
+
+  &::placeholder { color: var(--mat-sys-on-surface-variant); }
+}
+
+.search-clear {
+  width: 24px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+.cat-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1.5px solid var(--mat-sys-outline-variant);
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container);
+  cursor: pointer;
+
+  &:hover { border-color: var(--mat-sys-primary); }
+}
+
+.cat-filter-icon,
+.cat-filter-caret {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.cat-filter-text {
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface);
+  white-space: nowrap;
+}
+
+.stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant);
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  padding: 5px 12px;
+  border-radius: 20px;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+
+// Emptying the trash is irreversible, so the button says so quietly.
+.tr-empty-btn {
+  color: var(--mat-sys-error) !important;
+}
+
+// ── Heading ─────────────────────────────────────────────────────────────────
+
+.tr-top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tr-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--mat-sys-on-surface);
+  letter-spacing: -0.01em;
+}
+
+.tr-sub {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--mat-sys-on-surface-variant);
+  max-width: 780px;
+}
+
+.tr-alert,
+.tr-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+
+  mat-icon { flex: none; font-size: 18px; width: 18px; height: 18px; }
+}
+
+.tr-alert { color: var(--mat-sys-error); }
+
+.tr-warn {
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #92400e;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+}
+
+.tr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 24px;
+  border: 1px dashed var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  text-align: center;
+
+  mat-icon {
+    font-size: 40px;
+    width: 40px;
+    height: 40px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  p { margin: 0; font-size: 0.9rem; color: var(--mat-sys-on-surface); }
+}
+
+// ── Rows ────────────────────────────────────────────────────────────────────
+
+.tr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tr-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 130px 120px 150px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container-low);
+
+  // About to be lost — the one state worth colouring.
+  &--soon { border-color: color-mix(in srgb, #f59e0b 55%, transparent); }
+
+  &--busy { opacity: 0.55; }
+
+  &__icon {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--mat-sys-surface-container-high);
+
+    mat-icon { color: var(--mat-sys-on-surface-variant); }
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &__label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--mat-sys-on-surface);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__desc {
+    font-size: 0.75rem;
+    color: var(--mat-sys-on-surface-variant);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__type {
+    justify-self: start;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mat-sys-on-surface-variant);
+    background: var(--mat-sys-surface-container-high);
+    white-space: nowrap;
+  }
+
+  &__when {
+    font-size: 0.75rem;
+    color: var(--mat-sys-on-surface-variant);
+    white-space: nowrap;
+  }
+
+  &__expiry {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--mat-sys-on-surface-variant);
+    white-space: nowrap;
+
+    mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+    &--soon { color: #b45309; }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-self: end;
+  }
+
+  &__restore {
+    --mat-button-filled-container-height: 34px;
+    font-size: 0.8rem;
+  }
+}
+
+// ── Narrow screens: drop the columns that are only context ──────────────────
+
+@media (max-width: 1080px) {
+  .tr-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+
+    &__type,
+    &__when { display: none; }
+
+    &__expiry { grid-column: 2; }
+    &__actions { grid-row: 1; grid-column: 3; }
+  }
+}

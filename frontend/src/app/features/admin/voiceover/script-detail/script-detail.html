@@ -1,0 +1,374 @@
+<div class="sd">
+  <a class="sd-back" routerLink="/admin/voiceover">
+    <mat-icon aria-hidden="true">arrow_back</mat-icon> All scripts
+  </a>
+
+  @if (loading()) {
+    <p class="sd-sub">Loading…</p>
+  } @else if (error()) {
+    <p class="sd-alert sd-alert--error" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error() }}</span>
+    </p>
+  } @else if (script(); as s) {
+    <header class="sd-top">
+      <div class="sd-top__text">
+        <h2 class="sd-title">{{ s.videoName }}</h2>
+        <p class="sd-sub">
+          {{ s.appName }} · {{ s.tone }} tone · {{ s.model }} ({{ s.provider }})
+          @if (s.sourceScriptId) { · re-toned from an earlier run }
+        </p>
+      </div>
+      <button mat-flat-button color="primary" [disabled]="!s.segments.length" (click)="download()">
+        <mat-icon aria-hidden="true">download</mat-icon>
+        Download ZIP
+      </button>
+    </header>
+
+    <section class="sd-card">
+      <ul class="sd-facts">
+        <li><span>Video length</span><strong>{{ timecode(s.durationSec) }}</strong></li>
+        <li><span>Spoken length</span><strong>{{ timecode(spokenSec()) }}</strong></li>
+        <li><span>Segments</span><strong>{{ s.segments.length }}</strong></li>
+        <li><span>Words</span><strong>{{ s.totalWords }}</strong></li>
+        <li><span>Resolution</span><strong>{{ s.width }}×{{ s.height }}</strong></li>
+        <li><span>Frames used</span><strong>{{ s.frameCount }}</strong></li>
+        <li><span>Pace</span><strong>{{ s.wordsPerMinute }} wpm</strong></li>
+        <li><span>Generated</span><strong>{{ when(s.createdAt) }}</strong></li>
+      </ul>
+
+      @if (s.error) {
+        <p class="sd-alert sd-alert--error">
+          <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ s.error }}</span>
+        </p>
+      }
+    </section>
+
+    <!-- ── Other tones ───────────────────────────────────────────────────── -->
+    <section class="sd-card">
+      <div class="sd-card__head">
+        <h3>Tones</h3>
+        <p>
+          The same frames can be narrated differently. Regenerating needs no
+          re-upload — the stills from the original run are kept.
+        </p>
+      </div>
+
+      <div class="sd-tones">
+        <span class="sd-tone sd-tone--current">
+          <mat-icon aria-hidden="true">check</mat-icon> {{ s.tone }}
+        </span>
+        @for (v of variants(); track v.id) {
+          <a class="sd-tone" [routerLink]="['/admin/voiceover', v.id]">
+            {{ v.tone }}
+            <small>{{ v.segmentCount }} seg</small>
+          </a>
+        }
+      </div>
+
+      @if (!s.canRegenerate) {
+        <p class="sd-alert sd-alert--info">
+          <mat-icon aria-hidden="true">info_outline</mat-icon>
+          <span>
+            The stills for this script are no longer stored, so it cannot be
+            re-toned. Scripts generated before frame storage existed, or whose
+            files were cleaned up, need the video uploading again.
+          </span>
+        </p>
+      } @else if (!availableTones().length) {
+        <p class="sd-sub">Every tone already exists for these frames.</p>
+      } @else {
+        <div class="sd-regen">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Generate another tone</mat-label>
+            <mat-select [(ngModel)]="newTone" [disabled]="regenerating()">
+              @for (t of availableTones(); track t.value) {
+                <mat-option [value]="t.value">{{ t.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <button
+            mat-flat-button
+            color="primary"
+            [disabled]="regenerating()"
+            (click)="regenerate()"
+          >
+            <mat-icon aria-hidden="true">autorenew</mat-icon>
+            {{ regenerating() ? 'Generating…' : 'Regenerate' }}
+          </button>
+        </div>
+
+        @if (regenerating()) {
+          <mat-progress-bar mode="indeterminate" />
+          <p class="sd-sub">{{ regenPhase() }}</p>
+        }
+
+        @if (regenError()) {
+          <p class="sd-alert sd-alert--error" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ regenError() }}</span>
+          </p>
+        }
+      }
+    </section>
+
+    <!-- ── Script ────────────────────────────────────────────────────────── -->
+    @if (s.segments.length) {
+      <section class="sd-card">
+        <div class="sd-card__head">
+          <h3>Timed script</h3>
+          <p>Edit any line to write your own version; its audio is re-recorded from the edit.</p>
+        </div>
+
+        @if (editError()) {
+          <p class="sd-alert sd-alert--error" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ editError() }}</span>
+          </p>
+        }
+
+        <ha-script-table
+          [segments]="s.segments"
+          [audio]="audioByIndex()"
+          [editable]="true"
+          [renderingIndex]="renderingIndex()"
+          (saveLine)="saveLine($event)"
+          (renderLine)="renderOne($event)"
+          (restoreVersion)="restoreVersion($event)"
+        />
+      </section>
+    } @else {
+      <section class="sd-card sd-empty">
+        <p><strong>This script has no segments.</strong></p>
+        <p class="sd-sub">The run did not produce usable narration — see the error above.</p>
+      </section>
+    }
+
+    <!-- ── Voiceover audio ───────────────────────────────────────────────── -->
+    @if (s.segments.length) {
+      <section class="sd-card">
+        <div class="sd-card__head sd-card__head--row">
+          <div>
+            <h3>Voiceover audio</h3>
+            <p>
+              The full-length track below is the deliverable — drop it under the video as one
+              audio layer. Per-line clips exist so you can re-record a single line and reassemble.
+            </p>
+          </div>
+          <button mat-flat-button color="primary" (click)="toggleVoicePanel()">
+            <mat-icon aria-hidden="true">record_voice_over</mat-icon>
+            {{ voicePanelOpen() ? 'Hide voice setup' : 'Generate voice' }}
+          </button>
+        </div>
+
+        <!-- ── The merged track ─────────────────────────────────────────────── -->
+        @if (timelineClip(); as track) {
+          <div class="sd-track" [class.sd-track--stale]="trackStale()">
+            <div class="sd-track__main">
+              <div class="sd-track__text">
+                <strong>
+                  <mat-icon aria-hidden="true">movie</mat-icon>
+                  Full-length track
+                  <span class="sd-track__build">build {{ track.segmentVersion }}</span>
+                </strong>
+                <span>
+                  {{ timecode(s.durationSec) }} · {{ track.voiceName }} · matches the video
+                  exactly — lay it under as one layer
+                </span>
+              </div>
+              <audio class="sd-track__player" controls preload="metadata" [src]="track.publicUrl"></audio>
+              <button
+                mat-flat-button
+                color="primary"
+                [disabled]="savingTrack()"
+                (click)="saveTrack(track)"
+              >
+                <mat-icon aria-hidden="true">download</mat-icon>
+                {{ savingTrack() ? 'Saving…' : 'MP3' }}
+              </button>
+            </div>
+
+            @if (trackStale()) {
+              <p class="sd-track__warn">
+                <mat-icon aria-hidden="true">update</mat-icon>
+                <span>
+                  Lines have changed since this was assembled, so it still speaks the older
+                  wording. It stays playable until you replace it.
+                </span>
+                <button mat-flat-button color="primary" [disabled]="building()" (click)="buildTimeline()">
+                  <mat-icon aria-hidden="true">merge</mat-icon>
+                  {{ building() ? 'Reassembling…' : 'Reassemble' }}
+                </button>
+              </p>
+            }
+
+            @if (previousMixes().length) {
+              <details class="sd-mixes">
+                <summary>
+                  {{ previousMixes().length }} earlier mix(es) kept
+                </summary>
+                <ul>
+                  @for (mix of previousMixes(); track mix.segmentVersion) {
+                    <li>
+                      <span class="sd-mixes__label">build {{ mix.segmentVersion }}</span>
+                      <audio controls preload="none" [src]="mix.publicUrl"></audio>
+                      <button
+                        mat-stroked-button
+                        matTooltip="Download this mix"
+                        [disabled]="savingTrack()"
+                        (click)="saveTrack(mix)"
+                      >
+                        <mat-icon aria-hidden="true">download</mat-icon>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              </details>
+            }
+          </div>
+        } @else if (lineClips().length) {
+          <div class="sd-track sd-track--todo">
+            <div class="sd-track__text">
+              <strong>
+                <mat-icon aria-hidden="true">merge</mat-icon>
+                No full-length track yet
+              </strong>
+              <span>
+                {{ lineClips().length }} of {{ lineCount() }} lines recorded. Assemble them into
+                one {{ timecode(s.durationSec) }} track timed to the video.
+              </span>
+            </div>
+            <button mat-flat-button color="primary" [disabled]="building()" (click)="buildTimeline()">
+              <mat-icon aria-hidden="true">merge</mat-icon>
+              {{ building() ? 'Assembling…' : 'Assemble track' }}
+            </button>
+          </div>
+        }
+
+        <!-- Voice consistency: what this script is narrated in, and any stragglers -->
+        @if (scriptVoiceName()) {
+          <p class="sd-voiceline">
+            <mat-icon aria-hidden="true">record_voice_over</mat-icon>
+            <span>
+              Narrated by <strong>{{ scriptVoiceName() }}</strong> — re-records use this voice
+              automatically.
+            </span>
+            @if (offVoiceLines().length) {
+              <span class="sd-voiceline__off">
+                {{ offVoiceLines().length }} line(s) were recorded in another voice
+                (#{{ offVoiceLines().join(', #') }})
+              </span>
+              <button
+                mat-stroked-button
+                [disabled]="renderingAll() || renderingIndex() !== null"
+                (click)="reRecordOffVoice()"
+              >
+                <mat-icon aria-hidden="true">autorenew</mat-icon>
+                Re-record in {{ scriptVoiceName() }}
+              </button>
+            }
+          </p>
+        }
+
+        @if (unrecordedLines().length && lineClips().length) {
+          <p class="sd-alert sd-alert--info">
+            <mat-icon aria-hidden="true">info_outline</mat-icon>
+            <span>
+              {{ unrecordedLines().length }} line(s) have no take for their current wording
+              (#{{ unrecordedLines().join(', #') }}) and would be silent in the track.
+            </span>
+          </p>
+        }
+
+        @if (voicePanelOpen()) {
+          @if (!ttsAvailable()) {
+            <p class="sd-alert sd-alert--info">
+              <mat-icon aria-hidden="true">info_outline</mat-icon>
+              <span>
+                No ElevenLabs key is connected. Add one under
+                <a routerLink="/admin/settings/voiceover">VO Settings</a> to render audio.
+              </span>
+            </p>
+          } @else {
+            <div class="sd-voice">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>Voice</mat-label>
+                <mat-select [(ngModel)]="voiceId" [disabled]="renderingAll()">
+                  @for (v of voices(); track v.voiceId) {
+                    <mat-option [value]="v.voiceId">
+                      {{ v.name }}@if (v.category) { — {{ v.category }} }
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>TTS model</mat-label>
+                <mat-select [(ngModel)]="ttsModelId" [disabled]="renderingAll()">
+                  @for (m of ttsModels(); track m) {
+                    <mat-option [value]="m">{{ m }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <button
+                mat-stroked-button
+                [disabled]="!voiceId || sampling()"
+                matTooltip="Render the first line so you can hear this voice before committing"
+                (click)="playSample()"
+              >
+                <mat-icon aria-hidden="true">volume_up</mat-icon>
+                {{ sampling() ? 'Sampling…' : 'Hear sample' }}
+              </button>
+            </div>
+
+            @if (sampleUrl(); as url) {
+              <audio class="sd-sample" controls autoplay [src]="url"></audio>
+            }
+
+            <div class="sd-voice__actions">
+              <button
+                mat-flat-button
+                color="primary"
+                [disabled]="!voiceId || renderingAll() || building()"
+                (click)="generateAll()"
+              >
+                <mat-icon aria-hidden="true">graphic_eq</mat-icon>
+                @if (renderingAll()) {
+                  Rendering line {{ renderingIndex() }}…
+                } @else if (building()) {
+                  Assembling track…
+                } @else {
+                  Generate all audio &amp; timeline track
+                }
+              </button>
+
+              @if (lineClips().length) {
+                <button mat-stroked-button (click)="downloadAudio()">
+                  <mat-icon aria-hidden="true">download</mat-icon>
+                  Download all audio
+                </button>
+                <button mat-stroked-button (click)="clearAudio()">
+                  <mat-icon aria-hidden="true">delete_outline</mat-icon>
+                  Clear audio
+                </button>
+              }
+            </div>
+
+            <p class="sd-sub">
+              {{ lineClips().length }} of {{ lineCount() }} lines rendered
+              @if (renderedVoice()) { with {{ renderedVoice() }} }
+            </p>
+
+            @if (renderingAll()) {
+              <mat-progress-bar mode="indeterminate" />
+            }
+          }
+        }
+
+        @if (ttsError()) {
+          <p class="sd-alert sd-alert--error" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ ttsError() }}</span>
+          </p>
+        }
+      </section>
+    }
+  }
+</div>

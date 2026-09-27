@@ -384,6 +384,28 @@
   }
 }
 
+// ── Assigned role (which features the account can reach) ────────────────────
+
+.user-access { flex-shrink: 0; }
+
+.role-select--access { min-width: 168px; }
+
+.access-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.775rem;
+  font-weight: 500;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+  white-space: nowrap;
+
+  &--all {
+    background: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent);
+    color: var(--mat-sys-primary);
+  }
+}
+
 // ── Status ───────────────────────────────────────────────────────────────────
 
 .status-toggle { flex-shrink: 0; }

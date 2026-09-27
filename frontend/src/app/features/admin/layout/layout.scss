@@ -333,3 +333,15 @@ $nav-closed:   64px;
 }
 
 .logout-item { color: var(--mat-sys-error) !important; }
+
+// Pushes the trash entry to the bottom of the sidebar, separated from the
+// screens above it.
+.nav-spacer {
+  margin-top: auto;
+  height: 1px;
+  background: var(--mat-sys-outline-variant);
+  margin-inline: 10px;
+  margin-bottom: 6px;
+}
+
+.nav-item--footer .nav-icon { color: var(--mat-sys-on-surface-variant); }

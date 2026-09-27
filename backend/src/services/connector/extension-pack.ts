@@ -9,7 +9,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const EXTENSION_DIR = path.resolve('..', 'extension');
+// The extension files ship inside the backend (backend/extension), so they are
+// present in the standalone backend image too. Resolved from the process CWD,
+// which is the backend root both in dev (npm run dev) and in the container
+// (WORKDIR /app/backend). Override with EXTENSION_DIR if needed.
+const EXTENSION_DIR = process.env.EXTENSION_DIR
+  ? path.resolve(process.env.EXTENSION_DIR)
+  : path.resolve(process.cwd(), 'extension');
 
 // ── CRC-32 (ZIP requires it per entry) ───────────────────────────────────────
 const CRC_TABLE = (() => {
