@@ -17,12 +17,14 @@ import { HelpApiService } from '../../core/services/help-api';
 import { AnalyticsService } from '../../core/services/analytics';
 import type { Page, TutorialStep } from '../../core/models/page';
 import { StepCard } from './step-card/step-card';
+import { SiteSettingsService } from '../../core/services/site-settings.service';
+import { SupportForm } from '../support/support-form/support-form';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'not-found' | 'error';
 
 @Component({
   selector: 'ha-help-widget',
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, StepCard, YoutubePlayer],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, StepCard, YoutubePlayer, SupportForm],
   templateUrl: './help-widget.html',
   styleUrl: './help-widget.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,6 +33,11 @@ export class HelpWidget implements OnInit {
   private readonly api = inject(HelpApiService);
   private readonly analytics = inject(AnalyticsService);
   private readonly document = inject(DOCUMENT);
+  private readonly site = inject(SiteSettingsService);
+
+  readonly supportAvailable = this.site.supportAvailable;
+  readonly tab = signal<'guide' | 'ticket'>('guide');
+  readonly hostUrl = signal<string | null>(null);
 
   readonly isOpen = signal(false);
   // True when this app is itself running inside the embeddable panel (/embed).
@@ -75,6 +82,8 @@ export class HelpWidget implements OnInit {
       return;
     }
     this.isOpen.set(true);
+    this.site.loadSupport();
+    this.hostUrl.set(this.document.defaultView?.location.href ?? null);
     if (this.state() === 'idle') {
       this.loadContent();
     }

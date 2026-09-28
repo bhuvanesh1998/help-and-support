@@ -1,0 +1,47 @@
+<header class="sr-head">
+  <a routerLink="/" class="sr-brand">
+    @if (site.logoUrl(); as logo) {
+      <img [src]="logo" [alt]="site.settings().brandName" height="28" />
+    } @else {
+      {{ site.settings().brandName }}
+    }
+  </a>
+  <ha-site-search />
+</header>
+
+<main class="sr-main">
+  <h1 class="sr-title">
+    @if (q()) { Results for “{{ q() }}” } @else { Search the user manual }
+  </h1>
+
+  @if (loading()) {
+    <p class="sr-msg" aria-busy="true">Searching…</p>
+  } @else if (failed()) {
+    <p class="sr-msg" role="alert">Search is unavailable right now. Please try again.</p>
+  } @else if (q().length < 2) {
+    <p class="sr-msg">Type at least two characters in the search box above.</p>
+  } @else if (!results().length) {
+    <p class="sr-msg">No manual pages match “{{ q() }}”. <a routerLink="/">Browse all manuals</a>.</p>
+  } @else {
+    <p class="sr-count">{{ results().length }} result{{ results().length === 1 ? '' : 's' }}</p>
+    <ol class="sr-list">
+      @for (r of results(); track r.pageId + (r.matchedStep?.id ?? '')) {
+        <li class="sr-item">
+          <a class="sr-link" [routerLink]="['/manual', r.pageId]" [fragment]="fragment(r)">
+            @for (p of parts(r.title); track $index) {<span [class.hl]="p.hit">{{ p.text }}</span>}
+          </a>
+          <div class="sr-meta">
+            @if (r.categoryName) { <span class="sr-cat">{{ r.categoryName }}</span> }
+            <code>{{ r.routePath }}</code>
+          </div>
+          @if (r.matchedStep; as st) {
+            <p class="sr-step">Step {{ st.stepNumber }} · {{ st.title }}</p>
+          }
+          @if (r.snippet) {
+            <p class="sr-snippet">@for (p of parts(r.snippet); track $index) {<span [class.hl]="p.hit">{{ p.text }}</span>}</p>
+          }
+        </li>
+      }
+    </ol>
+  }
+</main>

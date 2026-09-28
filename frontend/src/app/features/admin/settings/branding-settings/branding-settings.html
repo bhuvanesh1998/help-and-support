@@ -1,0 +1,78 @@
+<div class="af">
+  <header class="af-top">
+    <div class="af-top__text">
+      <h2 class="af-title">Branding</h2>
+      <p class="af-sub">The name, logos and footer text shown on the public user-manual site.</p>
+    </div>
+    <div class="af-top__actions">
+      @if (canManage()) {
+        <button mat-flat-button color="primary" [disabled]="saving() || !dirty()" (click)="save()">
+          <mat-icon aria-hidden="true">save</mat-icon> {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="af-alert af-alert--error" role="alert"><mat-icon aria-hidden="true">error_outline</mat-icon>{{ error() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="af-sub">Loading…</p>
+  } @else {
+    <section class="af-card">
+      <div class="af-card__head"><h3>Identity &amp; footer</h3><p>Shown in the top bar (when no logo is set) and the footer.</p></div>
+      <div class="af-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Brand name</mat-label>
+          <input matInput [ngModel]="model().brandName" (ngModelChange)="set('brandName', $event)" [disabled]="!canManage()" maxlength="80" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Copyright text</mat-label>
+          <input matInput [ngModel]="model().copyrightText" (ngModelChange)="set('copyrightText', $event)" [disabled]="!canManage()" maxlength="200" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Credit text</mat-label>
+          <input matInput [ngModel]="model().creditText" (ngModelChange)="set('creditText', $event)" [disabled]="!canManage()" maxlength="200" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Credit link URL</mat-label>
+          <input matInput type="url" [ngModel]="model().creditUrl" (ngModelChange)="set('creditUrl', $event)" [disabled]="!canManage()" placeholder="https://" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="af-card">
+      <div class="af-card__head"><h3>Logos</h3><p>Use a dark-coloured logo for light mode and a light-coloured one for dark mode. SVG or transparent PNG, about 30px tall.</p></div>
+      <div class="logo-grid">
+        @for (v of logoSlots; track v.key) {
+          <div class="logo-slot">
+            <div class="logo-preview" [class.logo-preview--dark]="v.bg === 'dark'">
+              @if (model()[v.key]; as url) {
+                <img [src]="url" [alt]="v.label + ' preview'" />
+              } @else {
+                <span class="logo-fallback">{{ model().brandName }}</span>
+              }
+            </div>
+            <mat-form-field appearance="outline" class="af-full">
+              <mat-label>{{ v.label }} URL</mat-label>
+              <input matInput [ngModel]="model()[v.key] ?? ''" (ngModelChange)="setLogo(v.key, $event)" [disabled]="!canManage()" />
+            </mat-form-field>
+            @if (canManage()) {
+              <div class="af-row">
+                <label class="upload-btn" [class.upload-btn--busy]="uploading() === v.key">
+                  <mat-icon aria-hidden="true">upload</mat-icon>
+                  {{ uploading() === v.key ? 'Uploading…' : 'Upload image' }}
+                  <input type="file" accept="image/*" hidden (change)="upload(v.key, $event)" [disabled]="!!uploading()" />
+                </label>
+                @if (model()[v.key]) {
+                  <button mat-button type="button" (click)="setLogo(v.key, '')">Remove</button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  }
+</div>

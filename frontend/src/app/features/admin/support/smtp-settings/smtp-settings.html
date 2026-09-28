@@ -1,0 +1,83 @@
+<div class="af">
+  <header class="af-top">
+    <div class="af-top__text">
+      <h2 class="af-title">Email (SMTP)</h2>
+      <p class="af-sub">The mail server used for ticket acknowledgements, staff notifications and replies.</p>
+    </div>
+    <div class="af-top__actions">
+      <button mat-flat-button color="primary" [disabled]="saving() || !dirty()" (click)="save()">
+        <mat-icon aria-hidden="true">save</mat-icon> {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="af-alert af-alert--error" role="alert"><mat-icon aria-hidden="true">error_outline</mat-icon>{{ error() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="af-sub">Loading…</p>
+  } @else {
+    <section class="af-card">
+      <div class="af-card__head"><h3>Server</h3></div>
+      <div class="af-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Host</mat-label>
+          <input matInput [ngModel]="model().host" (ngModelChange)="set('host', $event)" placeholder="smtp.example.com" autocomplete="off" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Port</mat-label>
+          <input matInput type="number" min="1" max="65535" [ngModel]="model().port" (ngModelChange)="set('port', +$event)" />
+        </mat-form-field>
+      </div>
+      <mat-slide-toggle [checked]="model().secure" (change)="setSecure($event.checked)">
+        Use TLS (SSL) on connect — usually port 465; leave off for STARTTLS on 587
+      </mat-slide-toggle>
+      <div class="af-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Username</mat-label>
+          <input matInput [ngModel]="model().username" (ngModelChange)="set('username', $event)" autocomplete="off" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input matInput type="password" autocomplete="new-password"
+                 [placeholder]="model().hasPassword ? '•••• saved' : ''"
+                 [ngModel]="password()" (ngModelChange)="password.set($event)" />
+          <mat-hint>{{ model().hasPassword ? 'Leave blank to keep the saved password.' : 'Write-only — it is never shown again after saving.' }}</mat-hint>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="af-card">
+      <div class="af-card__head"><h3>Sender</h3></div>
+      <div class="af-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>From name</mat-label>
+          <input matInput [ngModel]="model().fromName" (ngModelChange)="set('fromName', $event)" placeholder="Support Team" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>From email</mat-label>
+          <input matInput type="email" [ngModel]="model().fromEmail" (ngModelChange)="set('fromEmail', $event)" placeholder="support@yourcompany.com" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="af-card">
+      <div class="af-card__head"><h3>Send a test email</h3><p>Uses the saved settings — save first if you changed anything.</p></div>
+      <div class="af-row">
+        <mat-form-field appearance="outline" class="test-field">
+          <mat-label>Recipient</mat-label>
+          <input matInput type="email" [ngModel]="testTo()" (ngModelChange)="testTo.set($event)" (keydown.enter)="sendTest()" />
+        </mat-form-field>
+        <button mat-stroked-button type="button" [disabled]="testing() || dirty()" (click)="sendTest()">
+          <mat-icon aria-hidden="true">send</mat-icon> {{ testing() ? 'Sending…' : 'Send test email' }}
+        </button>
+      </div>
+      @if (testResult(); as r) {
+        <p class="af-alert" [class.af-alert--ok]="r.ok" [class.af-alert--error]="!r.ok" role="status">
+          <mat-icon aria-hidden="true">{{ r.ok ? 'check_circle' : 'error_outline' }}</mat-icon>{{ r.message }}
+        </p>
+      }
+    </section>
+  }
+</div>

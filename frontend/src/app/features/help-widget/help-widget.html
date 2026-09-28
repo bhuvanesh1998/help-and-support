@@ -17,7 +17,9 @@
   <aside class="ha-panel" role="dialog" aria-label="Help panel" aria-modal="true">
     <header class="ha-panel__header">
       <span class="ha-panel__title">
-        @if (state() === 'loaded' && page()) {
+        @if (tab() === 'ticket') {
+          Raise a ticket
+        } @else if (state() === 'loaded' && page()) {
           {{ page()!.title }}
         } @else {
           Help & User Manuals
@@ -28,7 +30,19 @@
       </button>
     </header>
 
+    @if (supportAvailable()) {
+      <div class="ha-panel__tabs" role="tablist" aria-label="Help panel sections">
+        <button type="button" role="tab" class="ha-panel__tab" [class.ha-panel__tab--on]="tab() === 'guide'"
+                [attr.aria-selected]="tab() === 'guide'" (click)="tab.set('guide')">Guide</button>
+        <button type="button" role="tab" class="ha-panel__tab" [class.ha-panel__tab--on]="tab() === 'ticket'"
+                [attr.aria-selected]="tab() === 'ticket'" (click)="tab.set('ticket')">Raise a ticket</button>
+      </div>
+    }
+
     <div class="ha-panel__body">
+      @if (tab() === 'ticket') {
+        <ha-support-form source="widget" [sourceUrl]="hostUrl()" [compact]="true" />
+      } @else {
       @switch (state()) {
         @case ('loading') {
           <div class="ha-panel__spinner">
@@ -40,6 +54,9 @@
           <div class="ha-panel__empty">
             <mat-icon class="ha-panel__empty-icon">menu_book</mat-icon>
             <p>No user manuals available for this page yet.</p>
+            @if (supportAvailable()) {
+              <button mat-flat-button color="primary" (click)="tab.set('ticket')">Raise a ticket</button>
+            }
           </div>
         }
 
@@ -94,6 +111,7 @@
             </button>
           </nav>
         }
+      }
       }
     </div>
   </aside>

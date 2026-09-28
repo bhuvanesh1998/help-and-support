@@ -1,0 +1,22 @@
+.logo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.logo-slot { display: flex; flex-direction: column; gap: 12px; }
+
+.logo-preview {
+  height: 96px; border-radius: 12px;
+  display: grid; place-items: center; padding: 12px;
+  background: #ffffff; color: #1a202c;
+  border: 1px solid var(--mat-sys-outline-variant);
+  &--dark { background: #111418; color: #f1f3f5; border-color: #2a2f36; }
+  img { max-height: 48px; max-width: 100%; object-fit: contain; }
+}
+.logo-fallback { font-weight: 700; font-size: 1.1rem; }
+
+.upload-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 0 16px; height: 36px; border-radius: 999px;
+  border: 1px solid var(--mat-sys-outline); color: var(--mat-sys-primary);
+  font-size: 0.875rem; font-weight: 500;
+  &:hover { background: color-mix(in srgb, var(--mat-sys-primary) 8%, transparent); }
+  &--busy { opacity: 0.6; pointer-events: none; }
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+}

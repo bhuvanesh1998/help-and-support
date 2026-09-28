@@ -39,6 +39,16 @@ import type {
   PermissionGroup,
   TrashItem,
 } from '../models/admin';
+import type {
+  AdminSupportConfig,
+  SiteSettings,
+  SmtpConfig,
+  SmtpConfigInput,
+  TicketDetail,
+  TicketListResponse,
+  TicketReply,
+  TicketStatus,
+} from '../models/support';
 
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
@@ -466,5 +476,50 @@ export class AdminApiService {
   }
   deleteUser(id: string) {
     return this.http.delete(`${this.b}/users/${id}`);
+  }
+
+  // ── Branding (site settings) ────────────────────────────────────────────────
+  getSiteSettings() {
+    return this.http.get<{ settings: SiteSettings }>(`${this.b}/site-settings`);
+  }
+  saveSiteSettings(settings: SiteSettings) {
+    return this.http.put<{ settings: SiteSettings }>(`${this.b}/site-settings`, settings);
+  }
+
+  // ── Support ────────────────────────────────────────────────────────────────
+  getSupportConfig() {
+    return this.http.get<{ config: AdminSupportConfig }>(`${this.b}/support/config`);
+  }
+  saveSupportConfig(config: AdminSupportConfig) {
+    return this.http.put<{ config: AdminSupportConfig }>(`${this.b}/support/config`, config);
+  }
+  getSmtpConfig() {
+    return this.http.get<{ config: SmtpConfig }>(`${this.b}/support/smtp`);
+  }
+  saveSmtpConfig(config: SmtpConfigInput) {
+    return this.http.put<{ config: SmtpConfig }>(`${this.b}/support/smtp`, config);
+  }
+  testSmtp(to: string) {
+    return this.http.post<{ ok: boolean }>(`${this.b}/support/smtp/test`, { to });
+  }
+  listTickets(q: { status?: TicketStatus | ''; q?: string; page?: number; pageSize?: number }) {
+    const params: Record<string, string | number> = {};
+    if (q.status) params['status'] = q.status;
+    if (q.q) params['q'] = q.q;
+    params['page'] = q.page ?? 1;
+    params['pageSize'] = q.pageSize ?? 20;
+    return this.http.get<TicketListResponse>(`${this.b}/support/tickets`, { params });
+  }
+  getTicket(id: string) {
+    return this.http.get<{ ticket: TicketDetail }>(`${this.b}/support/tickets/${id}`);
+  }
+  replyTicket(id: string, message: string, status?: TicketStatus) {
+    return this.http.post<{ reply: TicketReply; ticket: TicketDetail; emailed: boolean }>(
+      `${this.b}/support/tickets/${id}/replies`,
+      status ? { message, status } : { message },
+    );
+  }
+  updateTicketStatus(id: string, status: TicketStatus) {
+    return this.http.patch<{ ticket: TicketDetail }>(`${this.b}/support/tickets/${id}`, { status });
   }
 }

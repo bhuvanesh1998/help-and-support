@@ -146,3 +146,19 @@
 
   mat-icon { font-size: 16px; width: 16px; height: 16px; color: var(--mat-sys-primary); }
 }
+
+.ha-panel__tabs {
+  display: flex; gap: 6px; flex-shrink: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+.ha-panel__tab {
+  flex: 1; padding: 7px 10px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 0.84rem; font-weight: 600;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: transparent; color: var(--mat-sys-on-surface-variant);
+  &:hover { color: var(--mat-sys-on-surface); }
+  &--on, &--on:hover {
+    background: var(--mat-sys-primary); border-color: var(--mat-sys-primary); color: var(--mat-sys-on-primary);
+  }
+}

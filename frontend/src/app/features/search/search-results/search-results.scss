@@ -1,0 +1,54 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+}
+
+.sr-head {
+  position: sticky; top: 12px; z-index: 50;
+  display: flex; align-items: center; gap: 20px;
+  max-width: 960px; margin: 12px auto 0; padding: 10px 16px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--mat-sys-surface-container) 72%, transparent);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 70%, transparent);
+  box-shadow: 0 8px 28px -12px rgb(0 0 0 / 0.22);
+
+  ha-site-search { flex: 1; margin-left: auto; }
+  @media (max-width: 720px) { margin: 10px 12px 0; ha-site-search { flex: 0; } }
+}
+
+.sr-brand {
+  font-weight: 700; color: var(--mat-sys-on-surface); text-decoration: none; white-space: nowrap;
+  img { display: block; height: 28px; width: auto; }
+}
+
+.sr-main { max-width: 820px; margin: 0 auto; padding: 40px 20px 80px; }
+.sr-title { font-size: 1.6rem; margin: 0 0 8px; }
+.sr-msg, .sr-count { color: var(--mat-sys-on-surface-variant); }
+.sr-msg a { color: var(--mat-sys-primary); }
+
+.sr-list { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-direction: column; gap: 14px; }
+.sr-item {
+  padding: 16px 18px; border-radius: 14px;
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+.sr-link {
+  font-size: 1.05rem; font-weight: 700; color: var(--mat-sys-primary); text-decoration: none;
+  &:hover { text-decoration: underline; }
+}
+.sr-meta {
+  display: flex; gap: 10px; align-items: center; margin-top: 6px;
+  font-size: 0.78rem; color: var(--mat-sys-on-surface-variant);
+}
+.sr-cat {
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); font-weight: 600;
+}
+.sr-step { margin: 8px 0 0; font-size: 0.85rem; font-weight: 600; color: var(--mat-sys-tertiary); }
+.sr-snippet { margin: 6px 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--mat-sys-on-surface-variant); }
+.hl { background: color-mix(in srgb, var(--mat-sys-tertiary) 22%, transparent); border-radius: 3px; }

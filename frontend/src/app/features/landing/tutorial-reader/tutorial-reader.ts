@@ -170,6 +170,15 @@ export class TutorialReader implements OnDestroy {
         this.tutorial.set(res.tutorial);
         this.loading.set(false);
         this.activeStepId.set(res.tutorial.steps[0]?.id ?? '');
+        // Deep link from search: /manual/:id#step-<stepId>
+        const frag = this.route.snapshot.fragment;
+        if (frag?.startsWith('step-') && typeof window !== 'undefined') {
+          const stepId = frag.slice(5);
+          setTimeout(() => {
+            this.activeStepId.set(stepId);
+            document.getElementById(frag)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 120);
+        }
       },
       error: () => this.loading.set(false),
     });

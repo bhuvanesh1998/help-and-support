@@ -80,3 +80,13 @@ export const publicLimiter = rateLimit({
   windowMs: MINUTE,
   limit: 240,
 });
+
+/**
+ * Public support-ticket submission: a real person files one or two tickets; a
+ * bot filling the form gets five per window and is then refused.
+ */
+export const ticketLimiter = rateLimit({
+  ...shared,
+  windowMs: 15 * MINUTE,
+  limit: 5,
+});

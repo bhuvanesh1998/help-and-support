@@ -1,17 +1,29 @@
 <!-- ── Nav ──────────────────────────────────────────────────────────────── -->
-<header class="site-nav">
+<header class="site-nav" [class.site-nav--scrolled]="scrolled()">
   <div class="nav-inner">
     <!-- Logo -->
-    <span class="nav-logo" aria-label="HelpAssistant">
-      <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-        <circle cx="14" cy="14" r="14" fill="var(--mat-sys-primary)"/>
-        <path d="M9 14h10M14 9v10" stroke="var(--mat-sys-on-primary)" stroke-width="2.5" stroke-linecap="round"/>
-      </svg>
-      HelpAssistant
-    </span>
+    <a routerLink="/" class="nav-logo" [attr.aria-label]="site.settings().brandName + ' home'">
+      @if (site.logoUrl(); as logo) {
+        <img class="nav-logo-img" [src]="logo" [alt]="site.settings().brandName" height="30" />
+      } @else {
+        <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <circle cx="14" cy="14" r="14" fill="var(--mat-sys-primary)"/>
+          <path d="M9 14h10M14 9v10" stroke="var(--mat-sys-on-primary)" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <span class="nav-logo-text">{{ site.settings().brandName }}</span>
+      }
+    </a>
+
+    <!-- Search (center) -->
+    <div class="nav-search">
+      <ha-site-search />
+    </div>
 
     <!-- Controls -->
     <div class="nav-controls">
+      @if (site.supportAvailable()) {
+        <a href="#support" class="nav-link">Support</a>
+      }
       <!-- Palette picker -->
       <button mat-icon-button
               [matMenuTriggerFor]="paletteMenu"
@@ -29,10 +41,6 @@
               class="nav-icon-btn">
         <mat-icon>{{ theme.icon[theme.mode()] }}</mat-icon>
       </button>
-
-      <span class="nav-divider" aria-hidden="true"></span>
-
-      <a routerLink="/admin/login" class="nav-cta">Admin Login</a>
     </div>
   </div>
 </header>
@@ -70,7 +78,9 @@
     </p>
     <div class="hero-actions">
       <a href="#tutorials" class="btn-primary">Browse user manuals</a>
-      <a routerLink="/admin/login" class="btn-ghost">Go to Admin &rarr;</a>
+      @if (site.supportAvailable()) {
+        <a href="#support" class="btn-ghost">Raise a ticket &rarr;</a>
+      }
     </div>
     <div class="hero-stats">
       <div class="stat">
@@ -124,7 +134,7 @@
       </div>
     } @else if (tutorials().length === 0) {
       <div class="empty-state" role="status">
-        <p>No user manuals yet. <a routerLink="/admin/login">Add one in the admin &rarr;</a></p>
+        <p>No user manuals have been published yet.</p>
       </div>
     } @else if (newOnly()) {
       <!-- New view: recently-added manuals across all modules -->
@@ -242,10 +252,31 @@
   </div>
 </section>
 
+<!-- ── Support ───────────────────────────────────────────────────────────── -->
+@if (site.supportAvailable()) {
+  <section class="support-section" id="support" aria-labelledby="support-title">
+    <div class="section-inner support-inner">
+      <div class="support-copy">
+        <span class="hero-badge">Help &amp; Support</span>
+        <h2 class="section-title" id="support-title">Still stuck? Raise a ticket.</h2>
+        <p class="section-sub">{{ site.support()?.intro || 'Tell us what went wrong and our support team will get back to you by email.' }}</p>
+        <ul class="support-points">
+          <li><mat-icon aria-hidden="true">schedule</mat-icon> {{ site.support()?.slaText || '24x7 support · resolved within 24 hours max' }}</li>
+          <li><mat-icon aria-hidden="true">mark_email_read</mat-icon> Instant acknowledgement with your ticket number</li>
+          <li><mat-icon aria-hidden="true">forum</mat-icon> Replies arrive straight in your inbox</li>
+        </ul>
+      </div>
+      <div class="support-card">
+        <ha-support-form source="site" />
+      </div>
+    </div>
+  </section>
+}
+
 <!-- ── Footer ────────────────────────────────────────────────────────────── -->
 <footer class="site-footer">
   <div class="footer-inner">
-    <span>HelpAssistant &copy; 2026 &mdash; Angular 21 &middot; Express 5 &middot; Prisma 7 &middot; PostgreSQL</span>
-    <a routerLink="/admin/login">Admin</a>
+    <span>{{ site.settings().copyrightText }}</span>
+    <a [href]="site.settings().creditUrl" target="_blank" rel="noopener">{{ site.settings().creditText }}</a>
   </div>
 </footer>

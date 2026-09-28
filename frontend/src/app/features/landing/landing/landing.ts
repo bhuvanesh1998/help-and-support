@@ -2,24 +2,30 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  DOCUMENT,
+  DestroyRef,
   computed,
   inject,
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { Meta, Title } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { HelpApiService } from '../../../core/services/help-api';
 import { ThemeService } from '../../../core/services/theme.service';
+import { SiteSettingsService } from '../../../core/services/site-settings.service';
+import { SiteSearch } from '../../search/site-search/site-search';
+import { SupportForm } from '../../support/support-form/support-form';
 import type { CategorySummary, TutorialsResponse } from '../../../core/models/page';
 
 type Tutorial = TutorialsResponse['tutorials'][number];
 
 @Component({
   selector: 'ha-landing',
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, SiteSearch, SupportForm],
   templateUrl: './landing.html',
   styleUrl: './landing.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,6 +34,14 @@ export class Landing implements OnInit {
   private readonly api    = inject(HelpApiService);
   private readonly router = inject(Router);
   readonly theme          = inject(ThemeService);
+  readonly site           = inject(SiteSettingsService);
+  private readonly title  = inject(Title);
+  private readonly meta   = inject(Meta);
+  private readonly doc    = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** Floating nav tightens up once the page has scrolled. */
+  readonly scrolled = signal(false);
 
   readonly loading    = signal(true);
   readonly tutorials  = signal<Tutorial[]>([]);
@@ -78,6 +92,23 @@ export class Landing implements OnInit {
   );
 
   ngOnInit(): void {
+    this.site.loadSettings();
+    this.site.loadSupport();
+    const brand = this.site.settings().brandName;
+    this.title.setTitle(`${brand} User Manual · Step-by-step guides & support`);
+    const desc = 'Step-by-step user manuals for every screen, searchable by keyword, with 24x7 support ticketing.';
+    this.meta.updateTag({ name: 'description', content: desc });
+    this.meta.updateTag({ property: 'og:title', content: `${brand} User Manual` });
+    this.meta.updateTag({ property: 'og:description', content: desc });
+    this.meta.updateTag({ name: 'robots', content: 'index, follow' });
+
+    const win = this.doc.defaultView;
+    if (win) {
+      const onScroll = () => this.scrolled.set(win.scrollY > 8);
+      win.addEventListener('scroll', onScroll, { passive: true });
+      this.destroyRef.onDestroy(() => win.removeEventListener('scroll', onScroll));
+      onScroll();
+    }
     this.api.getAllTutorials().subscribe({
       next:  res => { this.tutorials.set(res.tutorials); this.loading.set(false); },
       error: ()  => this.loading.set(false),

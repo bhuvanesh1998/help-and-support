@@ -1,0 +1,13 @@
+.cat-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 8px 2px; border-radius: 12px;
+  background: var(--mat-sys-surface);
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+.cat-order { display: flex; flex-direction: column; }
+.cat-fields {
+  flex: 1; min-width: 0;
+  display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr); gap: 0 12px;
+  mat-form-field { width: 100%; }
+  @media (max-width: 720px) { grid-template-columns: 1fr; }
+}

@@ -14,6 +14,8 @@ import { ThemeService } from '../../../core/services/theme.service';
 import { ImageViewer } from '../../../core/components/image-viewer/image-viewer';
 import { renderStepMarkdown } from '../../../core/utils/step-markdown';
 import type { Page } from '../../../core/models/page';
+import { SiteSettingsService } from '../../../core/services/site-settings.service';
+import { SupportForm } from '../../support/support-form/support-form';
 
 /**
  * Chrome-less help panel rendered inside the embeddable widget's iframe.
@@ -22,7 +24,7 @@ import type { Page } from '../../../core/models/page';
  */
 @Component({
   selector: 'ha-embed-panel',
-  imports: [ImageViewer],
+  imports: [ImageViewer, SupportForm],
   templateUrl: './embed-panel.html',
   styleUrl: './embed-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -32,6 +34,16 @@ export class EmbedPanel implements OnInit, OnDestroy {
   private readonly api = inject(HelpApiService);
   private readonly theme = inject(ThemeService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly site = inject(SiteSettingsService);
+
+  /** Host opted into the support tab via the loader (`?s=1`). */
+  private readonly supportRequested = signal(false);
+  readonly supportAvailable = computed(
+    () => this.supportRequested() && this.site.widgetSupportAvailable(),
+  );
+  readonly tab = signal<'guide' | 'ticket'>('guide');
+  /** Host page route — sent with tickets so support knows where the user was. */
+  readonly hostRoute = signal('/');
 
   readonly state = signal<'loading' | 'loaded' | 'empty' | 'error'>('loading');
   readonly page = signal<Page | null>(null);
@@ -61,6 +73,8 @@ export class EmbedPanel implements OnInit, OnDestroy {
     // (?c=<color>, ?t=<theme>); both can also change live via postMessage.
     this.applyAccent(qp.get('c'));
     this.applyTheme(qp.get('t'));
+    this.supportRequested.set(qp.get('s') === '1');
+    if (this.supportRequested()) this.site.loadSupport();
     this.loadRoute(qp.get('r') ?? '/');
     try { window.parent.postMessage({ ha: true, type: 'ready' }, '*'); } catch { /* not framed */ }
   }
@@ -107,6 +121,7 @@ export class EmbedPanel implements OnInit, OnDestroy {
   }
 
   private loadRoute(path: string): void {
+    this.hostRoute.set(path || '/');
     const routePath = path.split('?')[0] || '/';
     this.state.set('loading');
     this.stepIndex.set(0);

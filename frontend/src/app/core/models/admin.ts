@@ -85,6 +85,8 @@ export interface WidgetConfig {
   position: 'right' | 'left';
   color: string;
   theme: 'auto' | 'light' | 'dark';
+  /** Show the "Raise a ticket" tab inside the embedded widget. */
+  supportEnabled?: boolean;
 }
 
 export interface AdminPage {

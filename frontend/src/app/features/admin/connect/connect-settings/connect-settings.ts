@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminApiService } from '../../../../core/services/admin-api';
@@ -33,6 +34,7 @@ type ThemePref = WidgetConfig['theme'];
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatSlideToggleModule,
     MatSnackBarModule,
     MatTooltipModule,
   ],
@@ -52,6 +54,7 @@ export class ConnectSettings implements OnInit {
   readonly animation = signal<Animation>('slide');
   readonly theme = signal<ThemePref>('auto');
   readonly label = signal('Need some help?');
+  readonly supportEnabled = signal(false);
 
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -97,6 +100,7 @@ export class ConnectSettings implements OnInit {
     position: this.position(),
     color: this.color(),
     theme: this.theme(),
+    supportEnabled: this.supportEnabled(),
   }));
   readonly dirty = computed(() => JSON.stringify(this.current()) !== this.saved());
 
@@ -156,6 +160,7 @@ export class ConnectSettings implements OnInit {
     this.position.set(c.position);
     this.color.set(c.color);
     this.theme.set(c.theme);
+    this.supportEnabled.set(!!c.supportEnabled);
   }
 
   setLauncher(l: Launcher): void { this.launcher.set(l); }

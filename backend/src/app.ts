@@ -10,6 +10,8 @@ import { uploadDir } from './lib/upload.js';
 import { healthRouter } from './routes/health.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { publicRouter } from './routes/public.routes.js';
+import { publicSupportRouter } from './routes/public-support.routes.js';
+import { siteSettingsRouter, smtpRouter, supportRouter } from './routes/admin/support.routes.js';
 import { pagesRouter } from './routes/admin/pages.routes.js';
 import { categoriesRouter } from './routes/admin/categories.routes.js';
 import { stepsRouter } from './routes/admin/steps.routes.js';
@@ -145,6 +147,8 @@ export function createApp(): Express {
 
   // ── Public API (unauthenticated) ─────────────────────────────────────────
   app.use('/api/public', publicLimiter, publicRouter);
+  // Branding, support form (own strict ticket limiter) and manual search.
+  app.use('/api/public', publicSupportRouter);
 
   // ── Embeddable widget loader (public script include) ─────────────────────
   app.get('/widget.js', async (_req: Request, res: Response) => {
@@ -294,6 +298,11 @@ function applyCfg(){
   app.use('/api/admin/analytics', requirePermission('analytics.view'), analyticsRouter);
   app.use('/api/admin/mcp', requireFeature('mcp', true), mcpAdminRouter);
   app.use('/api/admin/exports', requireFeature('exports'), exportsRouter);
+  // Branding + SMTP are site settings; SMTP is mounted before the support
+  // router so its settings guard, not the support one, applies.
+  app.use('/api/admin/site-settings', requireFeature('settings'), siteSettingsRouter);
+  app.use('/api/admin/support/smtp', requireFeature('settings'), smtpRouter);
+  app.use('/api/admin/support', requireFeature('support'), supportRouter);
 
   // SPA fallback in production — serve index.html for any unmatched non-API GET.
   // Express 5 / path-to-regexp v8 rejects a bare '*' route, so use middleware

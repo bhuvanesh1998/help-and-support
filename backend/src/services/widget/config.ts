@@ -15,6 +15,7 @@ export interface WidgetConfigData {
   position: string;
   color: string;
   theme: string;
+  supportEnabled: boolean;
 }
 
 export const WIDGET_DEFAULTS: WidgetConfigData = {
@@ -25,6 +26,7 @@ export const WIDGET_DEFAULTS: WidgetConfigData = {
   position: 'right',
   color: '#2e6f6a',
   theme: 'auto',
+  supportEnabled: true,
 };
 
 const LAUNCHERS = ['fab', 'tab', 'pill'];
@@ -50,6 +52,8 @@ export function sanitizeWidgetConfig(input: Record<string, unknown>): WidgetConf
     position: pick(input['position'], POSITIONS, WIDGET_DEFAULTS.position),
     color,
     theme: pick(input['theme'], THEMES, WIDGET_DEFAULTS.theme),
+    supportEnabled:
+      typeof input['supportEnabled'] === 'boolean' ? input['supportEnabled'] : WIDGET_DEFAULTS.supportEnabled,
   };
 }
 
@@ -64,6 +68,7 @@ export async function getWidgetConfig(): Promise<WidgetConfigData> {
     position: row.position,
     color: row.color,
     theme: row.theme,
+    supportEnabled: row.supportEnabled,
   };
 }
 
@@ -81,5 +86,6 @@ export async function saveWidgetConfig(data: WidgetConfigData): Promise<WidgetCo
     position: row.position,
     color: row.color,
     theme: row.theme,
+    supportEnabled: row.supportEnabled,
   };
 }

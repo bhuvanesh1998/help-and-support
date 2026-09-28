@@ -1,0 +1,58 @@
+// Shared layout for the Support / Branding / SMTP admin screens.
+:host { display: block; }
+
+.af { display: flex; flex-direction: column; gap: 18px; max-width: 1080px; padding-bottom: 8px; }
+
+.af-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  &__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  &__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+}
+.af-title { margin: 0; font-size: 1.375rem; font-weight: 700; color: var(--mat-sys-on-surface); letter-spacing: -0.01em; }
+.af-sub { margin: 0; font-size: 0.875rem; color: var(--mat-sys-on-surface-variant); line-height: 1.5; max-width: 720px; }
+
+.af-card {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 20px 22px; border-radius: 16px;
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+  &__head {
+    h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--mat-sys-on-surface); }
+    p { margin: 4px 0 0; font-size: 0.82rem; color: var(--mat-sys-on-surface-variant); }
+  }
+}
+
+.af-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 16px; }
+.af-grid mat-form-field, .af-full { width: 100%; }
+.af-hint { margin: -10px 0 4px; font-size: 0.76rem; color: var(--mat-sys-on-surface-variant); }
+
+.af-saved { display: inline-flex; align-items: center; gap: 4px; font-size: 0.82rem; font-weight: 600; color: var(--mat-sys-primary);
+  mat-icon { font-size: 18px; width: 18px; height: 18px; } }
+
+.af-alert {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  padding: 10px 14px; border-radius: 12px; font-size: 0.86rem;
+  &--error { color: var(--mat-sys-on-error-container); background: var(--mat-sys-error-container); }
+  &--ok { color: var(--mat-sys-on-primary-container); background: var(--mat-sys-primary-container); }
+}
+
+.af-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.af-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.af-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 6px 4px 12px; border-radius: 999px; font-size: 0.84rem;
+  background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container);
+  button { display: grid; place-items: center; width: 22px; height: 22px; border: none; border-radius: 50%;
+    background: transparent; color: inherit; cursor: pointer;
+    &:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+    mat-icon { font-size: 16px; width: 16px; height: 16px; } }
+}
+.af-chip-input {
+  border: 1px dashed var(--mat-sys-outline); border-radius: 999px; padding: 6px 12px;
+  background: transparent; color: var(--mat-sys-on-surface); font: inherit; font-size: 0.84rem; min-width: 140px;
+  &:focus { outline: none; border-color: var(--mat-sys-primary); }
+}
+
+.af-muted { color: var(--mat-sys-on-surface-variant); font-size: 0.85rem; }
+.test-field { min-width: 280px; flex: 1; max-width: 420px; }

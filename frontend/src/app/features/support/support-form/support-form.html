@@ -1,0 +1,97 @@
+@if (result(); as r) {
+  <div class="sf-success" role="status" aria-live="polite">
+    <div class="sf-success-icon" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h3>Ticket {{ r.number }} raised</h3>
+    <p>We've emailed an acknowledgement to <strong>{{ email() }}</strong>. Keep the ticket number handy for follow-ups.</p>
+    <p class="sf-sla-inline">{{ r.slaText || slaText() }}</p>
+    <button type="button" class="sf-btn sf-btn--ghost" (click)="reset()">Raise another ticket</button>
+  </div>
+} @else {
+  <form class="sf" (submit)="submit($event)" novalidate aria-label="Raise a support ticket">
+    <div class="sf-sla" role="note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
+      <span>{{ slaText() }}</span>
+    </div>
+
+    <div class="sf-grid">
+      <label class="sf-field">
+        <span class="sf-label">Name <em aria-hidden="true">*</em></span>
+        <input type="text" autocomplete="name" [value]="name()" (input)="name.set(val($event))"
+               [attr.aria-invalid]="!!err('name')" maxlength="120" required />
+        @if (err('name'); as m) { <span class="sf-err">{{ m }}</span> }
+      </label>
+
+      <label class="sf-field">
+        <span class="sf-label">Email <em aria-hidden="true">*</em></span>
+        <input type="email" autocomplete="email" [value]="email()" (input)="email.set(val($event))"
+               [attr.aria-invalid]="!!err('email')" maxlength="200" required />
+        @if (err('email'); as m) { <span class="sf-err">{{ m }}</span> }
+      </label>
+
+      <label class="sf-field">
+        <span class="sf-label">Phone <small>(optional)</small></span>
+        <input type="tel" autocomplete="tel" [value]="phone()" (input)="phone.set(val($event))"
+               [attr.aria-invalid]="!!err('phone')" maxlength="20" />
+        @if (err('phone'); as m) { <span class="sf-err">{{ m }}</span> }
+      </label>
+
+      <label class="sf-field">
+        <span class="sf-label">Category <em aria-hidden="true">*</em></span>
+        <select (change)="categoryId.set(val($event))" [attr.aria-invalid]="!!err('categoryId')" required>
+          <option value="" disabled [selected]="!categoryId()">Select a category</option>
+          @for (c of categories(); track c.id) {
+            <option [value]="c.id" [selected]="c.id === categoryId()">{{ c.label }}</option>
+          }
+        </select>
+        @if (err('categoryId'); as m) {
+          <span class="sf-err">{{ m }}</span>
+        } @else if (categoryHint()) {
+          <span class="sf-hint">{{ categoryHint() }}</span>
+        }
+      </label>
+
+      @if (priorities().length) {
+        <div class="sf-field sf-field--wide">
+          <span class="sf-label" id="sf-prio-label">Priority</span>
+          <div class="sf-chips" role="radiogroup" aria-labelledby="sf-prio-label">
+            @for (p of priorities(); track p) {
+              <button type="button" class="sf-chip" role="radio"
+                      [class.sf-chip--on]="priority() === p" [attr.aria-checked]="priority() === p"
+                      (click)="priority.set(priority() === p ? '' : p)">{{ p }}</button>
+            }
+          </div>
+        </div>
+      }
+
+      <label class="sf-field sf-field--wide">
+        <span class="sf-label">Subject <em aria-hidden="true">*</em></span>
+        <input type="text" [value]="subject()" (input)="subject.set(val($event))"
+               [attr.aria-invalid]="!!err('subject')" maxlength="200" required />
+        @if (err('subject'); as m) { <span class="sf-err">{{ m }}</span> }
+      </label>
+
+      <label class="sf-field sf-field--wide">
+        <span class="sf-label">Message <em aria-hidden="true">*</em></span>
+        <textarea [rows]="compact() ? 4 : 6" [value]="message()" (input)="message.set(val($event))"
+                  [attr.aria-invalid]="!!err('message')" maxlength="5000" required></textarea>
+        @if (err('message'); as m) { <span class="sf-err">{{ m }}</span> }
+      </label>
+
+      <!-- Honeypot: invisible to people, tempting to bots. -->
+      <div class="sf-hp" aria-hidden="true">
+        <label>Website
+          <input type="text" name="website" tabindex="-1" autocomplete="off"
+                 [value]="website()" (input)="website.set(val($event))" />
+        </label>
+      </div>
+    </div>
+
+    @if (error(); as e) { <div class="sf-alert" role="alert">{{ e }}</div> }
+
+    <button type="submit" class="sf-btn" [disabled]="sending()">
+      @if (sending()) { <span class="sf-spin" aria-hidden="true"></span> Sending… } @else { Submit ticket }
+    </button>
+  </form>
+}

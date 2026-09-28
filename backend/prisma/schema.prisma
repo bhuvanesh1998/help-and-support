@@ -314,6 +314,7 @@ model WidgetConfig {
   position    String   @default("right")         // right | left
   color       String   @default("#2e6f6a")
   theme       String   @default("auto")           // auto | light | dark
+  supportEnabled Boolean @default(true)          // show "Contact support" in the widget
   updatedById String?  @db.Uuid
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -616,4 +617,93 @@ model VoiceoverUsage {
   @@index([scriptId])
   @@index([provider, kind])
   @@map("voiceover_usage")
+}
+
+// ---------------------------------------------------------------------------
+//  Site branding + support desk (tickets, SMTP).
+// ---------------------------------------------------------------------------
+
+model SiteSettings {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String   @unique @default("default")
+  brandName     String   @default("HelpAssistant")
+  copyrightText String   @default("© 2026 Widescreen Digital Solutions. All rights reserved.")
+  creditText    String   @default("Software Designed & Developed by widescreen.in")
+  creditUrl     String   @default("https://widescreen.in")
+  logoLightUrl  String?
+  logoDarkUrl   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+model SupportConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @default("default")
+  enabled     Boolean  @default(true)
+  slaText     String   @default("Our support team works 24x7 — every issue is resolved within 24 hours at most.")
+  intro       String   @default("")
+  categories  Json
+  priorities  Json
+  notifyEmail String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("support_configs")
+}
+
+model SmtpConfig {
+  id                 String   @id @default(uuid()) @db.Uuid
+  name               String   @unique @default("default")
+  host               String   @default("")
+  port               Int      @default(587)
+  secure             Boolean  @default(false)
+  username           String   @default("")
+  passwordCiphertext String?
+  passwordIv         String?
+  passwordAuthTag    String?
+  fromName           String   @default("")
+  fromEmail          String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("smtp_configs")
+}
+
+model Ticket {
+  id            String        @id @default(uuid()) @db.Uuid
+  number        Int           @unique @default(autoincrement())
+  name          String
+  email         String
+  phone         String?
+  categoryId    String
+  categoryLabel String
+  priority      String        @default("Normal")
+  subject       String
+  message       String        @db.Text
+  sourceUrl     String?
+  source        String        @default("site") // site | widget
+  status        String        @default("open") // open | in_progress | resolved | closed
+  ackSentAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  replies       TicketReply[]
+
+  @@index([status, createdAt])
+  @@map("tickets")
+}
+
+model TicketReply {
+  id         String    @id @default(uuid()) @db.Uuid
+  ticketId   String    @db.Uuid
+  message    String    @db.Text
+  authorId   String?   @db.Uuid
+  authorName String
+  emailedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_replies")
 }

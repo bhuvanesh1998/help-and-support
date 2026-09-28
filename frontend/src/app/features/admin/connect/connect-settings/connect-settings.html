@@ -103,6 +103,13 @@
                 <code>{{ color() }}</code>
               </span>
             </div>
+
+            <div class="opt">
+              <span class="opt-label">Support</span>
+              <mat-slide-toggle [checked]="supportEnabled()" (change)="supportEnabled.set($event.checked)">
+                Show support ticket form in widget
+              </mat-slide-toggle>
+            </div>
           </div>
         </div>
 

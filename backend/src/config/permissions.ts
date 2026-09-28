@@ -153,6 +153,34 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'support',
+    label: 'Support & settings',
+    permissions: [
+      {
+        key: 'support.view',
+        label: 'View support tickets',
+        description: 'Read tickets raised from the help centre and the widget.',
+      },
+      {
+        key: 'support.manage',
+        label: 'Manage support',
+        description: 'Reply to tickets, change their status and edit the support form.',
+        implies: ['support.view'],
+      },
+      {
+        key: 'settings.view',
+        label: 'View site settings',
+        description: 'See branding and outgoing-mail (SMTP) settings.',
+      },
+      {
+        key: 'settings.manage',
+        label: 'Manage site settings',
+        description: 'Change branding, logos and the SMTP server used to send email.',
+        implies: ['settings.view'],
+      },
+    ],
+  },
+  {
     key: 'admin',
     label: 'Administration',
     permissions: [

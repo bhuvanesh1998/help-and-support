@@ -15,6 +15,9 @@
  *   data-icon       'question'|'chat'|'book'|'bulb'|'info'|'none' (default: question)
  *   data-label      Launcher text (tab/pill)             (default: contextual)
  *   data-animation  'slide'|'slide-side'|'scale'|'fade'|'none' (default: slide)
+ *   data-support    'on' | 'off' — show "Contact support" in the panel
+ *                   (default: the saved Connect-screen setting). Passed to
+ *                   /embed as &s=1 or &s=0.
  *
  * Runtime API (for a host app's own controls):
  *   window.haWidget.open() / .close() / .toggle()
@@ -30,6 +33,7 @@ export interface LoaderDefaults {
   label: string;
   animation: string;
   theme: string;
+  supportEnabled: boolean;
 }
 
 export function buildLoaderJs(defaults: LoaderDefaults): string {
@@ -51,6 +55,8 @@ export function buildLoaderJs(defaults: LoaderDefaults): string {
   var label = attr('data-label', cfg.label);
   var anim = oneOf(attr('data-animation', cfg.animation), ['slide', 'slide-side', 'scale', 'fade', 'none'], 'slide');
   var themePref = oneOf(attr('data-theme', cfg.theme), ['auto', 'light', 'dark'], 'auto');
+  var supportAttr = attr('data-support', '');
+  var support = supportAttr === 'on' ? true : supportAttr === 'off' ? false : !!cfg.supportEnabled;
   var z = 2147483000;
 
   function sideCss() { return pos === 'left' ? 'left:20px;' : 'right:20px;'; }
@@ -60,7 +66,7 @@ export function buildLoaderJs(defaults: LoaderDefaults): string {
   }
   function routeUrl() {
     return base + '/embed?r=' + encodeURIComponent(location.pathname + location.search)
-      + '&c=' + encodeURIComponent(color) + '&t=' + encodeURIComponent(hostMode());
+      + '&c=' + encodeURIComponent(color) + '&t=' + encodeURIComponent(hostMode()) + '&s=' + (support ? '1' : '0');
   }
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 

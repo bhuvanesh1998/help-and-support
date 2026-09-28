@@ -1,0 +1,83 @@
+<div class="af">
+  <header class="af-top">
+    <div class="af-top__text">
+      <h2 class="af-title">Support settings</h2>
+      <p class="af-sub">Controls the public "Raise a ticket" form on the manual site and inside the widget.</p>
+    </div>
+    <div class="af-top__actions">
+      <button mat-flat-button color="primary" [disabled]="saving() || !dirty()" (click)="save()">
+        <mat-icon aria-hidden="true">save</mat-icon> {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="af-alert af-alert--error" role="alert"><mat-icon aria-hidden="true">error_outline</mat-icon>{{ error() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="af-sub">Loading…</p>
+  } @else {
+    <section class="af-card">
+      <div class="af-card__head"><h3>General</h3><p>Turn ticketing on or off and set the copy customers see.</p></div>
+      <mat-slide-toggle [checked]="model().enabled" (change)="set('enabled', $event.checked)">
+        Accept support tickets
+      </mat-slide-toggle>
+      <div class="af-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>SLA text</mat-label>
+          <input matInput [ngModel]="model().slaText" (ngModelChange)="set('slaText', $event)" maxlength="140" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Notify email (new tickets)</mat-label>
+          <input matInput type="email" [ngModel]="model().notifyEmail" (ngModelChange)="set('notifyEmail', $event)" placeholder="support@yourcompany.com" />
+        </mat-form-field>
+      </div>
+      <mat-form-field appearance="outline" class="af-full">
+        <mat-label>Intro</mat-label>
+        <textarea matInput rows="3" [ngModel]="model().intro" (ngModelChange)="set('intro', $event)" maxlength="600"></textarea>
+      </mat-form-field>
+    </section>
+
+    <section class="af-card">
+      <div class="af-card__head">
+        <h3>Categories</h3>
+        <p>Shown in the form's Category dropdown, in this order. The ID is generated from the label.</p>
+      </div>
+      @for (c of model().categories; track $index; let i = $index, first = $first, last = $last) {
+        <div class="cat-row">
+          <div class="cat-order">
+            <button mat-icon-button type="button" [disabled]="first" (click)="moveCategory(i, -1)" aria-label="Move up"><mat-icon>arrow_upward</mat-icon></button>
+            <button mat-icon-button type="button" [disabled]="last" (click)="moveCategory(i, 1)" aria-label="Move down"><mat-icon>arrow_downward</mat-icon></button>
+          </div>
+          <div class="cat-fields">
+            <mat-form-field appearance="outline">
+              <mat-label>Label</mat-label>
+              <input matInput [ngModel]="c.label" (ngModelChange)="updateCategory(i, { label: $event })" maxlength="80" />
+              <mat-hint>ID: <code>{{ c.id }}</code></mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Description (hint)</mat-label>
+              <input matInput [ngModel]="c.description ?? ''" (ngModelChange)="updateCategory(i, { description: $event })" maxlength="200" />
+            </mat-form-field>
+          </div>
+          <button mat-icon-button type="button" (click)="removeCategory(i)" aria-label="Remove category" matTooltip="Remove"><mat-icon>delete_outline</mat-icon></button>
+        </div>
+      } @empty {
+        <p class="af-muted">No categories yet.</p>
+      }
+      <div><button mat-stroked-button type="button" (click)="addCategory()"><mat-icon>add</mat-icon> Add category</button></div>
+    </section>
+
+    <section class="af-card">
+      <div class="af-card__head"><h3>Priorities</h3><p>Optional priority choices. Press Enter to add.</p></div>
+      <div class="af-chips">
+        @for (p of model().priorities; track p) {
+          <span class="af-chip">{{ p }}<button type="button" (click)="removePriority(p)" [attr.aria-label]="'Remove ' + p"><mat-icon>close</mat-icon></button></span>
+        }
+        <input class="af-chip-input" placeholder="Add priority…" [value]="newPriority()"
+               (input)="newPriority.set($any($event.target).value)" (keydown)="onPriorityKey($event)" (blur)="addPriority()" />
+      </div>
+    </section>
+  }
+</div>

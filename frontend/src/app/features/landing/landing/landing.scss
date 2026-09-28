@@ -9,38 +9,88 @@
 
 .site-nav {
   position: sticky;
-  top: 0;
+  top: 12px;
   z-index: 100;
-  background: color-mix(in srgb, var(--mat-sys-surface) 90%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  max-width: 1160px;
+  margin: 12px auto 0;
+  padding: 0 16px;
+  transition: top 220ms ease, transform 220ms ease;
+
+  // Island surface lives on .nav-inner so the outer strip stays click-through-free
+  // and the rounded glass floats clear of the viewport edges.
 }
 
 .nav-inner {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 0 24px;
   height: 60px;
+  padding: 0 10px 0 18px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--mat-sys-surface-container) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 65%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in srgb, #fff 18%, transparent) inset,
+    0 10px 30px -14px rgb(0 0 0 / 0.25);
+  transition: height 220ms ease, box-shadow 220ms ease, background 220ms ease;
+}
+
+.site-nav--scrolled {
+  top: 8px;
+  .nav-inner {
+    height: 54px;
+    background: color-mix(in srgb, var(--mat-sys-surface-container) 78%, transparent);
+    box-shadow:
+      0 1px 0 0 color-mix(in srgb, #fff 14%, transparent) inset,
+      0 18px 44px -16px rgb(0 0 0 / 0.38);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav-inner { background: var(--mat-sys-surface-container); }
 }
 
 .nav-logo {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--mat-sys-on-surface);
+  text-decoration: none;
   user-select: none;
+}
+.nav-logo-img { display: block; height: 30px; width: auto; max-width: 180px; object-fit: contain; }
+
+.nav-search {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
 }
 
 .nav-controls {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+}
+
+.nav-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: none;
+  padding: 7px 12px;
+  border-radius: 999px;
+  transition: background 150ms, color 150ms;
+  &:hover {
+    color: var(--mat-sys-on-surface);
+    background: color-mix(in srgb, var(--mat-sys-on-surface) 8%, transparent);
+  }
 }
 
 .nav-icon-btn {
@@ -49,29 +99,12 @@
   &:hover { color: var(--mat-sys-on-surface) !important; }
 }
 
-.nav-divider {
-  display: inline-block;
-  width: 1px;
-  height: 20px;
-  background: var(--mat-sys-outline-variant);
-  margin: 0 6px;
-}
-
-.nav-cta {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--mat-sys-primary);
-  text-decoration: none;
-  padding: 7px 16px;
-  border: 1.5px solid var(--mat-sys-primary);
-  border-radius: 8px;
-  transition: background 150ms, color 150ms;
-  white-space: nowrap;
-
-  &:hover {
-    background: var(--mat-sys-primary);
-    color: var(--mat-sys-on-primary);
-  }
+@media (max-width: 720px) {
+  .site-nav { padding: 0 10px; margin-top: 10px; }
+  .nav-inner { padding: 0 6px 0 14px; gap: 6px; border-radius: 18px; }
+  .nav-search { justify-content: flex-end; }
+  .nav-link { display: none; }
+  .nav-logo-text { max-width: 44vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 // ── Palette menu (shared global styles in styles.scss; local overrides here) ──
@@ -585,4 +618,38 @@
   vertical-align: middle;
   color: var(--mat-sys-on-primary);
   background: var(--mat-sys-primary);
+}
+
+// ── Support ───────────────────────────────────────────────────────────────
+.support-section {
+  padding: 80px 24px;
+  background:
+    radial-gradient(1200px 400px at 10% 0%, color-mix(in srgb, var(--mat-sys-primary) 9%, transparent), transparent 70%),
+    var(--mat-sys-surface-container-low);
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  scroll-margin-top: 80px;
+}
+.support-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+  gap: 48px;
+  align-items: start;
+  @media (max-width: 900px) { grid-template-columns: 1fr; gap: 28px; }
+}
+.support-points {
+  list-style: none; padding: 0; margin: 24px 0 0;
+  display: flex; flex-direction: column; gap: 12px;
+  li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.92rem; color: var(--mat-sys-on-surface);
+  }
+  mat-icon { color: var(--mat-sys-primary); }
+}
+.support-card {
+  padding: 28px;
+  border-radius: 20px;
+  background: var(--mat-sys-surface);
+  border: 1px solid var(--mat-sys-outline-variant);
+  box-shadow: 0 20px 50px -28px rgb(0 0 0 / 0.35);
+  @media (max-width: 600px) { padding: 18px; }
 }

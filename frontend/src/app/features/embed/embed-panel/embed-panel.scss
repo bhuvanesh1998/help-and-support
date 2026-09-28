@@ -101,3 +101,18 @@
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   &--primary { background: var(--ha-accent); color: var(--ha-on-accent); border-color: transparent; }
 }
+
+// Guide / Raise-a-ticket tabs, sitting on the accent header.
+.embed-tabs {
+  display: flex; gap: 4px; flex-shrink: 0;
+  padding: 0 12px 10px;
+  background: var(--ha-accent);
+}
+.embed-tab {
+  flex: 1; padding: 7px 10px; border: none; border-radius: 8px; cursor: pointer;
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  background: color-mix(in srgb, var(--ha-on-accent) 14%, transparent);
+  color: var(--ha-on-accent);
+  &:hover { background: color-mix(in srgb, var(--ha-on-accent) 26%, transparent); }
+  &--on, &--on:hover { background: var(--mat-sys-surface, #fff); color: var(--ha-accent); }
+}

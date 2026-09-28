@@ -1,0 +1,146 @@
+<div class="af inbox-wrap">
+  <header class="af-top">
+    <div class="af-top__text">
+      <h2 class="af-title">Support tickets</h2>
+      <p class="af-sub">Tickets raised from the manual site and the help widget.</p>
+    </div>
+  </header>
+
+  <div class="inbox-filters">
+    <div class="status-chips" role="tablist" aria-label="Filter by status">
+      <button type="button" role="tab" class="s-chip" [class.s-chip--on]="status() === ''" [attr.aria-selected]="status() === ''" (click)="setStatusFilter('')">
+        All <span class="s-count">{{ allCount() }}</span>
+      </button>
+      @for (s of statuses; track s) {
+        <button type="button" role="tab" class="s-chip" [attr.data-status]="s" [class.s-chip--on]="status() === s" [attr.aria-selected]="status() === s" (click)="setStatusFilter(s)">
+          {{ statusLabel[s] }} <span class="s-count">{{ counts()[s] }}</span>
+        </button>
+      }
+    </div>
+    <mat-form-field appearance="outline" class="inbox-search" subscriptSizing="dynamic">
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput placeholder="Search number, name, email, subject" (input)="onSearch($any($event.target).value)" />
+    </mat-form-field>
+  </div>
+
+  <div class="inbox" [class.inbox--detail]="!!selectedId()">
+    <!-- List -->
+    <section class="inbox-list af-card">
+      @if (listLoading() && !tickets().length) {
+        <div class="center"><mat-spinner diameter="32" /></div>
+      } @else if (listError()) {
+        <p class="af-alert af-alert--error">{{ listError() }}</p>
+      } @else if (!tickets().length) {
+        <p class="af-muted center">No tickets match.</p>
+      } @else {
+        <ul class="t-list">
+          @for (t of tickets(); track t.id) {
+            <li>
+              <button type="button" class="t-item" [class.t-item--on]="selectedId() === t.id" (click)="select(t)">
+                <span class="t-row">
+                  <span class="t-num">{{ t.number }}</span>
+                  <span class="t-badge" [attr.data-status]="t.status">{{ statusLabel[t.status] }}</span>
+                </span>
+                <span class="t-subject">{{ t.subject }}</span>
+                <span class="t-meta">
+                  {{ t.name }} · {{ t.categoryLabel }}@if (t.priority) { · <strong class="t-prio">{{ t.priority }}</strong> }
+                </span>
+                <span class="t-meta">
+                  {{ t.updatedAt | date: 'MMM d, h:mm a' }}
+                  @if (t.replyCount) { · {{ t.replyCount }} repl{{ t.replyCount === 1 ? 'y' : 'ies' }} }
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+        <mat-paginator [length]="total()" [pageIndex]="page() - 1" [pageSize]="pageSize()"
+                       [pageSizeOptions]="[10, 20, 50]" (page)="onPage($event)" aria-label="Ticket pages" />
+      }
+    </section>
+
+    <!-- Detail -->
+    <section class="inbox-detail af-card">
+      @if (!selectedId()) {
+        <div class="center af-muted detail-empty">
+          <mat-icon>inbox</mat-icon>
+          <p>Select a ticket to view the conversation.</p>
+        </div>
+      } @else if (detailLoading()) {
+        <div class="center"><mat-spinner diameter="32" /></div>
+      } @else if (ticket(); as t) {
+        <div class="d-head">
+          <button mat-icon-button class="d-back" (click)="closeDetail()" aria-label="Back to list"><mat-icon>arrow_back</mat-icon></button>
+          <div class="d-title">
+            <h3>{{ t.number }} · {{ t.subject }}</h3>
+            <p class="af-muted">{{ t.categoryLabel }}@if (t.priority) { · {{ t.priority }} } · via {{ t.source === 'widget' ? 'widget' : 'website' }}</p>
+          </div>
+          @if (canManage()) {
+            <mat-form-field appearance="outline" class="d-status" subscriptSizing="dynamic">
+              <mat-label>Status</mat-label>
+              <mat-select [value]="t.status" (selectionChange)="changeStatus($event.value)" [disabled]="statusSaving()">
+                @for (s of statuses; track s) { <mat-option [value]="s">{{ statusLabel[s] }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+          } @else {
+            <span class="t-badge" [attr.data-status]="t.status">{{ statusLabel[t.status] }}</span>
+          }
+        </div>
+
+        <dl class="d-contact">
+          <div><dt>Name</dt><dd>{{ t.name }}</dd></div>
+          <div><dt>Email</dt><dd><a [href]="'mailto:' + t.email">{{ t.email }}</a></dd></div>
+          @if (t.phone) { <div><dt>Phone</dt><dd>{{ t.phone }}</dd></div> }
+          @if (t.sourceUrl) { <div class="d-wide"><dt>Page</dt><dd><code>{{ t.sourceUrl }}</code></dd></div> }
+        </dl>
+
+        <ol class="thread">
+          <li class="msg msg--customer">
+            <div class="msg-head"><strong>{{ t.name }}</strong><span>{{ t.createdAt | date: 'MMM d, y, h:mm a' }}</span></div>
+            <p class="msg-body">{{ t.message }}</p>
+          </li>
+          @for (r of t.replies; track r.id) {
+            <li class="msg msg--staff">
+              <div class="msg-head">
+                <strong>{{ r.authorName || 'Support' }}</strong>
+                <span>{{ r.createdAt | date: 'MMM d, y, h:mm a' }}</span>
+              </div>
+              <p class="msg-body">{{ r.message }}</p>
+              <span class="msg-mail" [class.msg-mail--no]="!r.emailedAt">
+                <mat-icon aria-hidden="true">{{ r.emailedAt ? 'mark_email_read' : 'unsubscribe' }}</mat-icon>
+                {{ r.emailedAt ? 'Emailed ' + (r.emailedAt | date: 'MMM d, h:mm a') : 'Not emailed' }}
+              </span>
+            </li>
+          }
+        </ol>
+
+        @if (lastEmailed() === false) {
+          <p class="af-alert af-alert--error" role="alert">
+            <mat-icon aria-hidden="true">warning</mat-icon>The last reply was saved but could not be emailed. Check the SMTP settings.
+          </p>
+        }
+
+        @if (canManage()) {
+          <div class="composer">
+            <mat-form-field appearance="outline" class="af-full" subscriptSizing="dynamic">
+              <mat-label>Reply to {{ t.name }}</mat-label>
+              <textarea matInput rows="5" [ngModel]="reply()" (ngModelChange)="reply.set($event)" maxlength="10000"></textarea>
+            </mat-form-field>
+            <div class="af-row composer-actions">
+              <mat-form-field appearance="outline" class="d-status" subscriptSizing="dynamic">
+                <mat-label>Then set status</mat-label>
+                <mat-select [value]="replyStatus()" (selectionChange)="replyStatus.set($event.value)">
+                  <mat-option value="">Keep ({{ statusLabel[t.status] }})</mat-option>
+                  @for (s of statuses; track s) { <mat-option [value]="s">{{ statusLabel[s] }}</mat-option> }
+                </mat-select>
+              </mat-form-field>
+              <button mat-flat-button color="primary" [disabled]="sending() || !reply().trim()" (click)="sendReply()">
+                <mat-icon aria-hidden="true">send</mat-icon>
+                {{ sending() ? 'Sending…' : 'Send reply & email customer' }}
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </section>
+  </div>
+</div>

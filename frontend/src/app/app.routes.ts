@@ -13,6 +13,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/landing/tutorial-reader/tutorial-reader').then((m) => m.TutorialReader),
   },
+  {
+    path: 'search',
+    loadComponent: () =>
+      import('./features/search/search-results/search-results').then((m) => m.SearchResults),
+  },
   // Back-compat: old /tutorials/:id links redirect to the renamed route.
   { path: 'tutorials/:id', redirectTo: 'manual/:id' },
   {
@@ -130,6 +135,34 @@ export const routes: Routes = [
             './features/admin/settings/voiceover-settings/voiceover-settings'
           ).then((m) => m.VoiceoverSettingsPage),
         canActivate: [permissionGuard('voiceover.settings')],
+      },
+      {
+        path: 'settings/branding',
+        loadComponent: () =>
+          import('./features/admin/settings/branding-settings/branding-settings').then(
+            (m) => m.BrandingSettings,
+          ),
+        canActivate: [permissionGuard('settings.view')],
+      },
+      {
+        path: 'support/tickets',
+        loadComponent: () =>
+          import('./features/admin/support/tickets-inbox/tickets-inbox').then((m) => m.TicketsInbox),
+        canActivate: [permissionGuard('support.view')],
+      },
+      {
+        path: 'support/settings',
+        loadComponent: () =>
+          import('./features/admin/support/support-settings/support-settings').then(
+            (m) => m.SupportSettings,
+          ),
+        canActivate: [permissionGuard('support.manage')],
+      },
+      {
+        path: 'support/smtp',
+        loadComponent: () =>
+          import('./features/admin/support/smtp-settings/smtp-settings').then((m) => m.SmtpSettings),
+        canActivate: [permissionGuard('support.manage')],
       },
       {
         path: 'mcp',
