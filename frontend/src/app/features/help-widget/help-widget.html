@@ -19,6 +19,8 @@
       <span class="ha-panel__title">
         @if (tab() === 'ticket') {
           Raise a ticket
+        } @else if (tab() === 'track') {
+          My tickets
         } @else if (state() === 'loaded' && page()) {
           {{ page()!.title }}
         } @else {
@@ -36,12 +38,16 @@
                 [attr.aria-selected]="tab() === 'guide'" (click)="tab.set('guide')">Guide</button>
         <button type="button" role="tab" class="ha-panel__tab" [class.ha-panel__tab--on]="tab() === 'ticket'"
                 [attr.aria-selected]="tab() === 'ticket'" (click)="tab.set('ticket')">Raise a ticket</button>
+        <button type="button" role="tab" class="ha-panel__tab" [class.ha-panel__tab--on]="tab() === 'track'"
+                [attr.aria-selected]="tab() === 'track'" (click)="trackTarget.set(null); tab.set('track')">My tickets</button>
       </div>
     }
 
     <div class="ha-panel__body">
       @if (tab() === 'ticket') {
-        <ha-support-form source="widget" [sourceUrl]="hostUrl()" [compact]="true" />
+        <ha-support-form source="widget" [sourceUrl]="hostUrl()" [compact]="true" (track)="trackRaised($event)" />
+      } @else if (tab() === 'track') {
+        <ha-ticket-tracker [compact]="true" [initial]="trackTarget()" />
       } @else {
       @switch (state()) {
         @case ('loading') {

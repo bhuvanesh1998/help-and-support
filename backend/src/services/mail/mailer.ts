@@ -184,6 +184,28 @@ ${t.message}
   return { to, subject: `[${num}] New ticket (${t.priority}): ${t.subject}`, html, text, replyTo: t.email };
 }
 
+export async function ticketFollowUpEmail(
+  t: TicketMailInput,
+  message: string,
+  to: string,
+): Promise<MailMessage> {
+  const { brandName } = await getSiteSettings();
+  const num = formatTicketNumber(t.number);
+  const html = layout(
+    brandName,
+    `Customer follow-up on ${num}`,
+    `<p style="margin:0 0 12px">${escapeHtml(t.name)} &lt;${escapeHtml(t.email)}&gt; wrote on <strong>${escapeHtml(t.subject)}</strong>:</p>
+${quote(message)}`,
+  );
+  const text = `Customer follow-up on ${num}
+
+${t.name} <${t.email}> wrote on "${t.subject}":
+
+${message}
+`;
+  return { to, subject: `[${num}] Customer follow-up: ${t.subject}`, html, text, replyTo: t.email };
+}
+
 export async function ticketReplyEmail(t: TicketMailInput, reply: string): Promise<MailMessage> {
   const { brandName } = await getSiteSettings();
   const num = formatTicketNumber(t.number);

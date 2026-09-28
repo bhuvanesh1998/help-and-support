@@ -19,12 +19,13 @@ import type { Page, TutorialStep } from '../../core/models/page';
 import { StepCard } from './step-card/step-card';
 import { SiteSettingsService } from '../../core/services/site-settings.service';
 import { SupportForm } from '../support/support-form/support-form';
+import { TicketTracker } from '../support/ticket-tracker/ticket-tracker';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'not-found' | 'error';
 
 @Component({
   selector: 'ha-help-widget',
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, StepCard, YoutubePlayer, SupportForm],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, StepCard, YoutubePlayer, SupportForm, TicketTracker],
   templateUrl: './help-widget.html',
   styleUrl: './help-widget.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -36,7 +37,13 @@ export class HelpWidget implements OnInit {
   private readonly site = inject(SiteSettingsService);
 
   readonly supportAvailable = this.site.supportAvailable;
-  readonly tab = signal<'guide' | 'ticket'>('guide');
+  readonly tab = signal<'guide' | 'ticket' | 'track'>('guide');
+  readonly trackTarget = signal<{ number: string; email: string } | null>(null);
+
+  trackRaised(t: { number: string; email: string }): void {
+    this.trackTarget.set(t);
+    this.tab.set('track');
+  }
   readonly hostUrl = signal<string | null>(null);
 
   readonly isOpen = signal(false);

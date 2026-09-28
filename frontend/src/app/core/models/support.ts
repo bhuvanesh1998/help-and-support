@@ -94,6 +94,7 @@ export interface TicketReply {
   id: string;
   message: string;
   authorName: string | null;
+  fromCustomer?: boolean;
   emailedAt: string | null;
   createdAt: string;
 }
@@ -120,3 +121,24 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   logoLightUrl: null,
   logoDarkUrl: null,
 };
+
+/** Requester-facing ticket view returned by the public tracker. */
+export interface TrackedTicket {
+  number: string;
+  subject: string;
+  categoryLabel: string;
+  priority: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+  replies: { id: string; message: string; fromCustomer: boolean; authorName: string; createdAt: string }[];
+}
+
+/** A ticket this browser raised, remembered so the tracker can list it. */
+export interface RememberedTicket {
+  number: string;
+  email: string;
+  subject: string;
+  createdAt: string;
+}

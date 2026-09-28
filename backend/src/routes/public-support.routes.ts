@@ -9,13 +9,14 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../utils/app-error.js';
-import { ticketLimiter } from '../middleware/rate-limit.js';
+import { ticketLimiter, trackLimiter } from '../middleware/rate-limit.js';
 import { EMAIL_RE, getSiteSettings, getSupportConfig } from '../services/support/settings.js';
 import { getWidgetConfig } from '../services/widget/config.js';
 import {
   formatTicketNumber,
   ticketAckEmail,
   ticketNotifyEmail,
+  ticketFollowUpEmail,
   trySendMail,
 } from '../services/mail/mailer.js';
 
@@ -129,6 +130,80 @@ publicSupportRouter.post('/support/tickets', ticketLimiter, async (req: Request,
   });
 
   res.status(201).json({ ticket: { number: formatTicketNumber(ticket.number), slaText: cfg.slaText } });
+});
+
+/** Parse 'HA-000123', '#123' or '123' into the raw ticket number. */
+function parseTicketNumber(raw: unknown): number | null {
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
+  const m = /^\s*#?(?:HA-?)?0*(\d{1,9})\s*$/i.exec(String(raw));
+  return m ? Number(m[1]) : null;
+}
+
+/** Find a ticket by number + requester email. Same 404 for either mismatch. */
+async function findOwnTicket(body: Record<string, unknown>) {
+  const number = parseTicketNumber(body['number']);
+  const email = typeof body['email'] === 'string' ? body['email'].trim().toLowerCase() : '';
+  const notFound = AppError.notFound('No ticket matches that number and email.');
+  if (!number || !email) throw notFound;
+  const ticket = await prisma.ticket.findUnique({
+    where: { number },
+    include: { replies: { orderBy: { createdAt: 'asc' } } },
+  });
+  if (!ticket || ticket.email.toLowerCase() !== email) throw notFound;
+  return ticket;
+}
+
+/** Requester-safe view: no internal ids, admin emails or source URLs. */
+function publicTicket(t: Awaited<ReturnType<typeof findOwnTicket>>) {
+  return {
+    number: formatTicketNumber(t.number),
+    subject: t.subject,
+    categoryLabel: t.categoryLabel,
+    priority: t.priority,
+    status: t.status,
+    message: t.message,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    replies: t.replies.map((r) => ({
+      id: r.id,
+      message: r.message,
+      fromCustomer: r.fromCustomer,
+      authorName: r.fromCustomer ? t.name : 'Support team',
+      createdAt: r.createdAt,
+    })),
+  };
+}
+
+/** POST /api/public/support/tickets/track {number,email} — POST keeps the email out of URLs/logs. */
+publicSupportRouter.post('/support/tickets/track', trackLimiter, async (req: Request, res: Response) => {
+  const ticket = await findOwnTicket((req.body ?? {}) as Record<string, unknown>);
+  res.json({ ticket: publicTicket(ticket) });
+});
+
+/** POST /api/public/support/tickets/track/reply {number,email,message} — requester follow-up. */
+publicSupportRouter.post('/support/tickets/track/reply', trackLimiter, async (req: Request, res: Response) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const ticket = await findOwnTicket(body);
+  if (ticket.status === 'closed') {
+    throw AppError.badRequest('This ticket is closed. Please raise a new ticket.');
+  }
+  const message = field(body, 'message', 2, 5000, 'Message');
+  await prisma.ticketReply.create({
+    data: { ticketId: ticket.id, message, authorName: ticket.name, fromCustomer: true },
+  });
+  // A customer writing back on a resolved ticket means it isn't resolved.
+  await prisma.ticket.update({
+    where: { id: ticket.id },
+    data: { status: ticket.status === 'resolved' ? 'open' : ticket.status },
+  });
+  const cfg = await getSupportConfig();
+  if (cfg.notifyEmail) {
+    void ticketFollowUpEmail(ticket, message, cfg.notifyEmail)
+      .then((m) => trySendMail(m, 'ticket-followup'))
+      .catch(() => undefined);
+  }
+  const fresh = await findOwnTicket(body);
+  res.status(201).json({ ticket: publicTicket(fresh) });
 });
 
 /**

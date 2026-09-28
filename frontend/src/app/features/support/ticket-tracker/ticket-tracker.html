@@ -1,0 +1,85 @@
+@if (ticket(); as t) {
+  <section class="tt-view" aria-live="polite">
+    <div class="tt-bar">
+      <button type="button" class="tt-link" (click)="back()">‹ All tickets</button>
+      <button type="button" class="tt-link" (click)="refresh()" [disabled]="loading()">Refresh</button>
+    </div>
+
+    <header class="tt-head">
+      <span class="tt-num">{{ t.number }}</span>
+      <span class="tt-status tt-status--{{ t.status }}">{{ statusLabel() }}</span>
+    </header>
+    <h3 class="tt-subject">{{ t.subject }}</h3>
+    <p class="tt-meta">{{ t.categoryLabel }} · {{ t.priority }} · Raised {{ t.createdAt | date: 'MMM d, h:mm a' }}</p>
+
+    <ol class="tt-steps" aria-label="Ticket progress">
+      @for (s of stages; track s; let i = $index) {
+        <li [class.tt-step--done]="i <= stage()" [attr.aria-current]="i === stage() ? 'step' : null">{{ s }}</li>
+      }
+    </ol>
+
+    <ol class="tt-thread">
+      <li class="tt-msg tt-msg--me">
+        <div class="tt-msg-head"><strong>You</strong><span>{{ t.createdAt | date: 'MMM d, h:mm a' }}</span></div>
+        <p>{{ t.message }}</p>
+      </li>
+      @for (r of t.replies; track r.id) {
+        <li class="tt-msg" [class.tt-msg--me]="r.fromCustomer" [class.tt-msg--team]="!r.fromCustomer">
+          <div class="tt-msg-head">
+            <strong>{{ r.fromCustomer ? 'You' : r.authorName }}</strong>
+            <span>{{ r.createdAt | date: 'MMM d, h:mm a' }}</span>
+          </div>
+          <p>{{ r.message }}</p>
+        </li>
+      } @empty {
+        <li class="tt-wait">Our team has your ticket and will reply here and by email.</li>
+      }
+    </ol>
+
+    @if (canFollowUp()) {
+      <form class="tt-reply" (submit)="send($event)" aria-label="Add a follow-up">
+        <textarea rows="3" maxlength="5000" placeholder="Add more details or reply to our team…"
+                  [value]="followUp()" (input)="followUp.set(val($event))"></textarea>
+        @if (sendError(); as m) { <p class="tt-err" role="alert">{{ m }}</p> }
+        <button type="submit" class="tt-btn" [disabled]="sending() || followUp().trim().length < 2">
+          {{ sending() ? 'Sending…' : 'Send follow-up' }}
+        </button>
+      </form>
+    } @else {
+      <p class="tt-wait">This ticket is closed. Raise a new ticket if you still need help.</p>
+    }
+  </section>
+} @else {
+  <section class="tt-find">
+    @if (myTickets().length) {
+      <h3 class="tt-h">Your tickets</h3>
+      <ul class="tt-list">
+        @for (m of myTickets(); track m.number) {
+          <li>
+            <button type="button" class="tt-item" (click)="open(m.number, m.email)">
+              <span class="tt-item-main"><strong>{{ m.number }}</strong> {{ m.subject }}</span>
+              <span class="tt-item-sub">{{ m.createdAt | date: 'MMM d, y' }}</span>
+            </button>
+            <button type="button" class="tt-x" aria-label="Remove from this list" (click)="forget(m.number, $event)">×</button>
+          </li>
+        }
+      </ul>
+    }
+
+    <h3 class="tt-h">Track a ticket</h3>
+    <form class="tt-form" (submit)="lookup($event)" novalidate>
+      <label>
+        <span>Ticket number</span>
+        <input type="text" placeholder="HA-000123" autocomplete="off" maxlength="20"
+               [value]="number()" (input)="number.set(val($event))" />
+      </label>
+      <label>
+        <span>Email used</span>
+        <input type="email" autocomplete="email" maxlength="200"
+               [value]="email()" (input)="email.set(val($event))" />
+      </label>
+      @if (error(); as m) { <p class="tt-err" role="alert">{{ m }}</p> }
+      <button type="submit" class="tt-btn" [disabled]="loading()">{{ loading() ? 'Looking up…' : 'Track ticket' }}</button>
+    </form>
+  </section>
+}

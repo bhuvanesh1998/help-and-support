@@ -1,11 +1,21 @@
 <div class="embed">
   <header class="embed-head">
     <span class="embed-title">
-      @if (tab() === 'ticket') { Raise a ticket } @else if (state() === 'loaded' && page(); as p) { {{ p.title }} } @else { Help }
+      @if (tab() === 'ticket') { Raise a ticket } @else if (tab() === 'track') { My tickets } @else if (state() === 'loaded' && page(); as p) { {{ p.title }} } @else { Help }
     </span>
+    <span class="embed-actions">
+    @if (supportAvailable()) {
+      <button type="button" class="embed-support" [class.embed-support--on]="tab() !== 'guide'" (click)="openSupport()"
+              [attr.aria-label]="tab() !== 'guide' ? 'Back to guide' : 'Contact support'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 13v-1a8 8 0 0 1 16 0v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="3" y="13" width="4" height="6" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="17" y="13" width="4" height="6" rx="1.5" stroke="currentColor" stroke-width="2"/></svg>
+        <span>{{ tab() !== 'guide' ? 'Guide' : 'Support' }}</span>
+        @if (tab() === 'guide' && myTicketCount()) { <em class="embed-badge">{{ myTicketCount() }}</em> }
+      </button>
+    }
     <button class="embed-close" (click)="close()" aria-label="Close help">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
+    </span>
   </header>
 
   @if (supportAvailable()) {
@@ -14,6 +24,10 @@
               [attr.aria-selected]="tab() === 'guide'" (click)="tab.set('guide')">Guide</button>
       <button type="button" role="tab" class="embed-tab" [class.embed-tab--on]="tab() === 'ticket'"
               [attr.aria-selected]="tab() === 'ticket'" (click)="tab.set('ticket')">Raise a ticket</button>
+      <button type="button" role="tab" class="embed-tab" [class.embed-tab--on]="tab() === 'track'"
+              [attr.aria-selected]="tab() === 'track'" (click)="trackTarget.set(null); tab.set('track')">
+        My tickets @if (myTicketCount()) { ({{ myTicketCount() }}) }
+      </button>
     </div>
   }
 
@@ -27,7 +41,9 @@
 
   <div class="embed-body">
     @if (tab() === 'ticket') {
-      <ha-support-form source="widget" [sourceUrl]="hostRoute()" [compact]="true" />
+      <ha-support-form source="widget" [sourceUrl]="hostRoute()" [compact]="true" (track)="trackRaised($event)" />
+    } @else if (tab() === 'track') {
+      <ha-ticket-tracker [compact]="true" [initial]="trackTarget()" />
     } @else {
     @switch (state()) {
       @case ('loading') {

@@ -10,7 +10,11 @@ import {
   type SupportConfig,
   type TicketCreated,
   type TicketInput,
+  type TrackedTicket,
+  type RememberedTicket,
 } from '../models/support';
+
+const REMEMBER_KEY = 'ha.myTickets';
 
 /**
  * Public branding + support configuration, fetched once and cached as signals.
@@ -26,6 +30,8 @@ export class SiteSettingsService {
   readonly settings = signal<SiteSettings>(DEFAULT_SITE_SETTINGS);
   readonly support = signal<SupportConfig | null>(null);
   readonly supportLoaded = signal(false);
+  /** Tickets raised from this browser (newest first), for one-click tracking. */
+  readonly myTickets = signal<RememberedTicket[]>(this.readRemembered());
 
   private settingsRequested = false;
   private supportRequested = false;
@@ -73,6 +79,40 @@ export class SiteSettingsService {
       next: ({ config }) => { this.support.set(config); this.supportLoaded.set(true); },
       error: () => { this.supportRequested = false; this.supportLoaded.set(true); },
     });
+  }
+
+  trackTicket(number: string, email: string): Observable<TrackedTicket> {
+    return this.http
+      .post<{ ticket: TrackedTicket }>(`${this.base}/public/support/tickets/track`, { number, email })
+      .pipe(map((r) => r.ticket));
+  }
+
+  followUpTicket(number: string, email: string, message: string): Observable<TrackedTicket> {
+    return this.http
+      .post<{ ticket: TrackedTicket }>(`${this.base}/public/support/tickets/track/reply`, { number, email, message })
+      .pipe(map((r) => r.ticket));
+  }
+
+  rememberTicket(t: RememberedTicket): void {
+    const list = [t, ...this.myTickets().filter((x) => x.number !== t.number)].slice(0, 10);
+    this.myTickets.set(list);
+    try { this.doc.defaultView?.localStorage.setItem(REMEMBER_KEY, JSON.stringify(list)); } catch { /* storage blocked */ }
+  }
+
+  forgetTicket(number: string): void {
+    const list = this.myTickets().filter((x) => x.number !== number);
+    this.myTickets.set(list);
+    try { this.doc.defaultView?.localStorage.setItem(REMEMBER_KEY, JSON.stringify(list)); } catch { /* storage blocked */ }
+  }
+
+  private readRemembered(): RememberedTicket[] {
+    try {
+      const raw = this.doc.defaultView?.localStorage.getItem(REMEMBER_KEY);
+      const list = raw ? (JSON.parse(raw) as RememberedTicket[]) : [];
+      return Array.isArray(list) ? list.filter((t) => t && typeof t.number === 'string' && typeof t.email === 'string') : [];
+    } catch {
+      return [];
+    }
   }
 
   submitTicket(input: TicketInput): Observable<TicketCreated> {

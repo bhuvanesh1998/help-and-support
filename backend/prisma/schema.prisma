@@ -700,6 +700,7 @@ model TicketReply {
   message    String    @db.Text
   authorId   String?   @db.Uuid
   authorName String
+  fromCustomer Boolean  @default(false) // follow-up posted by the requester from the widget/site
   emailedAt  DateTime?
   createdAt  DateTime  @default(now())
   ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)

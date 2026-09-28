@@ -1,0 +1,112 @@
+:host {
+  display: block;
+  --tt-accent: var(--ha-accent, var(--mat-sys-primary, #2e6f6a));
+  --tt-on-accent: var(--ha-on-accent, var(--mat-sys-on-primary, #fff));
+  --tt-border: var(--mat-sys-outline-variant, #d0d5dd);
+  --tt-muted: var(--mat-sys-on-surface-variant, #667085);
+  --tt-soft: color-mix(in srgb, var(--tt-accent) 9%, transparent);
+  color: var(--mat-sys-on-surface, #1a202c);
+  font-size: 0.9rem;
+}
+
+.tt-h { margin: 4px 0 10px; font-size: 0.95rem; font-weight: 700; }
+.tt-err { margin: 0; color: var(--mat-sys-error, #b3261e); font-size: 0.82rem; }
+
+.tt-list {
+  list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 8px;
+  li { display: flex; align-items: stretch; gap: 6px; }
+}
+.tt-item {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer;
+  padding: 10px 12px; border: 1px solid var(--tt-border); border-radius: 10px;
+  background: transparent; color: inherit; font: inherit;
+  &:hover { border-color: var(--tt-accent); background: var(--tt-soft); }
+}
+.tt-item-main {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  strong { color: var(--tt-accent); margin-right: 4px; }
+}
+.tt-item-sub { font-size: 0.75rem; color: var(--tt-muted); }
+.tt-x {
+  width: 32px; border: none; border-radius: 8px; background: transparent; color: var(--tt-muted);
+  font-size: 1.2rem; cursor: pointer;
+  &:hover { background: var(--tt-soft); }
+}
+
+.tt-form {
+  display: grid; gap: 12px;
+  label { display: grid; gap: 5px; }
+  label span { font-size: 0.8rem; font-weight: 600; }
+  input {
+    font: inherit; padding: 10px 12px; border: 1px solid var(--tt-border); border-radius: 10px;
+    background: transparent; color: inherit;
+    &:focus { outline: 2px solid var(--tt-accent); outline-offset: -1px; }
+  }
+}
+
+.tt-btn {
+  justify-self: stretch; padding: 11px 18px; border: none; border-radius: 10px; cursor: pointer;
+  font: inherit; font-weight: 700; background: var(--tt-accent); color: var(--tt-on-accent);
+  &:disabled { opacity: 0.55; cursor: default; }
+}
+
+.tt-bar { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.tt-link {
+  border: none; background: none; color: var(--tt-accent); font: inherit; font-weight: 600;
+  cursor: pointer; padding: 2px 0;
+  &:disabled { opacity: 0.5; }
+}
+.tt-head { display: flex; align-items: center; gap: 10px; }
+.tt-num { font-weight: 800; color: var(--tt-accent); }
+.tt-status {
+  padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700;
+  &--open { background: #fef3c7; color: #92400e; }
+  &--in_progress { background: #dbeafe; color: #1e40af; }
+  &--resolved { background: #dcfce7; color: #166534; }
+  &--closed { background: #e5e7eb; color: #374151; }
+}
+.tt-subject { margin: 8px 0 2px; font-size: 1rem; }
+.tt-meta { margin: 0 0 14px; color: var(--tt-muted); font-size: 0.8rem; }
+
+.tt-steps {
+  list-style: none; display: flex; margin: 0 0 16px; padding: 0;
+  li {
+    flex: 1; position: relative; padding-top: 18px; text-align: center;
+    font-size: 0.72rem; color: var(--tt-muted);
+    &::before {
+      content: ""; position: absolute; top: 4px; left: 50%; width: 10px; height: 10px;
+      margin-left: -5px; border-radius: 50%; background: var(--tt-border); z-index: 1;
+    }
+    &::after {
+      content: ""; position: absolute; top: 8px; left: -50%; width: 100%; height: 2px;
+      background: var(--tt-border);
+    }
+    &:first-child::after { display: none; }
+  }
+  .tt-step--done {
+    color: inherit; font-weight: 600;
+    &::before, &::after { background: var(--tt-accent); }
+  }
+}
+
+.tt-thread { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
+.tt-msg {
+  padding: 10px 12px; border-radius: 12px; border: 1px solid var(--tt-border);
+  p { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; }
+  &--team { background: var(--tt-soft); border-color: color-mix(in srgb, var(--tt-accent) 30%, transparent); }
+  &--me { margin-left: 18px; }
+}
+.tt-msg-head {
+  display: flex; justify-content: space-between; gap: 8px; font-size: 0.78rem;
+  span { color: var(--tt-muted); }
+}
+.tt-wait { color: var(--tt-muted); font-size: 0.82rem; text-align: center; padding: 8px; list-style: none; }
+
+.tt-reply {
+  display: grid; gap: 8px;
+  textarea {
+    font: inherit; padding: 10px 12px; border: 1px solid var(--tt-border); border-radius: 10px;
+    resize: vertical; background: transparent; color: inherit;
+    &:focus { outline: 2px solid var(--tt-accent); outline-offset: -1px; }
+  }
+}

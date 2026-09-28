@@ -5,6 +5,7 @@ import {
   computed,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -34,6 +35,8 @@ export class SupportForm implements OnInit {
   readonly source = input<'site' | 'widget'>('site');
   readonly sourceUrl = input<string | null>(null);
   readonly compact = input(false);
+  /** Fired when the user wants to follow the ticket they just raised. */
+  readonly track = output<{ number: string; email: string }>();
 
   readonly config = this.site.support;
   readonly categories = computed(() => this.config()?.categories ?? []);
@@ -110,6 +113,12 @@ export class SupportForm implements OnInit {
         next: (t) => {
           this.sending.set(false);
           this.result.set(t);
+          this.site.rememberTicket({
+            number: String(t.number),
+            email: this.email().trim().toLowerCase(),
+            subject: this.subject().trim(),
+            createdAt: new Date().toISOString(),
+          });
         },
         error: (e: HttpErrorResponse) => {
           this.sending.set(false);
@@ -122,6 +131,11 @@ export class SupportForm implements OnInit {
           );
         },
       });
+  }
+
+  trackIt(): void {
+    const r = this.result();
+    if (r) this.track.emit({ number: String(r.number), email: this.email().trim().toLowerCase() });
   }
 
   reset(): void {

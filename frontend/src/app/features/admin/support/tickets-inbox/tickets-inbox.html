@@ -99,16 +99,18 @@
             <p class="msg-body">{{ t.message }}</p>
           </li>
           @for (r of t.replies; track r.id) {
-            <li class="msg msg--staff">
+            <li class="msg" [class.msg--staff]="!r.fromCustomer" [class.msg--customer]="r.fromCustomer">
               <div class="msg-head">
-                <strong>{{ r.authorName || 'Support' }}</strong>
+                <strong>{{ r.fromCustomer ? t.name + ' (follow-up)' : (r.authorName || 'Support') }}</strong>
                 <span>{{ r.createdAt | date: 'MMM d, y, h:mm a' }}</span>
               </div>
               <p class="msg-body">{{ r.message }}</p>
+              @if (!r.fromCustomer) {
               <span class="msg-mail" [class.msg-mail--no]="!r.emailedAt">
                 <mat-icon aria-hidden="true">{{ r.emailedAt ? 'mark_email_read' : 'unsubscribe' }}</mat-icon>
                 {{ r.emailedAt ? 'Emailed ' + (r.emailedAt | date: 'MMM d, h:mm a') : 'Not emailed' }}
               </span>
+              }
             </li>
           }
         </ol>

@@ -16,6 +16,7 @@ import { renderStepMarkdown } from '../../../core/utils/step-markdown';
 import type { Page } from '../../../core/models/page';
 import { SiteSettingsService } from '../../../core/services/site-settings.service';
 import { SupportForm } from '../../support/support-form/support-form';
+import { TicketTracker } from '../../support/ticket-tracker/ticket-tracker';
 
 /**
  * Chrome-less help panel rendered inside the embeddable widget's iframe.
@@ -24,7 +25,7 @@ import { SupportForm } from '../../support/support-form/support-form';
  */
 @Component({
   selector: 'ha-embed-panel',
-  imports: [ImageViewer, SupportForm],
+  imports: [ImageViewer, SupportForm, TicketTracker],
   templateUrl: './embed-panel.html',
   styleUrl: './embed-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -41,7 +42,21 @@ export class EmbedPanel implements OnInit, OnDestroy {
   readonly supportAvailable = computed(
     () => this.supportRequested() && this.site.widgetSupportAvailable(),
   );
-  readonly tab = signal<'guide' | 'ticket'>('guide');
+  readonly tab = signal<'guide' | 'ticket' | 'track'>('guide');
+  /** Ticket to open in the tracker right after it is raised. */
+  readonly trackTarget = signal<{ number: string; email: string } | null>(null);
+  readonly myTicketCount = computed(() => this.site.myTickets().length);
+
+  /** Header Support button: jump to support (tracker if they already have tickets). */
+  openSupport(): void {
+    this.trackTarget.set(null);
+    this.tab.set(this.tab() !== 'guide' ? 'guide' : this.myTicketCount() ? 'track' : 'ticket');
+  }
+
+  trackRaised(t: { number: string; email: string }): void {
+    this.trackTarget.set(t);
+    this.tab.set('track');
+  }
   /** Host page route — sent with tickets so support knows where the user was. */
   readonly hostRoute = signal('/');
 

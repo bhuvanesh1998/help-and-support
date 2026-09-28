@@ -90,3 +90,13 @@ export const ticketLimiter = rateLimit({
   windowMs: 15 * MINUTE,
   limit: 5,
 });
+
+/**
+ * Ticket tracking + customer follow-ups. Looking a ticket up needs its number
+ * AND the requester's email, so this mainly stops guessing at number/email pairs.
+ */
+export const trackLimiter = rateLimit({
+  ...shared,
+  windowMs: 15 * MINUTE,
+  limit: 40,
+});

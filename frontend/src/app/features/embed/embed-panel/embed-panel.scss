@@ -116,3 +116,20 @@
   &:hover { background: color-mix(in srgb, var(--ha-on-accent) 26%, transparent); }
   &--on, &--on:hover { background: var(--mat-sys-surface, #fff); color: var(--ha-accent); }
 }
+
+// Header actions: Support shortcut + close.
+.embed-actions { display: inline-flex; align-items: center; gap: 8px; }
+.embed-support {
+  display: inline-flex; align-items: center; gap: 6px; position: relative;
+  height: 30px; padding: 0 12px; border: none; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 0.8rem; font-weight: 700;
+  background: color-mix(in srgb, var(--ha-on-accent) 18%, transparent);
+  color: var(--ha-on-accent);
+  &:hover { background: color-mix(in srgb, var(--ha-on-accent) 34%, transparent); }
+  &--on { background: var(--mat-sys-surface, #fff); color: var(--ha-accent); }
+}
+.embed-badge {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-style: normal;
+  font-size: 0.7rem; line-height: 18px; text-align: center;
+  background: var(--mat-sys-surface, #fff); color: var(--ha-accent);
+}

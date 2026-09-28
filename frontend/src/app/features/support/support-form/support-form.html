@@ -6,7 +6,10 @@
     <h3>Ticket {{ r.number }} raised</h3>
     <p>We've emailed an acknowledgement to <strong>{{ email() }}</strong>. Keep the ticket number handy for follow-ups.</p>
     <p class="sf-sla-inline">{{ r.slaText || slaText() }}</p>
-    <button type="button" class="sf-btn sf-btn--ghost" (click)="reset()">Raise another ticket</button>
+    <div class="sf-success-actions">
+      <button type="button" class="sf-btn" (click)="trackIt()">Track this ticket</button>
+      <button type="button" class="sf-btn sf-btn--ghost" (click)="reset()">Raise another ticket</button>
+    </div>
   </div>
 } @else {
   <form class="sf" (submit)="submit($event)" novalidate aria-label="Raise a support ticket">
