@@ -45,7 +45,9 @@ RUN npx playwright install chromium --with-deps
 RUN mkdir -p /app/backend/uploads
 
 EXPOSE 3000
-# On a fresh DB (set RUN_DB_PUSH=true) sync the schema and seed the super admin
-# before starting. Both steps are idempotent. Leave RUN_DB_PUSH unset when the
-# schema is managed manually (e.g. reusing an existing in-sync database).
-CMD ["sh","-c","if [ \"$RUN_DB_PUSH\" = \"true\" ]; then npx prisma db push --accept-data-loss && (npx tsx prisma/seed.ts || true); fi; exec node dist/server.js"]
+# Schema sync on every start:
+#  - RUN_DB_PUSH=true  -> fresh DB: full push (may drop data) + seed the super admin.
+#  - default           -> additive sync: creates new tables/columns; Prisma refuses
+#                         any change that would lose data, and the server still boots.
+#  - SKIP_DB_SYNC=true -> schema managed manually.
+CMD ["sh","-c","if [ \"$RUN_DB_PUSH\" = \"true\" ]; then npx prisma db push --accept-data-loss && (npx tsx prisma/seed.ts || true); elif [ \"$SKIP_DB_SYNC\" != \"true\" ]; then npx prisma db push || echo 'WARN: schema sync skipped (would lose data) - run it manually'; fi; exec node dist/server.js"]
