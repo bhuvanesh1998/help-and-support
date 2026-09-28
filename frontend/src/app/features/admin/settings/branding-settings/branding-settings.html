@@ -74,5 +74,38 @@
         }
       </div>
     </section>
+    <section class="af-card">
+      <div class="af-card__head"><h3>Favicon</h3><p>The icon in the browser tab and bookmarks. Square PNG, SVG or ICO — at least 32×32 (180×180 also covers phone home screens).</p></div>
+      <div class="favicon-row">
+        <div class="favicon-preview" aria-hidden="true">
+          @if (model().faviconUrl; as url) {
+            <img [src]="url" alt="" />
+          } @else {
+            <mat-icon>tab</mat-icon>
+          }
+        </div>
+        <div class="favicon-tab" aria-hidden="true">
+          @if (model().faviconUrl; as url) { <img [src]="url" alt="" /> } @else { <mat-icon>public</mat-icon> }
+          <span>{{ model().brandName }} User Manual</span>
+        </div>
+      </div>
+      <mat-form-field appearance="outline" class="af-full">
+        <mat-label>{{ faviconSlot.label }} URL</mat-label>
+        <input matInput [ngModel]="model().faviconUrl ?? ''" (ngModelChange)="setLogo(faviconSlot.key, $event)" [disabled]="!canManage()" />
+      </mat-form-field>
+      @if (canManage()) {
+        <div class="af-row">
+          <label class="upload-btn" [class.upload-btn--busy]="uploading() === faviconSlot.key">
+            <mat-icon aria-hidden="true">upload</mat-icon>
+            {{ uploading() === faviconSlot.key ? 'Uploading…' : 'Upload favicon' }}
+            <input type="file" accept="image/png,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/webp" hidden
+                   (change)="upload(faviconSlot.key, $event)" [disabled]="!!uploading()" />
+          </label>
+          @if (model().faviconUrl) {
+            <button mat-button type="button" (click)="setLogo(faviconSlot.key, '')">Remove</button>
+          }
+        </div>
+      }
+    </section>
   }
 </div>

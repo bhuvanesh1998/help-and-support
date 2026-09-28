@@ -19,6 +19,7 @@ export interface SiteSettingsData {
   creditUrl: string;
   logoLightUrl: string | null;
   logoDarkUrl: string | null;
+  faviconUrl: string | null;
 }
 
 function toSite(row: SiteSettingsData): SiteSettingsData {
@@ -29,6 +30,7 @@ function toSite(row: SiteSettingsData): SiteSettingsData {
     creditUrl: row.creditUrl,
     logoLightUrl: row.logoLightUrl,
     logoDarkUrl: row.logoDarkUrl,
+    faviconUrl: row.faviconUrl,
   };
 }
 
@@ -71,6 +73,7 @@ export async function saveSiteSettings(input: Record<string, unknown>): Promise<
     creditUrl: url(input['creditUrl'], 'creditUrl', false) ?? '',
     logoLightUrl: url(input['logoLightUrl'], 'logoLightUrl', true),
     logoDarkUrl: url(input['logoDarkUrl'], 'logoDarkUrl', true),
+    faviconUrl: url(input['faviconUrl'], 'faviconUrl', true),
   };
   const row = await prisma.siteSettings.upsert({
     where: { name: ROW },

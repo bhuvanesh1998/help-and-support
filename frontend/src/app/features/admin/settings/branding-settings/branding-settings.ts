@@ -11,7 +11,7 @@ import { AuthStore } from '../../../../core/services/auth-store';
 import { SiteSettingsService } from '../../../../core/services/site-settings.service';
 import { DEFAULT_SITE_SETTINGS, type SiteSettings } from '../../../../core/models/support';
 
-type LogoKey = 'logoLightUrl' | 'logoDarkUrl';
+type LogoKey = 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl';
 
 /** Branding — public brand name, footer text/credit and light/dark logos. */
 @Component({
@@ -39,6 +39,8 @@ export class BrandingSettings implements OnInit {
     { key: 'logoLightUrl', label: 'Light mode logo', bg: 'light' },
     { key: 'logoDarkUrl', label: 'Dark mode logo', bg: 'dark' },
   ];
+  /** Browser-tab icon — square PNG/SVG/ICO, at least 32×32 (180×180 also covers iOS). */
+  readonly faviconSlot = { key: 'faviconUrl' as const, label: 'Favicon (browser tab icon)' };
 
   readonly canManage = computed(() => this.auth.can('settings.manage'));
 

@@ -1,4 +1,4 @@
-import { DOCUMENT, Injectable, computed, inject, signal } from '@angular/core';
+import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { AppConfigService } from '../config/app-config.service';
@@ -56,6 +56,8 @@ export class SiteSettingsService {
   });
 
   constructor() {
+    // Keep the browser-tab icon in sync with the admin-configured favicon.
+    effect(() => this.applyFavicon(this.settings().faviconUrl));
     const win = this.doc.defaultView;
     if (win?.matchMedia) {
       win.matchMedia('(prefers-color-scheme: dark)')
@@ -127,6 +129,27 @@ export class SiteSettingsService {
       .pipe(map((r) => r.results ?? []));
   }
 
+  private applyFavicon(href: string | null): void {
+    const head = this.doc.head;
+    if (!head) return;
+    for (const rel of ['icon', 'apple-touch-icon']) {
+      let link = head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+      if (!link) {
+        if (!href) continue;
+        link = this.doc.createElement('link');
+        link.rel = rel;
+        head.appendChild(link);
+      }
+      // Remember the build's default so clearing the setting restores it.
+      link.dataset['defaultHref'] ??= link.getAttribute('href') ?? '';
+      const next = href || link.dataset['defaultHref'];
+      if (next) {
+        link.href = next;
+        if (href) link.removeAttribute('type'); // let the browser sniff PNG/SVG/ICO
+      }
+    }
+  }
+
   private merge(s: Partial<SiteSettings> | null | undefined): SiteSettings {
     const d = DEFAULT_SITE_SETTINGS;
     return {
@@ -136,6 +159,7 @@ export class SiteSettingsService {
       creditUrl: s?.creditUrl?.trim() || d.creditUrl,
       logoLightUrl: s?.logoLightUrl || null,
       logoDarkUrl: s?.logoDarkUrl || null,
+      faviconUrl: s?.faviconUrl || null,
     };
   }
 

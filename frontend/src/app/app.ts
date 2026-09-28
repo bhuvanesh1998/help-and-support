@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { HelpWidget } from './features/help-widget/help-widget';
 import { ThemeService } from './core/services/theme.service';
+import { SiteSettingsService } from './core/services/site-settings.service';
 
 @Component({
   selector: 'ha-root',
@@ -20,4 +21,9 @@ export class App {
   // applied app-wide on every entry point — including a direct tutorial link
   // that never passes through the landing page or admin layout.
   private readonly theme = inject(ThemeService);
+
+  constructor() {
+    // Branding (incl. the admin-set favicon) applies on every entry point too.
+    inject(SiteSettingsService).loadSettings();
+  }
 }

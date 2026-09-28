@@ -6,6 +6,7 @@ export interface SiteSettings {
   creditUrl: string;
   logoLightUrl: string | null;
   logoDarkUrl: string | null;
+  faviconUrl: string | null;
 }
 
 export interface SupportCategory {
@@ -120,6 +121,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   creditUrl: 'https://widescreen.in',
   logoLightUrl: null,
   logoDarkUrl: null,
+  faviconUrl: null,
 };
 
 /** Requester-facing ticket view returned by the public tracker. */

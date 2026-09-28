@@ -632,6 +632,7 @@ model SiteSettings {
   creditUrl     String   @default("https://widescreen.in")
   logoLightUrl  String?
   logoDarkUrl   String?
+  faviconUrl    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
