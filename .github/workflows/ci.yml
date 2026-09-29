@@ -1,0 +1,99 @@
+# CI for the help & docs site (doc.medicore.cc).
+#
+# CD is not done here: Coolify (Medicore → Medicore_Doc → docs-api + docs-web)
+# deploys itself from a GitHub push webhook on the tracked branch, so no Coolify API token has
+# to live in GitHub. Require these checks on `main` (branch protection) so only
+# green code reaches the deploy branch.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  backend:
+    name: Backend build + migrations
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: help_admin
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: help_assistant
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U help_admin -d help_assistant"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://help_admin:ci_only_password@localhost:5432/help_assistant?schema=public
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Apply migrations to an empty database
+        run: npx prisma migrate deploy
+      - name: Fail if schema.prisma drifted from the migrations
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+      # The remaining high advisories sit inside the Prisma CLI's own tooling
+      # (@prisma/config → deepmerge-ts, mysql2) with no non-RC fix, so gate on
+      # critical here and revisit once Prisma 8 is stable.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=critical
+
+  docker:
+    name: Docker image (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.app }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
