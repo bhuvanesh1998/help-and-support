@@ -9,17 +9,48 @@
  */
 
 import { chromium } from 'playwright';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, stat, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { marked } from 'marked';
 import { prisma } from '../../lib/prisma.js';
-import { uploadDir } from '../../lib/upload.js';
+import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
+import { resolveInUploads, uploadPathFor } from '../backup/safe-path.js';
 
 export type ExportFormat = 'pdf' | 'doc';
 
-const exportsDir = join(uploadDir, 'exports');
+/**
+ * Generated files live OUTSIDE the publicly served uploads directory: they are
+ * only reachable through the authenticated download route. Sibling of uploads
+ * (e.g. /app/backend/exports next to /app/backend/uploads).
+ */
+export const exportsDir = resolve(env.uploadDir, '..', 'exports');
+
+/** Exports (rows + files) older than this are removed by the retention sweep. */
+const EXPORT_RETENTION_DAYS = 7;
+
+/**
+ * Strip active content from rendered Markdown. Instructions are admin-authored
+ * but may be pasted from anywhere, and the output is loaded by Chromium (PDF)
+ * and Word (.doc). Defence in depth: the PDF renderer also runs with JS off and
+ * all network requests blocked.
+ */
+export function sanitizeHtml(html: string): string {
+  const blocked = 'script|iframe|object|embed|frame|frameset|applet|base|link|meta|style|form|svg|math|template';
+  return html
+    // Paired elements with their content.
+    .replace(new RegExp(String.raw`<(${blocked})\b[^>]*>[\s\S]*?<\/\1\s*>`, 'gi'), '')
+    // Any stray open/close/self-closing tag left over.
+    .replace(new RegExp(String.raw`<\/?(${blocked})\b[^>]*>`, 'gi'), '')
+    // Inline event handlers (quoted or unquoted values).
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    // Script-capable URL schemes in href/src/etc. (inline image data URIs kept).
+    .replace(
+      /(\s(?:href|src|xlink:href|action|formaction|srcset|background|poster)\s*=\s*)(["']?)\s*(?:javascript|vbscript|data(?!:image\/(?:png|jpe?g|gif|webp);))[^"'\s>]*\2/gi,
+      '$1$2#$2',
+    );
+}
 
 function escapeHtml(s: string): string {
   return s
@@ -50,11 +81,12 @@ async function imageDataUri(step: StepLike): Promise<string | null> {
   let path: string | null = null;
   if (step.mediaAssetId) {
     const asset = await prisma.mediaAsset.findUnique({ where: { id: step.mediaAssetId } });
-    if (asset) path = asset.storagePath;
+    // Only ever read files inside the uploads directory.
+    if (asset) path = resolveInUploads(asset.storagePath);
   }
   if (!path && step.imageUrl) {
-    const fn = step.imageUrl.split('/uploads/')[1];
-    if (fn) path = join(uploadDir, fn);
+    const fn = step.imageUrl.split('/uploads/')[1]?.split(/[?#]/)[0];
+    if (fn) path = uploadPathFor(decodeURIComponent(fn));
   }
   if (!path || !existsSync(path)) return null;
   try {
@@ -94,7 +126,7 @@ async function buildHtml(
     const id = `sec-${i + 1}`;
     const steps: string[] = [];
     for (const step of page.steps) {
-      const body = String(marked.parse(step.instructionsMd ?? ''));
+      const body = sanitizeHtml(String(marked.parse(step.instructionsMd ?? '')));
       const img = await imageDataUri(step);
       steps.push(`
         <section class="step">
@@ -187,6 +219,13 @@ async function renderPdf(html: string): Promise<Buffer> {
     // JS disabled: the document is static data — nothing to execute.
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
+    // Images are embedded as data: URIs, so the document needs no network at
+    // all. Block everything else (tracking pixels, SSRF to internal hosts).
+    await page.route('**/*', (route) => {
+      const url = route.request().url();
+      if (url.startsWith('data:') || url.startsWith('about:')) return route.continue();
+      return route.abort('blockedbyclient');
+    });
     await page.setContent(html, { waitUntil: 'load', timeout: 60_000 });
     const pdf = await page.pdf({
       format: 'A4',
@@ -289,6 +328,48 @@ export async function deleteExport(id: string): Promise<void> {
   const row = await prisma.export.findUnique({ where: { id } });
   if (!row) return;
   await prisma.export.delete({ where: { id } });
-  const { unlink } = await import('node:fs/promises');
   await unlink(join(exportsDir, `${id}.${row.format}`)).catch(() => {});
+}
+
+/**
+ * Boot reconcile: generation runs in-process, so a restart abandons any export
+ * still pending/running. Settle those rows so the UI stops polling them.
+ */
+export async function reconcileInterruptedExports(): Promise<void> {
+  try {
+    const { count } = await prisma.export.updateMany({
+      where: { status: { in: ['pending', 'running'] } },
+      data: { status: 'error', error: 'Interrupted by a server restart' },
+    });
+    if (count) logger.warn('interrupted exports settled', { count });
+  } catch (err) {
+    logger.error('export reconcile failed', { error: (err as Error).message });
+  }
+}
+
+/** Retention: delete export rows + files older than EXPORT_RETENTION_DAYS. */
+export async function sweepExpiredExports(): Promise<void> {
+  const cutoff = new Date(Date.now() - EXPORT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  try {
+    const expired = await prisma.export.findMany({
+      where: { createdAt: { lt: cutoff } },
+      select: { id: true, format: true },
+    });
+    if (expired.length) {
+      await prisma.export.deleteMany({ where: { id: { in: expired.map((e) => e.id) } } });
+      for (const row of expired) await unlink(exportFilePath(row)).catch(() => {});
+    }
+
+    // Orphaned files (row already gone, or crash mid-write) past the window.
+    if (existsSync(exportsDir)) {
+      for (const name of await readdir(exportsDir)) {
+        const file = join(exportsDir, name);
+        const info = await stat(file).catch(() => null);
+        if (info?.isFile() && info.mtime < cutoff) await unlink(file).catch(() => {});
+      }
+    }
+    if (expired.length) logger.info('expired exports purged', { count: expired.length });
+  } catch (err) {
+    logger.error('export retention sweep failed', { error: (err as Error).message });
+  }
 }

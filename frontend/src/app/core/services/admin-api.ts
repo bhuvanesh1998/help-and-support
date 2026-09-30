@@ -24,6 +24,7 @@ import type {
   VoiceoverConfig,
   TtsVoice,
   VoAudioClip,
+  VoUploadStatus,
   VoCredentialId,
   VoKeyStatus,
   VoProviderId,
@@ -291,6 +292,29 @@ export class AdminApiService {
     form.append('audience', data.audience);
     form.append('tone', data.tone);
     return this.http.post<{ jobId: string }>(`${this.b}/voiceover/jobs`, form);
+  }
+  /** Start a job from a finished chunked upload (see createVideoUpload). */
+  startVoiceoverJobFromUpload(
+    uploadId: string,
+    data: { appName: string; audience: string; tone: VoTone },
+  ) {
+    return this.http.post<{ jobId: string }>(`${this.b}/voiceover/jobs`, { uploadId, ...data });
+  }
+  /** Open a resumable upload; the reply says how large each piece must be. */
+  createVideoUpload(filename: string, sizeBytes: number) {
+    return this.http.post<VoUploadStatus>(`${this.b}/voiceover/uploads`, { filename, sizeBytes });
+  }
+  getVideoUpload(uploadId: string) {
+    return this.http.get<VoUploadStatus>(`${this.b}/voiceover/uploads/${uploadId}`);
+  }
+  uploadVideoChunk(uploadId: string, offset: number, piece: Blob) {
+    return this.http.put<VoUploadStatus>(`${this.b}/voiceover/uploads/${uploadId}`, piece, {
+      params: { offset },
+      headers: { 'Content-Type': 'application/octet-stream' },
+    });
+  }
+  cancelVideoUpload(uploadId: string) {
+    return this.http.delete<void>(`${this.b}/voiceover/uploads/${uploadId}`);
   }
   getVoiceoverJob(id: string) {
     return this.http.get<VoJobSnapshot>(`${this.b}/voiceover/jobs/${id}`);

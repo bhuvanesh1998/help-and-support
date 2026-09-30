@@ -257,6 +257,30 @@
     <!-- ── Frames & cost ─────────────────────────────────────────────────── -->
     <section class="vos-card">
       <div class="vos-card__head"><h3>Frames &amp; cost</h3></div>
+      <div class="vos-presets" role="radiogroup" aria-label="Frames &amp; cost preset">
+        @for (preset of presets.cost; track preset.id) {
+          <button
+            type="button"
+            class="vos-preset"
+            role="radio"
+            [class.vos-preset--active]="activePreset('cost') === preset.id"
+            [attr.aria-checked]="activePreset('cost') === preset.id"
+            [matTooltip]="preset.hint"
+            (click)="applyPreset('cost', preset)"
+          >{{ preset.label }}</button>
+        }
+        <button
+          type="button"
+          class="vos-preset"
+          role="radio"
+          [class.vos-preset--active]="activePreset('cost') === 'custom'"
+          [attr.aria-checked]="activePreset('cost') === 'custom'"
+          matTooltip="Keep your own values — edit any field below."
+          (click)="chooseCustom('cost')"
+        >
+          <mat-icon aria-hidden="true">tune</mat-icon>Custom
+        </button>
+      </div>
       <div class="vos-grid">
         @for (field of costFields; track field.key) {
           <div class="vos-field">
@@ -287,6 +311,30 @@
     <!-- ── Scene detection ───────────────────────────────────────────────── -->
     <section class="vos-card">
       <div class="vos-card__head"><h3>Scene detection</h3></div>
+      <div class="vos-presets" role="radiogroup" aria-label="Scene detection preset">
+        @for (preset of presets.detection; track preset.id) {
+          <button
+            type="button"
+            class="vos-preset"
+            role="radio"
+            [class.vos-preset--active]="activePreset('detection') === preset.id"
+            [attr.aria-checked]="activePreset('detection') === preset.id"
+            [matTooltip]="preset.hint"
+            (click)="applyPreset('detection', preset)"
+          >{{ preset.label }}</button>
+        }
+        <button
+          type="button"
+          class="vos-preset"
+          role="radio"
+          [class.vos-preset--active]="activePreset('detection') === 'custom'"
+          [attr.aria-checked]="activePreset('detection') === 'custom'"
+          matTooltip="Keep your own values — edit any field below."
+          (click)="chooseCustom('detection')"
+        >
+          <mat-icon aria-hidden="true">tune</mat-icon>Custom
+        </button>
+      </div>
       <div class="vos-grid">
         @for (field of detectionFields; track field.key) {
           <div class="vos-field">
@@ -316,6 +364,30 @@
     <!-- ── Narration ─────────────────────────────────────────────────────── -->
     <section class="vos-card">
       <div class="vos-card__head"><h3>Narration</h3></div>
+      <div class="vos-presets" role="radiogroup" aria-label="Narration preset">
+        @for (preset of presets.narration; track preset.id) {
+          <button
+            type="button"
+            class="vos-preset"
+            role="radio"
+            [class.vos-preset--active]="activePreset('narration') === preset.id"
+            [attr.aria-checked]="activePreset('narration') === preset.id"
+            [matTooltip]="preset.hint"
+            (click)="applyPreset('narration', preset)"
+          >{{ preset.label }}</button>
+        }
+        <button
+          type="button"
+          class="vos-preset"
+          role="radio"
+          [class.vos-preset--active]="activePreset('narration') === 'custom'"
+          [attr.aria-checked]="activePreset('narration') === 'custom'"
+          matTooltip="Keep your own values — edit any field below."
+          (click)="chooseCustom('narration')"
+        >
+          <mat-icon aria-hidden="true">tune</mat-icon>Custom
+        </button>
+      </div>
       <div class="vos-grid">
         @for (field of narrationFields; track field.key) {
           <div class="vos-field">

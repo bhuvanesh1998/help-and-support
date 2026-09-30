@@ -6,6 +6,8 @@ import { prisma } from './lib/prisma.js';
 import { reconcileInterruptedScripts } from './services/voiceover/script-store.service.js';
 import { ensureSystemRoles } from './services/roles.service.js';
 import { sweepExpired } from './services/trash.service.js';
+import { sweepUploads } from './services/voiceover/chunked-upload.service.js';
+import { reconcileInterruptedExports, sweepExpiredExports } from './services/export/export.service.js';
 
 const app = createApp();
 
@@ -24,7 +26,18 @@ const server: Server = app.listen(env.port, () => {
   // when opened, so an instance that is never left running still stays honest.
   void sweepExpired();
   setInterval(() => void sweepExpired(), 24 * 60 * 60 * 1000).unref();
+  // Partial video uploads: clears leftovers from a restart, then idle sessions.
+  sweepUploads();
+  setInterval(sweepUploads, 15 * 60 * 1000).unref();
+  // Exports run in-process: settle ones a restart abandoned, then enforce the
+  // 7-day retention on boot and daily.
+  void reconcileInterruptedExports().then(() => sweepExpiredExports());
+  setInterval(() => void sweepExpiredExports(), 24 * 60 * 60 * 1000).unref();
 });
+
+// Large video uploads outlast Node's 5-minute default request timeout, which
+// resets the socket and surfaces in the browser as a bare network error.
+server.requestTimeout = env.requestTimeoutMin * 60 * 1000;
 
 /** Drain connections and close the DB pool before exiting. */
 async function shutdown(signal: string): Promise<void> {

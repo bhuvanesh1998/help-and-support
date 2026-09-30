@@ -428,14 +428,29 @@ export class ScriptDetail implements OnInit, OnDestroy {
 
     for (const segment of s.segments) {
       if (!segment.script.trim()) continue;
-      if (this.audioByIndex().has(segment.index)) continue;
+      // Skip only takes already in the chosen voice and model. Skipping any
+      // existing take meant a voice change re-mixed the old recordings forever.
+      const existing = this.audioByIndex().get(segment.index);
+      if (existing && existing.voiceId === voice.voiceId && existing.modelId === voice.modelId) {
+        continue;
+      }
 
       this.renderingIndex.set(segment.index);
       try {
         const res = await firstValueFrom(
           this.api.renderSegmentAudio(s.id, segment.index, voice),
         );
-        this.audio.update((list) => [...list, res.clip].sort((a, b) => a.segmentIndex - b.segmentIndex));
+        // Replace the superseded take for this wording rather than appending a
+        // duplicate, so audioByIndex resolves to the new recording.
+        this.audio.update((list) =>
+          [
+            ...list.filter(
+              (c) =>
+                c.segmentIndex !== segment.index || c.segmentVersion !== res.clip.segmentVersion,
+            ),
+            res.clip,
+          ].sort((a, b) => a.segmentIndex - b.segmentIndex),
+        );
       } catch (err) {
         const message =
           (err as { error?: { error?: { message?: string } } })?.error?.error?.message ??
@@ -726,6 +741,15 @@ export class ScriptDetail implements OnInit, OnDestroy {
         switch (event.type) {
           case 'phase':
             this.regenPhase.set(event.message);
+            // A job that finished before the stream connected only replays its
+            // phase; without this the button stayed on "Generating…" forever.
+            if (event.phase === 'cancelled' || event.phase === 'error') {
+              this.regenerating.set(false);
+              this.regenError.set(
+                event.phase === 'cancelled' ? 'Regeneration was cancelled.' : 'Regeneration failed.',
+              );
+              this.closeStream();
+            }
             break;
           case 'segment':
             this.regenPhase.set(`Wrote segment ${event.segment.index}…`);

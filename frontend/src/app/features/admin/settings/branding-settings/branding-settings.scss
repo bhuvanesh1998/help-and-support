@@ -13,9 +13,9 @@
 
 .upload-btn {
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  padding: 0 16px; height: 36px; border-radius: 999px;
+  padding: 0 16px; height: 38px; border-radius: 8px;
   border: 1px solid var(--mat-sys-outline); color: var(--mat-sys-primary);
-  font-size: 0.875rem; font-weight: 500;
+  font-size: 0.85rem; font-weight: 500;
   &:hover { background: color-mix(in srgb, var(--mat-sys-primary) 8%, transparent); }
   &--busy { opacity: 0.6; pointer-events: none; }
   mat-icon { font-size: 18px; width: 18px; height: 18px; }

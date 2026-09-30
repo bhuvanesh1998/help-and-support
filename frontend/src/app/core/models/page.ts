@@ -12,10 +12,8 @@ export interface ApiEndpoint {
   path: string;
   query: string | null;
   host: string | null;
-  requestBody: string | null;
   status: number | null;
   contentType: string | null;
-  responseSample: string | null;
   description: string | null;
 }
 

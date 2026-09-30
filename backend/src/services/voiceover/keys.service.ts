@@ -88,6 +88,7 @@ export async function saveKey(
   key: string,
   userId: string,
 ): Promise<{ ok: boolean; error?: string; status?: KeyStatus[] }> {
+  key = key.trim();
   const check =
     provider === TTS_PROVIDER
       ? await validateTtsKey(key)

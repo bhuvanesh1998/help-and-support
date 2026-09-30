@@ -14,6 +14,7 @@
 import { chromium } from 'playwright';
 import type { Browser, BrowserContext, Page } from 'playwright';
 import type { ApiCall, CapturedScreen, ScreenDom, ScreenGroup, SessionInjection } from './types.js';
+import { isBlockedHostLiteral, privateTargetsAllowed } from './url-guard.js';
 
 export interface ScraperContext {
   baseUrl: string;
@@ -700,6 +701,28 @@ export async function runScraper(
       deviceScaleFactor: 1,
       locale: 'en-US',
     });
+
+    // SSRF guard for redirects / sub-requests: the baseUrl was DNS-checked at
+    // job creation, but the target could still redirect or link the browser
+    // to internal hosts. Block any request whose hostname is an internal
+    // literal (IP or localhost). Disabled with AI_PIPELINE_ALLOW_PRIVATE=true.
+    if (!privateTargetsAllowed()) {
+      await context.route('**/*', (route) => {
+        let blocked = false;
+        try {
+          const u = new URL(route.request().url());
+          blocked = (u.protocol === 'http:' || u.protocol === 'https:') && isBlockedHostLiteral(u.hostname);
+        } catch {
+          blocked = false;
+        }
+        if (blocked) {
+          ctx.onLog('warn', `Blocked request to internal host: ${route.request().url()}`);
+          void route.abort('blockedbyclient');
+        } else {
+          void route.continue();
+        }
+      });
+    }
 
     if (ctx.session) {
       // Session path: inject the pre-authenticated session and crawl the app

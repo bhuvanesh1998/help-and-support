@@ -4,7 +4,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/app-error.js';
-import { AnalyticsEventType } from '@prisma/client';
+import { AnalyticsEventType, Prisma } from '@prisma/client';
 
 export const publicRouter: Router = Router();
 
@@ -56,6 +56,8 @@ publicRouter.get('/tutorials/:id', async (req: Request, res: Response) => {
         orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
         select: { id: true, stepId: true, title: true, description: true, youtubeId: true, startSec: true },
       },
+      // requestBody / responseSample are intentionally excluded: captured traffic
+      // may contain PII and this endpoint is unauthenticated.
       apiEndpoints: {
         orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
         select: {
@@ -64,10 +66,8 @@ publicRouter.get('/tutorials/:id', async (req: Request, res: Response) => {
           path: true,
           query: true,
           host: true,
-          requestBody: true,
           status: true,
           contentType: true,
-          responseSample: true,
           description: true,
         },
       },
@@ -168,15 +168,43 @@ publicRouter.post('/events', async (req: Request, res: Response) => {
     throw AppError.badRequest(`eventType must be one of: ${[...validTypes].join(', ')}`);
   }
 
+  // metadata: optional, must be a plain JSON object and at most MAX_METADATA_BYTES serialized.
+  let metadata: Prisma.InputJsonObject | undefined;
+  if (body.metadata !== undefined && body.metadata !== null) {
+    if (!isPlainObject(body.metadata)) {
+      throw AppError.badRequest('metadata must be a plain JSON object');
+    }
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(body.metadata);
+    } catch {
+      throw AppError.badRequest('metadata must be JSON-serializable');
+    }
+    if (serialized.length > MAX_METADATA_BYTES) {
+      throw AppError.badRequest(`metadata must be at most ${MAX_METADATA_BYTES} bytes when serialized`);
+    }
+    metadata = body.metadata as Prisma.InputJsonObject;
+  }
+
+  // Unknown FK ids are dropped (stored as null) rather than surfacing a Prisma FK error.
+  const [page, step] = await Promise.all([
+    isId(body.pageId)
+      ? prisma.page.findUnique({ where: { id: body.pageId }, select: { id: true } })
+      : null,
+    isId(body.tutorialStepId)
+      ? prisma.tutorialStep.findUnique({ where: { id: body.tutorialStepId }, select: { id: true } })
+      : null,
+  ]);
+
   await recordEvent({
     eventType: body.eventType as AnalyticsEventType,
-    routePath: body.routePath,
-    pageId: body.pageId,
-    tutorialStepId: body.tutorialStepId,
-    sessionId: body.sessionId,
-    anonymousId: body.anonymousId,
-    durationMs: typeof body.durationMs === 'number' ? body.durationMs : undefined,
-    metadata: body.metadata,
+    routePath: typeof body.routePath === 'string' ? body.routePath : undefined,
+    pageId: page?.id,
+    tutorialStepId: step?.id,
+    sessionId: typeof body.sessionId === 'string' ? body.sessionId : undefined,
+    anonymousId: typeof body.anonymousId === 'string' ? body.anonymousId : undefined,
+    durationMs: typeof body.durationMs === 'number' && Number.isFinite(body.durationMs) ? body.durationMs : undefined,
+    metadata,
     req,
   });
 
@@ -187,6 +215,18 @@ publicRouter.post('/events', async (req: Request, res: Response) => {
 // Internal helper
 // ---------------------------------------------------------------------------
 
+const MAX_METADATA_BYTES = 4096;
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v) as unknown;
+  return proto === Object.prototype || proto === null;
+}
+
+function isId(v: unknown): v is string {
+  return typeof v === 'string' && v.length > 0 && v.length <= 64;
+}
+
 interface EventInput {
   eventType: AnalyticsEventType;
   routePath?: string;
@@ -195,7 +235,7 @@ interface EventInput {
   sessionId?: string;
   anonymousId?: string;
   durationMs?: number;
-  metadata?: unknown;
+  metadata?: Prisma.InputJsonObject;
   req: Request;
 }
 

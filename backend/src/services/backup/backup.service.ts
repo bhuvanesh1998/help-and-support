@@ -23,8 +23,13 @@ import { prisma } from '../../lib/prisma.js';
 import { env } from '../../config/env.js';
 import { uploadDir } from '../../lib/upload.js';
 import { getWidgetConfig, sanitizeWidgetConfig, type WidgetConfigData } from '../widget/config.js';
+import { IMAGE_EXTENSIONS, isSafeMediaFilename, resolveInUploads, uploadPathFor } from './safe-path.js';
 
 const BACKUP_VERSION = 1;
+
+/** Per-file and whole-archive caps on uncompressed image data during restore. */
+const MAX_ENTRY_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
 
 interface BackupManifest {
   version: number;
@@ -56,9 +61,10 @@ interface BackupManifest {
 
 /** Disk path for a stored media file (prefers the canonical uploads/<filename>). */
 function mediaFilePath(filename: string, storagePath?: string | null): string | null {
-  const canonical = path.join(uploadDir, filename);
-  if (fs.existsSync(canonical)) return canonical;
-  if (storagePath && path.isAbsolute(storagePath) && fs.existsSync(storagePath)) return storagePath;
+  const canonical = uploadPathFor(filename);
+  if (canonical && fs.existsSync(canonical)) return canonical;
+  const stored = resolveInUploads(storagePath);
+  if (stored && fs.existsSync(stored)) return stored;
   return null;
 }
 
@@ -162,6 +168,7 @@ export async function createBackup(): Promise<{ filename: string; buffer: Buffer
   const zip = new AdmZip();
   zip.addFile('backup.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'));
   for (const m of media) {
+    if (!isSafeMediaFilename(m.filename)) continue;
     const filePath = mediaFilePath(m.filename, m.storagePath);
     if (filePath) zip.addLocalFile(filePath, 'uploads', m.filename);
   }
@@ -199,20 +206,30 @@ export async function restoreBackup(buffer: Buffer): Promise<RestoreSummary> {
     throw new Error(`Unsupported backup version ${manifest.version} (expected ${BACKUP_VERSION})`);
   }
 
-  // 1) Restore image files (basename only — guards against path traversal).
-  fs.mkdirSync(uploadDir, { recursive: true });
-  let filesWritten = 0;
+  // 1) Validate image entries up front (nothing is written yet). Only bare,
+  //    safe image filenames are accepted, and uncompressed sizes are capped
+  //    (from the header, before inflating) against zip bombs.
+  const pendingFiles: Array<{ target: string; entry: AdmZip.IZipEntry }> = [];
+  let totalBytes = 0;
   for (const entry of zip.getEntries()) {
     if (entry.isDirectory) continue;
     if (!entry.entryName.startsWith('uploads/')) continue;
     const base = path.basename(entry.entryName);
-    if (!base || base === 'uploads') continue;
-    fs.writeFileSync(path.join(uploadDir, base), entry.getData());
-    filesWritten += 1;
+    if (!isSafeMediaFilename(base) || !IMAGE_EXTENSIONS.has(path.extname(base).toLowerCase())) continue;
+    const target = uploadPathFor(base);
+    if (!target) continue;
+    const size = entry.header.size;
+    if (size > MAX_ENTRY_BYTES) {
+      throw new Error(`Invalid backup: ${base} exceeds the ${MAX_ENTRY_BYTES / (1024 * 1024)} MB per-file limit`);
+    }
+    totalBytes += size;
+    if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Invalid backup: images exceed the 2 GB total limit');
+    pendingFiles.push({ target, entry });
   }
 
-  // 2) Restore content. One transaction so a failure leaves the DB unchanged.
-  const summary: RestoreSummary = { categories: 0, pages: 0, steps: 0, apiEndpoints: 0, media: 0, filesWritten };
+  // 2) Restore content. One transaction so a failure leaves the DB unchanged;
+  //    files are only written once it has committed.
+  const summary: RestoreSummary = { categories: 0, pages: 0, steps: 0, apiEndpoints: 0, media: 0, filesWritten: 0 };
 
   await prisma.$transaction(
     async (tx) => {
@@ -228,9 +245,10 @@ export async function restoreBackup(buffer: Buffer): Promise<RestoreSummary> {
 
       const mediaIdMap = new Map<string, string>();
       for (const m of manifest.media ?? []) {
-        if (!m.filename) continue;
+        // Untrusted manifest: skip anything that isn't a bare, safe image name.
+        const storagePath = uploadPathFor(m.filename);
+        if (!storagePath) continue;
         const publicUrl = `${env.publicBaseUrl}/uploads/${m.filename}`;
-        const storagePath = path.join(uploadDir, m.filename);
         const row = await tx.mediaAsset.upsert({
           where: { filename: m.filename },
           create: {
@@ -350,6 +368,30 @@ export async function restoreBackup(buffer: Buffer): Promise<RestoreSummary> {
     },
     { timeout: 120_000, maxWait: 20_000 },
   );
+
+  // 3) Write the image files. On a write failure, remove what this restore
+  //    wrote so no half-restored file set is left behind.
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const written: string[] = [];
+  const created: string[] = [];
+  try {
+    for (const { target, entry } of pendingFiles) {
+      const data = entry.getData();
+      // Header sizes can lie; re-check the inflated length.
+      if (data.length > MAX_ENTRY_BYTES) throw new Error(`Invalid backup: ${path.basename(target)} is too large`);
+      const existed = fs.existsSync(target);
+      fs.writeFileSync(target, data);
+      written.push(target);
+      if (!existed) created.push(target);
+    }
+  } catch (err) {
+    // Only files this restore created — never ones that pre-existed.
+    for (const f of created) {
+      try { fs.unlinkSync(f); } catch { /* noop */ }
+    }
+    throw err;
+  }
+  summary.filesWritten = written.length;
 
   return summary;
 }

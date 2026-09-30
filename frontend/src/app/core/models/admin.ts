@@ -463,6 +463,15 @@ export interface VoiceoverConfig {
   envDefaults: VoiceoverSettings;
 }
 
+/** Progress of a resumable video upload. */
+export interface VoUploadStatus {
+  uploadId: string;
+  sizeBytes: number;
+  receivedBytes: number;
+  chunkBytes: number;
+  complete: boolean;
+}
+
 export interface VideoMeta {
   durationSec: number;
   fps: number;

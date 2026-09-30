@@ -33,6 +33,17 @@ interface NumField {
   suffix?: string;
 }
 
+/** Card whose fields can be filled from a named preset. */
+type PresetGroup = 'cost' | 'detection' | 'narration';
+
+/** A named starting point for one card; values are clamped to server bounds. */
+interface Preset {
+  id: string;
+  label: string;
+  hint: string;
+  values: Partial<Record<keyof VoiceoverSettings, number>>;
+}
+
 /**
  * Voiceover settings — the tunables that used to live only in .env, editable
  * here and persisted, so tuning cost and quality no longer needs a redeploy.
@@ -175,6 +186,115 @@ export class VoiceoverSettingsPage implements OnInit {
       suffix: 'wpm',
     },
   ];
+
+  readonly presets: Record<PresetGroup, Preset[]> = {
+    cost: [
+      {
+        id: 'economy',
+        label: 'Economy',
+        hint: 'Fewest, smallest frames. Cheapest; fine for short, simple flows.',
+        values: { maxFrames: 24, framesPerBatch: 8, frameWidth: 960, frameQuality: 5, maxTokens: 8000 },
+      },
+      {
+        id: 'balanced',
+        label: 'Balanced',
+        hint: 'Readable UI text at moderate cost. A sensible default.',
+        values: { maxFrames: 40, framesPerBatch: 6, frameWidth: 1280, frameQuality: 3, maxTokens: 12000 },
+      },
+      {
+        id: 'detail',
+        label: 'High detail',
+        hint: 'Full-width frames and more of them. Best accuracy, highest cost.',
+        values: { maxFrames: 60, framesPerBatch: 4, frameWidth: 1920, frameQuality: 2, maxTokens: 16000 },
+      },
+    ],
+    detection: [
+      {
+        id: 'sensitive',
+        label: 'Sensitive',
+        hint: 'Catches subtle screen changes. Can add noise on animated UIs.',
+        values: { sceneThreshold: 0.25, minFrameGapSec: 1 },
+      },
+      {
+        id: 'balanced',
+        label: 'Balanced',
+        hint: 'Real cuts without reacting to small UI movement.',
+        values: { sceneThreshold: 0.4, minFrameGapSec: 1.5 },
+      },
+      {
+        id: 'strict',
+        label: 'Strict',
+        hint: 'Only large transitions. Use for busy or animated recordings.',
+        values: { sceneThreshold: 0.6, minFrameGapSec: 3 },
+      },
+    ],
+    narration: [
+      {
+        id: 'brisk',
+        label: 'Brisk',
+        hint: 'Short lines at a quick pace — promos and fast demos.',
+        values: { minSegmentSec: 4, maxSegmentSec: 12, wordsPerMinute: 170 },
+      },
+      {
+        id: 'standard',
+        label: 'Standard',
+        hint: 'Natural walkthrough pace.',
+        values: { minSegmentSec: 6, maxSegmentSec: 15, wordsPerMinute: 150 },
+      },
+      {
+        id: 'relaxed',
+        label: 'Relaxed',
+        hint: 'Longer, slower lines — training and onboarding videos.',
+        values: { minSegmentSec: 8, maxSegmentSec: 20, wordsPerMinute: 130 },
+      },
+    ],
+  };
+
+  /** Groups the user switched to Custom by hand, even if values match a preset. */
+  private readonly forcedCustom = signal<ReadonlySet<PresetGroup>>(new Set());
+
+  /** The preset the current values match, or 'custom'. */
+  activePreset(group: PresetGroup): string {
+    if (this.forcedCustom().has(group)) return 'custom';
+    const s = this.settings();
+    if (!s) return 'custom';
+    const match = this.presets[group].find((p) =>
+      Object.entries(p.values).every(
+        ([key, v]) => s[key as keyof VoiceoverSettings] === this.clamp(key as keyof VoiceoverSettings, v),
+      ),
+    );
+    return match?.id ?? 'custom';
+  }
+
+  applyPreset(group: PresetGroup, preset: Preset): void {
+    const values: Partial<VoiceoverSettings> = {};
+    for (const [key, v] of Object.entries(preset.values)) {
+      (values as Record<string, number>)[key] = this.clamp(key as keyof VoiceoverSettings, v);
+    }
+    this.settings.update((s) => (s ? { ...s, ...values } : s));
+    this.setForcedCustom(group, false);
+    this.saved.set(false);
+  }
+
+  /** Keep the current values but mark the card as hand-tuned. */
+  chooseCustom(group: PresetGroup): void {
+    this.setForcedCustom(group, true);
+  }
+
+  private setForcedCustom(group: PresetGroup, on: boolean): void {
+    this.forcedCustom.update((set) => {
+      const next = new Set(set);
+      if (on) next.add(group);
+      else next.delete(group);
+      return next;
+    });
+  }
+
+  /** Presets must never send a value the server would reject. */
+  private clamp(key: keyof VoiceoverSettings, v: number): number {
+    const b = this.bounds()[key];
+    return b ? Math.min(b.max, Math.max(b.min, v)) : v;
+  }
 
   /** True when the current form differs from the server's env baseline. */
   readonly isCustomised = computed(() => {

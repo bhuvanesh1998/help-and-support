@@ -177,6 +177,14 @@ async function runCommand(cmd) {
       };
     }
 
+    case 'move': {
+      // Glide the cursor onto an element without clicking (hover, or to point at something on camera).
+      const center = await evaluate(tabId, haCenter, [cmd.params?.selector ?? null, cmd.params?.text ?? null]).catch(() => null);
+      if (!center || typeof center.x !== 'number') return { moved: false };
+      await glideTo(tabId, center.x, center.y);
+      return { moved: true };
+    }
+
     case 'navigate': {
       const target = String(cmd.params?.url ?? '');
       if (!target) throw new Error('navigate needs a url');
@@ -194,7 +202,7 @@ async function runCommand(cmd) {
       let clicked = false;
       if (center && typeof center.x === 'number') {
         const base = { x: center.x, y: center.y, button: 'left', clickCount: 1 };
-        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: center.x, y: center.y }).catch(() => {});
+        await glideTo(tabId, center.x, center.y);
         await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mousePressed', ...base }).catch(() => {});
         await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mouseReleased', ...base }).catch(() => {});
         clicked = true;
@@ -227,6 +235,29 @@ async function waitForLoad(tabId, timeout = 12000) {
   await new Promise((r) => setTimeout(r, 1200)); // settle SPA render
 }
 
+// Last pointer position per tab, so each glide starts where the previous one ended.
+const pointerPos = new Map();
+
+/**
+ * Move the pointer to (x, y) in eased steps instead of one jump. Screen recorders
+ * that draw the cursor from mousemove events (e.g. Cursorfly) then show it travel
+ * to each target, and the short dwell lets their click-zoom settle before the press.
+ */
+async function glideTo(tabId, x, y, durationMs = 700) {
+  const from = pointerPos.get(tabId) ?? { x: Math.max(0, x - 240), y: Math.max(0, y + 160) };
+  const steps = Math.max(8, Math.round(durationMs / 16));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+      type: 'mouseMoved', x: from.x + (x - from.x) * e, y: from.y + (y - from.y) * e,
+    }).catch(() => {});
+    await new Promise((r) => setTimeout(r, durationMs / steps));
+  }
+  pointerPos.set(tabId, { x, y });
+  await new Promise((r) => setTimeout(r, 250));
+}
+
 /** Run a function (serialised) in the page via CDP Runtime.evaluate. */
 async function evaluate(tabId, fn, args) {
   const expr = `(${fn.toString()}).apply(null, ${JSON.stringify(args)})`;
@@ -253,7 +284,7 @@ function clickFn(selector, text) {
   // Climb to the nearest actionable ancestor so framework (Angular) click
   // handlers fire — clicking a bare inner <span> often doesn't toggle a menu.
   var actionable = el.closest('button,a,[role="button"],[role="tab"],[role="menuitem"],li') || el;
-  actionable.scrollIntoView({ block: 'center' });
+  actionable.scrollIntoView({ block: 'center', inline: 'nearest' });
   var opts = { bubbles: true, cancelable: true, view: window };
   actionable.dispatchEvent(new MouseEvent('mousedown', opts));
   actionable.dispatchEvent(new MouseEvent('mouseup', opts));
@@ -292,7 +323,7 @@ function haHighlight(selector, text, placeholder, label) {
       || nodes.find(function (n) { var x = (n.textContent || '').trim().toLowerCase(); return x.length < 60 && x.indexOf(t) >= 0; });
   }
   if (!el) return false;
-  el.scrollIntoView({ block: 'center', inline: 'center' });
+  el.scrollIntoView({ block: 'center', inline: 'nearest' });
   var r = el.getBoundingClientRect();
   var box = document.createElement('div');
   box.id = '__ha_hl_box';
@@ -328,7 +359,7 @@ function haCenter(selector, text) {
   }
   if (!el) return null;
   var a = el.closest('button,a,[role="button"],[role="tab"],[role="menuitem"],li') || el;
-  a.scrollIntoView({ block: 'center', inline: 'center' });
+  a.scrollIntoView({ block: 'center', inline: 'nearest' });
   var r = a.getBoundingClientRect();
   if (r.width === 0 && r.height === 0) return null;
   return {

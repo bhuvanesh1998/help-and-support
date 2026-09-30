@@ -31,9 +31,29 @@ import { getWidgetConfig } from './services/widget/config.js';
 import { connectRouter } from './routes/admin/connect.routes.js';
 import { authenticate } from './middleware/auth.middleware.js';
 import { requireFeature, requirePermission } from './middleware/permission.middleware.js';
-import { adminLimiter, authLimiter, publicLimiter } from './middleware/rate-limit.js';
+import {
+  adminLimiter,
+  authIpLimiter,
+  authLimiter,
+  integrationLimiter,
+  publicLimiter,
+} from './middleware/rate-limit.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { errorHandler } from './middleware/error-handler.js';
+
+/** Query params that carry credentials (SSE/download `?token=` JWTs, API keys). */
+const SECRET_QUERY_PARAMS = ['token', 'access_token', 'key'];
+
+/** The request URL with credential-bearing query params replaced by [REDACTED]. */
+function redactUrl(originalUrl: string): string {
+  const q = originalUrl.indexOf('?');
+  if (q === -1) return originalUrl;
+  const params = new URLSearchParams(originalUrl.slice(q + 1));
+  for (const name of SECRET_QUERY_PARAMS) {
+    if (params.has(name)) params.set(name, '[REDACTED]');
+  }
+  return `${originalUrl.slice(0, q)}?${params.toString()}`;
+}
 
 export function createApp(): Express {
   const app = express();
@@ -68,7 +88,13 @@ export function createApp(): Express {
           return;
         }
         // Browser-extension connector runs from a chrome-extension://… origin.
-        if (/^(chrome-extension|moz-extension):\/\//.test(origin)) {
+        // With EXTENSION_ORIGINS set only those exact extension IDs pass;
+        // unset, any extension origin is accepted (the connector token still
+        // gates every request).
+        if (
+          /^(chrome-extension|moz-extension):\/\//.test(origin) &&
+          (env.extensionOrigins.length === 0 || env.extensionOrigins.includes(origin))
+        ) {
           callback(null, true);
           return;
         }
@@ -83,7 +109,7 @@ export function createApp(): Express {
   // ── Browser-extension connector bridge ──────────────────────────────────
   // Mounted before the global 1mb parser with a larger limit: command results
   // carry base64 screenshots. Token-gated internally (connector bearer token).
-  app.use('/connector', express.json({ limit: '25mb' }), connectorRouter);
+  app.use('/connector', integrationLimiter, express.json({ limit: '25mb' }), connectorRouter);
 
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -129,7 +155,8 @@ export function createApp(): Express {
       const ms = Number(process.hrtime.bigint() - start) / 1e6;
       logger.info('request', {
         method: req.method,
-        path: req.originalUrl,
+        // Redacted: SSE streams and downloads carry the JWT as ?token=.
+        path: redactUrl(req.originalUrl),
         status: res.statusCode,
         ms: Math.round(ms),
       });
@@ -143,7 +170,9 @@ export function createApp(): Express {
   // ── Auth (unauthenticated) ───────────────────────────────────────────────
   // Strictest limiter in the app: these are the only endpoints an attacker can
   // use without already having an account.
-  app.use('/api/admin/auth', authLimiter, authRouter);
+  // The IP-wide ceiling runs alongside the ip:email one so a single address
+  // cannot spray one password across every account.
+  app.use('/api/admin/auth', authIpLimiter, authLimiter, authRouter);
 
   // ── Public API (unauthenticated) ─────────────────────────────────────────
   app.use('/api/public', publicLimiter, publicRouter);
@@ -268,7 +297,7 @@ function applyCfg(){
 
   // Mounted before the global authenticate — Claude hosts present the MCP
   // connector token, not an admin JWT.
-  app.use('/mcp', mcpRouter);
+  app.use('/mcp', integrationLimiter, mcpRouter);
 
   // ── AI Pipeline (self-authenticating: Bearer for JSON, ?token= for SSE) ──
   // Mounted before the global authenticate so the EventSource stream can
