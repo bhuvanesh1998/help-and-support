@@ -109,7 +109,9 @@
   <!-- ── Progress ────────────────────────────────────────────────────────── -->
   @if (running() || phase() === 'error' || phase() === 'cancelled') {
     <section class="vo-card">
-      @if (running()) {
+      @if (uploadPercent(); as pct) {
+        <mat-progress-bar mode="determinate" [value]="pct" aria-label="Upload progress" />
+      } @else if (running()) {
         <mat-progress-bar mode="indeterminate" />
       }
       <p class="vo-phase">

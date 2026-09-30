@@ -58,6 +58,30 @@ export const authLimiter = rateLimit({
 });
 
 /**
+ * Per-IP ceiling on failed auth attempts, applied alongside `authLimiter`.
+ * The ip:email key alone lets one address try a password against an unlimited
+ * number of accounts; this caps the total failures from that address.
+ */
+export const authIpLimiter = rateLimit({
+  ...shared,
+  windowMs: 15 * MINUTE,
+  limit: 50,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ''),
+});
+
+/**
+ * MCP server and browser-extension connector. Token-gated rather than JWT-gated
+ * and mounted outside the admin limiter, so they get their own per-IP ceiling —
+ * high enough for an agent driving the extension step by step.
+ */
+export const integrationLimiter = rateLimit({
+  ...shared,
+  windowMs: 15 * MINUTE,
+  limit: 3000,
+});
+
+/**
  * The rest of the admin API. High enough that the polling library screen and a
  * long day of editing never notice; low enough to stop enumeration.
  */

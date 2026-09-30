@@ -22,6 +22,13 @@ from `$API_BASE_URL`.
 - **Port:** `3000`. **Domain:** add a Coolify-generated domain (auto HTTPS).
 - **Persistent storage (REQUIRED):** mount a volume at **`/app/backend/uploads`** —
   without it, uploaded/restored images are lost on every redeploy.
+- **Persistent storage (recommended):** mount a second volume at **`/app/backend/exports`**
+  so generated exports survive redeploys.
+- The container runs as the unprivileged **`node`** user (uid 1000). It starts as root
+  only long enough to `chown` those volumes (existing root-owned volumes are fixed
+  automatically on first boot), then drops privileges.
+- A Docker `HEALTHCHECK` probes `GET /api/health` (liveness, no DB). In Coolify →
+  Health Check, use path `/api/health`, port `3000`.
 - **Environment variables** (see [backend/.env.production.example](backend/.env.production.example)):
 
 | Variable                | Value                                              |
@@ -35,8 +42,30 @@ from `$API_BASE_URL`.
 | `JWT_SECRET`            | a 64+ char hex secret                              |
 
 > `CORS_ORIGIN` **must** be the frontend's origin — login/admin/analytics calls are
-> now cross-origin. Reusing the existing in-sync `twixordocs` DB: leave `RUN_DB_PUSH`
-> unset. For a fresh DB, set `RUN_DB_PUSH=true` once to push the schema + seed the admin.
+> now cross-origin.
+
+### Database schema on start
+
+Every start runs **`prisma migrate deploy`**: pending migrations from
+`backend/prisma/migrations` are applied, nothing is ever dropped. New tables reach
+production by committing a migration (`npm run prisma:migrate` locally), not by
+`db push`. If a migration fails, the container exits and Coolify keeps the previous
+deployment running.
+
+| Variable                                     | Use                                                                                                  |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| *(none)*                                     | Default: `prisma migrate deploy`.                                                                    |
+| `RUN_SEED=true`                              | Also run `prisma/seed.ts` (needs `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD`). Idempotent. |
+| `MIGRATE_BASELINE=true`                      | **One time**, for a DB built with `db push` (log shows `P3005`). Syncs the schema without data loss, marks every migration applied, then deploys. Remove afterwards. |
+| `RUN_DB_PUSH=true`                           | **One time** legacy bootstrap: `prisma db push` + baseline + seed. Refuses destructive changes.       |
+| `DB_PUSH_ACCEPT_DATA_LOSS=yes-i-understand`  | Only with `RUN_DB_PUSH=true`: allows `--accept-data-loss`. Never leave set.                          |
+| `SKIP_DB_SYNC=true`                          | Leave the schema untouched.                                                                          |
+
+- **Existing `twixordocs` DB (built with `db push`):** deploy once with
+  `MIGRATE_BASELINE=true`, confirm the log shows `No pending migrations to apply`,
+  then delete the variable and redeploy.
+- **Fresh DB:** deploy with `RUN_SEED=true` (plus the two `SEED_SUPER_ADMIN_*`
+  variables); remove them after the admin exists.
 
 ## 2. Frontend app
 
@@ -75,6 +104,6 @@ images into the backend uploads volume and rewrites image URLs to `PUBLIC_BASE_U
 ## Notes
 
 - Reusing `twixordocs` means deployed edits/restores hit the same data as dev. For an
-  isolated environment, point `DATABASE_URL` at a separate DB and set `RUN_DB_PUSH=true` once.
+  isolated environment, point `DATABASE_URL` at a separate DB and deploy once with `RUN_SEED=true`.
 - Custom domains: add them in each app's Domains tab, then update `PUBLIC_BASE_URL` /
   `CORS_ORIGIN` / `API_BASE_URL` accordingly and redeploy.

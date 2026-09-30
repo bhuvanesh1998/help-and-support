@@ -21,6 +21,7 @@ import {
   unsubscribe,
 } from '../../services/ai-pipeline/job-manager.js';
 import type { SessionInjection } from '../../services/ai-pipeline/types.js';
+import { assertPublicHost } from '../../services/ai-pipeline/url-guard.js';
 import {
   getCredentialStatus,
   getDecryptedKey,
@@ -98,6 +99,14 @@ aiPipelineRouter.post('/jobs', ...can('ai.manage'), async (req: Request, res: Re
     baseUrl = `${u.protocol}//${u.host}`;
   } catch {
     throw AppError.badRequest('baseUrl must be a valid http(s) URL');
+  }
+
+  // SSRF guard: the server-side browser must not be pointed at internal hosts
+  // (set AI_PIPELINE_ALLOW_PRIVATE=true to allow local dev targets).
+  try {
+    await assertPublicHost(new URL(baseUrl).hostname);
+  } catch (err) {
+    throw AppError.badRequest(`baseUrl rejected: ${(err as Error).message}`);
   }
 
   // Model: honour an explicit valid choice, else fall through to the stored default.
@@ -199,24 +208,30 @@ aiPipelineRouter.delete('/credential', ...can('ai.manage'), async (_req: Request
   res.json({ disconnected: true });
 });
 
-/** GET /api/admin/ai-pipeline/jobs/:id — current snapshot (polling / reconnect). */
-aiPipelineRouter.get('/jobs/:id', ...can('ai.view'), (req: Request, res: Response) => {
+/** Resolve the job for `:id`, 404ing when it is missing or belongs to another user. */
+function ownedJob(req: Request) {
   const job = getJob(p(req, 'id'));
   if (!job) throw AppError.notFound('Job not found or expired');
-  res.json(snapshot(job));
+  if (job.userId !== req.user?.id) throw AppError.notFound('Job not found or expired');
+  return job;
+}
+
+/** GET /api/admin/ai-pipeline/jobs/:id — current snapshot (polling / reconnect). */
+aiPipelineRouter.get('/jobs/:id', ...can('ai.view'), (req: Request, res: Response) => {
+  res.json(snapshot(ownedJob(req)));
 });
 
 /** POST /api/admin/ai-pipeline/jobs/:id/cancel */
 aiPipelineRouter.post('/jobs/:id/cancel', ...can('ai.manage'), (req: Request, res: Response) => {
-  const ok = cancelJob(p(req, 'id'));
+  const job = ownedJob(req);
+  const ok = cancelJob(job.id);
   if (!ok) throw AppError.badRequest('Job not found or already finished');
   res.json({ cancelled: true });
 });
 
 /** GET /api/admin/ai-pipeline/jobs/:id/stream?token=... — SSE progress stream. */
 aiPipelineRouter.get('/jobs/:id/stream', ...canQuery('ai.view'), (req: Request, res: Response) => {
-  const job = getJob(p(req, 'id'));
-  if (!job) throw AppError.notFound('Job not found or expired');
+  const job = ownedJob(req);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');

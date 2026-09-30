@@ -8,6 +8,8 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -85,6 +87,11 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
   readonly jobId = signal('');
   readonly phase = signal<VoJobPhase | 'idle'>('idle');
   readonly phaseMessage = signal('');
+  /** Upload progress 0–100 while a video is being sent; null otherwise. */
+  readonly uploadPercent = signal<number | null>(null);
+  /** Live chunked upload, so Cancel can abandon it server-side. */
+  private uploadId: string | null = null;
+  private uploadCancelled = false;
   readonly meta = signal<VideoMeta | null>(null);
   readonly segments = signal<VoSegment[]>([]);
   readonly logs = signal<Array<{ level: string; message: string }>>([]);
@@ -189,36 +196,132 @@ export class VoiceoverStudio implements OnInit, OnDestroy {
   }
 
   // ── Job lifecycle ─────────────────────────────────────────────────────────
-  start(): void {
+  async start(): Promise<void> {
     const video = this.file();
     if (!video || !this.canStart()) return;
 
     this.resetResult();
     this.phase.set('pending');
     this.phaseMessage.set('Uploading video…');
+    this.uploadCancelled = false;
 
-    this.api
-      .startVoiceoverJob(video, {
-        appName: this.appName.trim(),
-        audience: this.audience.trim(),
-        tone: this.tone,
-      })
-      .subscribe({
-        next: (res) => {
-          this.jobId.set(res.jobId);
-          localStorage.setItem(ACTIVE_JOB_KEY, res.jobId);
-          this.openStream(res.jobId);
-        },
-        error: (err) => {
-          this.phase.set('idle');
-          this.startError.set(
-            err.error?.error?.message ?? 'Failed to start the job. Check the video and try again.',
-          );
-        },
-      });
+    try {
+      const uploadId = await this.uploadInPieces(video);
+      if (this.uploadCancelled) return;
+      this.phaseMessage.set('Upload complete — starting…');
+      const res = await firstValueFrom(
+        this.api.startVoiceoverJobFromUpload(uploadId, {
+          appName: this.appName.trim(),
+          audience: this.audience.trim(),
+          tone: this.tone,
+        }),
+      );
+      this.uploadId = null;
+      this.jobId.set(res.jobId);
+      localStorage.setItem(ACTIVE_JOB_KEY, res.jobId);
+      this.openStream(res.jobId);
+    } catch (err) {
+      if (this.uploadCancelled) return;
+      this.phase.set('idle');
+      this.startError.set(this.uploadErrorMessage(err as HttpErrorResponse, video));
+      // A failed start leaves a finished upload the job never took; drop it.
+      if (this.uploadId) this.api.cancelVideoUpload(this.uploadId).subscribe({ error: () => {} });
+      this.uploadId = null;
+    } finally {
+      this.uploadPercent.set(null);
+    }
+  }
+
+  /**
+   * Send the video as fixed-size pieces, each its own short request.
+   *
+   * One multi-GB request dies at the first proxy size cap or network blip and
+   * restarts from zero. Here a failed piece is retried with backoff, and after
+   * any failure the server is asked how many bytes it really holds, so the
+   * upload resumes exactly where it stopped.
+   */
+  private async uploadInPieces(video: File): Promise<string> {
+    const session = await firstValueFrom(this.api.createVideoUpload(video.name, video.size));
+    this.uploadId = session.uploadId;
+    const pieceSize = session.chunkBytes;
+    let offset = session.receivedBytes;
+    let failures = 0;
+
+    while (offset < video.size) {
+      if (this.uploadCancelled) throw new Error('cancelled');
+      this.reportUpload(offset, video.size);
+      try {
+        const res = await firstValueFrom(
+          this.api.uploadVideoChunk(
+            session.uploadId,
+            offset,
+            video.slice(offset, Math.min(offset + pieceSize, video.size)),
+          ),
+        );
+        offset = res.receivedBytes;
+        failures = 0;
+      } catch (err) {
+        const http = err as HttpErrorResponse;
+        // Out of step (a retried piece had actually landed): jump to the
+        // server's position. Not a failure.
+        if (http.status === 409 && typeof http.error?.resumeAt === 'number') {
+          offset = http.error.resumeAt;
+          continue;
+        }
+        // A 4xx other than a timeout will not fix itself on retry.
+        const retriable = http.status === 0 || http.status === 408 || http.status >= 500;
+        if (!retriable || ++failures > 5) throw err;
+        await new Promise((r) => setTimeout(r, Math.min(30_000, 1000 * 2 ** failures)));
+        try {
+          offset = (await firstValueFrom(this.api.getVideoUpload(session.uploadId))).receivedBytes;
+        } catch {
+          /* keep the local offset; the next PUT answers 409 if it is wrong */
+        }
+      }
+    }
+    this.reportUpload(video.size, video.size);
+    return session.uploadId;
+  }
+
+  private reportUpload(sent: number, total: number): void {
+    const percent = Math.floor((sent / total) * 100);
+    this.uploadPercent.set(percent);
+    this.phaseMessage.set(`Uploading video… ${percent}% (${this.mb(sent)} of ${this.mb(total)} MB)`);
+  }
+
+  /**
+   * Explain a failed upload. Proxy rejections (413, 504, a dropped socket) never
+   * reach the API's error body, so the generic fallback hid the real cause.
+   */
+  private uploadErrorMessage(err: { status?: number; error?: { error?: { message?: string } } }, video: File): string {
+    const apiMessage = err.error?.error?.message;
+    if (apiMessage) return apiMessage;
+    const size = `${this.mb(video.size)} MB`;
+    switch (err.status) {
+      case 413:
+        return `The server's proxy rejected this ${size} upload as too large. Raise the request body limit on the proxy in front of the API.`;
+      case 408:
+      case 502:
+      case 504:
+        return `The ${size} upload timed out at the proxy before it finished. Raise the proxy's read timeout, or upload a shorter or compressed video.`;
+      case 0:
+        return `The connection dropped while uploading ${size}. This is usually a proxy size or timeout limit, or a network interruption.`;
+      default:
+        return 'Failed to start the job. Check the video and try again.';
+    }
   }
 
   cancel(): void {
+    // Still uploading: stop sending and drop the partial file.
+    if (this.uploadId && !this.jobId()) {
+      this.uploadCancelled = true;
+      this.api.cancelVideoUpload(this.uploadId).subscribe({ error: () => {} });
+      this.uploadId = null;
+      this.uploadPercent.set(null);
+      this.phase.set('idle');
+      this.phaseMessage.set('');
+      return;
+    }
     const id = this.jobId();
     if (!id) return;
     this.api.cancelVoiceoverJob(id).subscribe({

@@ -242,12 +242,6 @@
               @if (e.contentType) {
                 <div class="api-kv"><span class="api-kv-label">Type</span><code class="api-kv-val">{{ e.contentType }}</code></div>
               }
-              @if (e.requestBody) {
-                <details class="api-blk"><summary>Request body</summary><pre class="api-pre">{{ e.requestBody }}</pre></details>
-              }
-              @if (e.responseSample) {
-                <details class="api-blk"><summary>Response sample</summary><pre class="api-pre">{{ e.responseSample }}</pre></details>
-              }
             </article>
           }
         </section>

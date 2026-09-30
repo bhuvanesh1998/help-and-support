@@ -17,6 +17,13 @@ import { requirePermission } from '../../middleware/permission.middleware.js';
 import { AppError } from '../../utils/app-error.js';
 import { videoUpload } from '../../lib/upload.js';
 import {
+  appendChunk,
+  cancelUpload,
+  createUpload,
+  getUpload,
+  takeCompletedUpload,
+} from '../../services/voiceover/chunked-upload.service.js';
+import {
   getKey,
   isCredentialId,
   listKeyStatus,
@@ -263,13 +270,32 @@ voiceoverRouter.post(
   ...can('voiceover.manage'),
   acceptVideo,
   async (req: Request, res: Response) => {
-    if (!req.file) {
-      throw AppError.badRequest('No video uploaded. Use form-data field "video".');
+    // Either a single multipart upload (small files) or a finished chunked
+    // upload referenced by id (large files, see /uploads below).
+    const uploadId =
+      typeof (req.body as Record<string, unknown>)['uploadId'] === 'string'
+        ? ((req.body as Record<string, unknown>)['uploadId'] as string)
+        : '';
+    let videoPath: string;
+    let videoName: string;
+    if (req.file) {
+      videoPath = req.file.path;
+      videoName = req.file.originalname;
+    } else if (uploadId) {
+      try {
+        ({ path: videoPath, originalName: videoName } = takeCompletedUpload(
+          uploadId,
+          req.user!.id,
+        ));
+      } catch (err) {
+        throw AppError.badRequest((err as Error).message);
+      }
+    } else {
+      throw AppError.badRequest('No video uploaded. Use form-data field "video" or an uploadId.');
     }
 
-    // Multer has already written the upload to disk. Any rejection from here on
-    // must remove it, or failed attempts accumulate as orphaned video files.
-    const videoPath = req.file.path;
+    // The video is on disk now. Any rejection from here on must remove it, or
+    // failed attempts accumulate as orphaned video files.
     const reject = (message: string): never => {
       try {
         if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
@@ -306,7 +332,7 @@ voiceoverRouter.post(
     const id = startJob({
       userId: req.user!.id,
       videoPath,
-      videoName: req.file.originalname,
+      videoName,
       appName,
       audience,
       tone,
@@ -319,6 +345,61 @@ voiceoverRouter.post(
     res.status(202).json({ jobId: id });
   },
 );
+
+// ── Chunked uploads ─────────────────────────────────────────────────────────
+
+/**
+ * POST /api/admin/voiceover/uploads — open a resumable upload.
+ * Body: { filename, sizeBytes }. Returns the piece size to send.
+ */
+voiceoverRouter.post('/uploads', ...can('voiceover.manage'), async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const filename = typeof body['filename'] === 'string' ? body['filename'].trim() : '';
+  const sizeBytes = Number(body['sizeBytes']);
+  const settings = await getSettings();
+  try {
+    res.status(201).json(createUpload(req.user!.id, filename, sizeBytes, settings.maxVideoUploadMb));
+  } catch (err) {
+    throw AppError.badRequest((err as Error).message);
+  }
+});
+
+/** GET /api/admin/voiceover/uploads/:id — bytes stored so far, to resume from. */
+voiceoverRouter.get('/uploads/:id', ...can('voiceover.manage'), (req: Request, res: Response) => {
+  try {
+    res.json(getUpload(p(req, 'id'), req.user!.id));
+  } catch (err) {
+    throw AppError.notFound((err as Error).message);
+  }
+});
+
+/**
+ * PUT /api/admin/voiceover/uploads/:id?offset=N — append one raw piece.
+ * The body is streamed to disk, never buffered, so it bypasses the JSON parser.
+ * 409 with `resumeAt` tells an out-of-step client where to continue.
+ */
+voiceoverRouter.put('/uploads/:id', ...can('voiceover.manage'), async (req: Request, res: Response) => {
+  const offset = Number(req.query['offset']);
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    throw AppError.badRequest('A numeric offset is required.');
+  }
+  try {
+    res.json(await appendChunk(p(req, 'id'), req.user!.id, offset, req));
+  } catch (err) {
+    const resumeAt = (err as { resumeAt?: number }).resumeAt;
+    if (resumeAt !== undefined) {
+      res.status(409).json({ error: { message: (err as Error).message }, resumeAt });
+      return;
+    }
+    throw AppError.badRequest((err as Error).message);
+  }
+});
+
+/** DELETE /api/admin/voiceover/uploads/:id — abandon and remove the partial file. */
+voiceoverRouter.delete('/uploads/:id', ...can('voiceover.manage'), (req: Request, res: Response) => {
+  cancelUpload(p(req, 'id'), req.user!.id);
+  res.status(204).end();
+});
 
 /** GET /api/admin/voiceover/jobs/:id — current snapshot. */
 voiceoverRouter.get('/jobs/:id', ...can('voiceover.view'), (req: Request, res: Response) => {
@@ -488,8 +569,8 @@ function buildScriptMarkdown(
   const rows = segments
     .map((s) => {
       const flag = s.wordCount > s.wordBudget ? ' (over)' : '';
-      const onScreen = s.onScreen.replace(/\|/g, '\|');
-      const line = s.script.replace(/\|/g, '\|');
+      const onScreen = s.onScreen.replace(/\|/g, '\\|');
+      const line = s.script.replace(/\|/g, '\\|');
       const length = (s.endSec - s.startSec).toFixed(1);
       return `| ${s.index} | ${timecode(s.startSec)}-${timecode(s.endSec)} | ${length}s | ${onScreen} | ${line} | ${s.wordCount}/${s.wordBudget}${flag} |`;
     })

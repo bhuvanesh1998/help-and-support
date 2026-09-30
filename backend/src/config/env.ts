@@ -48,6 +48,20 @@ if (nodeEnv === 'production' && jwtSecret.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters in production.');
 }
 
+// Written with console directly: the logger imports this module.
+if (nodeEnv === 'production' && !process.env['SETTINGS_ENCRYPTION_KEY']?.trim()) {
+  console.warn(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: 'warn',
+      message:
+        'SECURITY: SETTINGS_ENCRYPTION_KEY is not set — at-rest secrets are encrypted with ' +
+        'JWT_SECRET, so rotating JWT_SECRET will make them unreadable and a leaked JWT_SECRET ' +
+        'exposes them. Set a dedicated key (re-enter stored secrets after changing it).',
+    }),
+  );
+}
+
 export const env = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
@@ -69,11 +83,27 @@ export const env = {
   jwtRefreshExpiresIn: optional('JWT_REFRESH_EXPIRES_IN', '7d'),
 
   // Used to encrypt at-rest secrets (e.g. the stored Anthropic key).
-  // Falls back to JWT_SECRET so the feature works without extra setup.
+  // Falls back to JWT_SECRET so the feature works without extra setup. This is
+  // deliberately not a hard failure in production: existing deployments have
+  // already encrypted data with JWT_SECRET, and demanding a new key would make
+  // those secrets undecryptable. A warning is logged at startup instead.
   settingsEncryptionKey: optional('SETTINGS_ENCRYPTION_KEY', jwtSecret),
+
+  // Exact browser-extension origins allowed through CORS, comma-separated
+  // (e.g. "chrome-extension://abcdef…"). Empty = any chrome-extension:// or
+  // moz-extension:// origin is accepted.
+  extensionOrigins: optional('EXTENSION_ORIGINS', '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
 
   uploadDir: optional('UPLOAD_DIR', './uploads'),
   maxUploadMb: intOf('MAX_UPLOAD_MB', 10),
+  /**
+   * Longest a single request may take, in minutes. Node's default (5 min) cuts
+   * off multi-GB video uploads on ordinary connections mid-transfer.
+   */
+  requestTimeoutMin: intOf('REQUEST_TIMEOUT_MIN', 60),
 
   // ── Voiceover Studio ──────────────────────────────────────────────────────
   // Every knob that affects cost, quality, or limits lives here so it can be

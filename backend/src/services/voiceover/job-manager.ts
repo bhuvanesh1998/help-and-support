@@ -155,6 +155,24 @@ export function subscribe(job: VoJob, res: Response): void {
   for (const s of job.segments) {
     res.write(`data: ${JSON.stringify({ type: 'segment', segment: s })}\n\n`);
   }
+  // A job can finish (or fail fast) before the client's stream connects. Replay
+  // the outcome so it is not left waiting on an event that was already sent.
+  if (job.phase === 'done') {
+    const totalWords = job.segments.reduce((sum, s) => sum + s.wordCount, 0);
+    res.write(
+      `data: ${JSON.stringify({
+        type: 'done',
+        scriptId: job.scriptId,
+        totalSegments: job.segments.length,
+        totalWords,
+        spokenSec: Number(spokenSecondsFor(totalWords, job.settings.wordsPerMinute).toFixed(1)),
+      })}\n\n`,
+    );
+  } else if (job.phase === 'error') {
+    res.write(
+      `data: ${JSON.stringify({ type: 'error', message: job.error ?? 'Voiceover job failed' })}\n\n`,
+    );
+  }
 }
 
 export function unsubscribe(job: VoJob, res: Response): void {
@@ -230,6 +248,14 @@ function scheduleExpiry(job: VoJob): void {
   }, job.settings.jobRetentionMinutes * 60 * 1000);
 }
 
+/** A job started without its key or video can never run; fail it instead of leaving it pending. */
+function abortMissingInput(job: VoJob): void {
+  job.phase = 'error';
+  job.error = 'The job was missing its API key or video. Start it again.';
+  emit(job, { type: 'error', message: job.error });
+  finish(job);
+}
+
 function finish(job: VoJob): void {
   job.apiKey = null;
   removeVideo(job);
@@ -297,21 +323,21 @@ export function cancelJob(id: string): boolean {
 async function runJob(job: VoJob): Promise<void> {
   const apiKey = job.apiKey;
   const videoPath = job.videoPath;
-  if (!apiKey || !videoPath) return;
-
-  // Opened before any work so a crash mid-run still leaves a record behind.
-  job.scriptId = await createScript({
-    videoName: job.config.videoName,
-    appName: job.config.appName,
-    audience: job.config.audience,
-    tone: job.config.tone,
-    provider: job.config.provider,
-    model: job.config.model,
-    wordsPerMinute: job.settings.wordsPerMinute,
-    userId: job.userId,
-  });
+  if (!apiKey || !videoPath) return abortMissingInput(job);
 
   try {
+    // Opened before any work so a crash mid-run still leaves a record behind.
+    job.scriptId = await createScript({
+      videoName: job.config.videoName,
+      appName: job.config.appName,
+      audience: job.config.audience,
+      tone: job.config.tone,
+      provider: job.config.provider,
+      model: job.config.model,
+      wordsPerMinute: job.settings.wordsPerMinute,
+      userId: job.userId,
+    });
+
     // ── Phase 1: probe ───────────────────────────────────────────────────────
     setPhase(job, 'probing', 'Reading the video…');
 
@@ -544,21 +570,21 @@ export function startRegenerateJob(input: RegenerateInput): string {
 
 async function runRegenerate(job: VoJob, sourceScriptId: string): Promise<void> {
   const apiKey = job.apiKey;
-  if (!apiKey) return;
-
-  job.scriptId = await createScript({
-    videoName: job.config.videoName,
-    appName: job.config.appName,
-    audience: job.config.audience,
-    tone: job.config.tone,
-    provider: job.config.provider,
-    model: job.config.model,
-    wordsPerMinute: job.settings.wordsPerMinute,
-    userId: job.userId,
-    sourceScriptId,
-  });
+  if (!apiKey) return abortMissingInput(job);
 
   try {
+    job.scriptId = await createScript({
+      videoName: job.config.videoName,
+      appName: job.config.appName,
+      audience: job.config.audience,
+      tone: job.config.tone,
+      provider: job.config.provider,
+      model: job.config.model,
+      wordsPerMinute: job.settings.wordsPerMinute,
+      userId: job.userId,
+      sourceScriptId,
+    });
+
     setPhase(job, 'extracting', 'Loading stored frames…');
 
     const stored = await loadFrames(sourceScriptId);

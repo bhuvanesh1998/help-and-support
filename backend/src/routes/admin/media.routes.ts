@@ -8,6 +8,7 @@ import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../utils/app-error.js';
 import { upload, uploadDir } from '../../lib/upload.js';
 import { env } from '../../config/env.js';
+import { resolveInUploads } from '../../services/backup/safe-path.js';
 
 export const mediaRouter: Router = Router();
 
@@ -21,7 +22,9 @@ function p(req: Request, key: string): string {
 
 /** Remove an asset's files from disk (render + preserved original). */
 function removeAssetFiles(asset: { storagePath: string; originalStoragePath: string | null }): void {
-  for (const filePath of [asset.storagePath, asset.originalStoragePath]) {
+  for (const stored of [asset.storagePath, asset.originalStoragePath]) {
+    // Stored paths are data — never unlink anything outside the uploads dir.
+    const filePath = resolveInUploads(stored);
     if (filePath && fs.existsSync(filePath)) {
       try { fs.unlinkSync(filePath); } catch { /* noop */ }
     }
@@ -50,22 +53,31 @@ mediaRouter.post('/', upload.single('file'), async (req: Request, res: Response)
   if (!req.file) throw AppError.badRequest('No file uploaded. Use form-data field "file".');
 
   const filePath = path.join(uploadDir, req.file.filename);
-  const fileBuffer = fs.readFileSync(filePath);
-  const checksum = createHash('sha256').update(fileBuffer).digest('hex');
-  const publicUrl = `${env.publicBaseUrl}/uploads/${req.file.filename}`;
+  const cleanupUpload = () => { if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch { /* noop */ } } };
 
-  const asset = await prisma.mediaAsset.create({
-    data: {
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      sizeBytes: req.file.size,
-      storagePath: filePath,
-      publicUrl,
-      checksum,
-      uploadedById: req.user!.id,
-    },
-  });
+  let asset;
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+    const checksum = createHash('sha256').update(fileBuffer).digest('hex');
+    const publicUrl = `${env.publicBaseUrl}/uploads/${req.file.filename}`;
+
+    asset = await prisma.mediaAsset.create({
+      data: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size,
+        storagePath: filePath,
+        publicUrl,
+        checksum,
+        uploadedById: req.user!.id,
+      },
+    });
+  } catch (err) {
+    // No DB row will ever reference the file — don't leave it orphaned.
+    cleanupUpload();
+    throw err;
+  }
 
   res.status(201).json({ asset });
 });
@@ -196,29 +208,40 @@ mediaRouter.post('/:id/annotate', upload.single('file'), async (req: Request, re
   const originalStoragePath = existing.originalStoragePath ?? existing.storagePath;
   const originalUrl = existing.originalUrl ?? existing.publicUrl;
 
-  // Replace the previous *render* on disk — but never the preserved original.
-  if (existing.storagePath !== originalStoragePath && fs.existsSync(existing.storagePath)) {
-    try { fs.unlinkSync(existing.storagePath); } catch { /* noop */ }
+  let updated;
+  try {
+    updated = await prisma.mediaAsset.update({
+      where: { id },
+      data: {
+        filename: req.file.filename,
+        mimeType: 'image/png',
+        sizeBytes: req.file.size,
+        storagePath: newFilePath,
+        publicUrl: newPublicUrl,
+        checksum,
+        width,
+        height,
+        originalStoragePath,
+        originalUrl,
+        editedAt: new Date(),
+        ...(annotations !== undefined && { annotations }),
+        ...(typeof body.altText === 'string' && { altText: body.altText }),
+      },
+    });
+  } catch (err) {
+    // The DB still points at the previous render — drop the unused new file.
+    cleanupUpload();
+    throw err;
   }
 
-  const updated = await prisma.mediaAsset.update({
-    where: { id },
-    data: {
-      filename: req.file.filename,
-      mimeType: 'image/png',
-      sizeBytes: req.file.size,
-      storagePath: newFilePath,
-      publicUrl: newPublicUrl,
-      checksum,
-      width,
-      height,
-      originalStoragePath,
-      originalUrl,
-      editedAt: new Date(),
-      ...(annotations !== undefined && { annotations }),
-      ...(typeof body.altText === 'string' && { altText: body.altText }),
-    },
-  });
+  // Only now that the DB points at the new render, remove the previous one
+  // from disk — but never the preserved original.
+  if (existing.storagePath !== originalStoragePath) {
+    const previous = resolveInUploads(existing.storagePath);
+    if (previous && previous !== path.resolve(newFilePath) && fs.existsSync(previous)) {
+      try { fs.unlinkSync(previous); } catch { /* noop */ }
+    }
+  }
 
   // Keep tutorial steps that embed this image pointing at the new render.
   await prisma.tutorialStep.updateMany({ where: { mediaAssetId: id }, data: { imageUrl: newPublicUrl } });

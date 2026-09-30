@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import multer from 'multer';
 import { AppError } from '../utils/app-error.js';
 import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
@@ -40,6 +41,15 @@ export function errorHandler(
     statusCode = 400;
     message = 'Invalid database query input';
     code = 'PRISMA_VALIDATION';
+  } else if (err instanceof multer.MulterError) {
+    statusCode = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    message = err.code === 'LIMIT_FILE_SIZE' ? 'Uploaded file is too large' : err.message;
+    code = `UPLOAD_${err.code}`;
+  } else if (err instanceof Error && isUploadFilterError(err)) {
+    // Rejections from multer fileFilter callbacks (see lib/upload.ts).
+    statusCode = 400;
+    message = err.message;
+    code = 'UPLOAD_REJECTED';
   } else if (err instanceof Error) {
     // Deliberately *not* forwarded to the client in production: an unexpected
     // error's message routinely carries file paths, SQL and connection details.
@@ -75,6 +85,10 @@ function mapPrismaError(err: Prisma.PrismaClientKnownRequestError): {
     default:
       return { statusCode: 400, message: 'Database request error', code: `PRISMA_${err.code}` };
   }
+}
+
+function isUploadFilterError(err: Error): boolean {
+  return err.message.startsWith('File type') || err.message.startsWith('Backup must be');
 }
 
 function errStack(err: unknown): string | undefined {

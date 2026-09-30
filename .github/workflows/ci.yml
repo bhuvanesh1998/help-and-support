@@ -70,6 +70,8 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npm run typecheck
+      - name: Unit tests (no database)
+        run: npm test
       - run: npm run build
       - name: Apply migrations to an empty database
         run: npx prisma migrate deploy

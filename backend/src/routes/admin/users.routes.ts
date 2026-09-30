@@ -115,8 +115,30 @@ usersRouter.patch('/:id', async (req: Request, res: Response) => {
   const existing = await prisma.user.findUnique({ where: { id: targetId } });
   if (!existing) throw AppError.notFound('User not found');
 
+  // Same rule as DELETE: a delegated user manager must not be able to take over
+  // a super admin by resetting its password, email or active flag.
+  if (existing.role === UserRole.SUPER_ADMIN && !isSuper) {
+    throw AppError.forbidden('Only a super admin can update another super admin');
+  }
+
   const body = req.body as Record<string, unknown>;
   const data: Record<string, unknown> = {};
+
+  // Changing your own credentials needs the current password, so a stolen
+  // access token alone cannot be turned into a permanent account takeover.
+  const changesCredentials =
+    (typeof body['password'] === 'string' && body['password'].length >= 8) ||
+    (typeof body['email'] === 'string' &&
+      body['email'].toLowerCase().trim() !== existing.email);
+  if (caller.id === targetId && changesCredentials) {
+    const current = body['currentPassword'];
+    if (typeof current !== 'string' || !current) {
+      throw AppError.badRequest('currentPassword is required to change your password or email');
+    }
+    if (!(await bcrypt.compare(current, existing.passwordHash))) {
+      throw AppError.forbidden('Current password is incorrect');
+    }
+  }
 
   if (typeof body['password'] === 'string' && body['password'].length >= 8) {
     data['passwordHash'] = await bcrypt.hash(body['password'], 12);

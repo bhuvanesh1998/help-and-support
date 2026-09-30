@@ -11,6 +11,9 @@ import { resolveAccess } from '../services/roles.service.js';
 
 export const authRouter: Router = Router();
 
+/** Cost-12 hash matching real accounts; compared against when no user matches. */
+const DUMMY_HASH = bcrypt.hashSync('timing-equaliser-not-a-real-password', 12);
+
 /** POST /api/admin/auth/login */
 authRouter.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body as { email?: unknown; password?: unknown };
@@ -19,10 +22,10 @@ authRouter.post('/login', async (req: Request, res: Response) => {
   }
 
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
-  if (!user || !user.isActive) throw AppError.unauthorized('Invalid credentials');
-
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) throw AppError.unauthorized('Invalid credentials');
+  // Always pay for one bcrypt compare, so an unknown or inactive email answers in
+  // the same time as a wrong password and cannot be used to enumerate accounts.
+  const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+  if (!user || !user.isActive || !valid) throw AppError.unauthorized('Invalid credentials');
 
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
