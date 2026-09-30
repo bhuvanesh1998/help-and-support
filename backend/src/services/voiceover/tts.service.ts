@@ -44,13 +44,28 @@ function headers(apiKey: string): Record<string, string> {
 
 /** Cheap credential check — the voices endpoint requires a valid key. */
 export async function validateKey(apiKey: string): Promise<{ ok: boolean; error?: string }> {
+  const key = apiKey.trim();
+  if (!key) return { ok: false, error: 'Enter an ElevenLabs API key.' };
   try {
-    const resp = await fetch(`${API_BASE}/voices`, { headers: headers(apiKey) });
+    const resp = await fetch(`${API_BASE}/voices`, { headers: headers(key) });
     if (resp.ok) return { ok: true };
+    // ElevenLabs explains refusals in { detail: { status, message } } — surface it.
+    const detail = await resp
+      .json()
+      .then((b: { detail?: { status?: string; message?: string } | string }) =>
+        typeof b.detail === 'string' ? b.detail : b.detail?.message ?? b.detail?.status,
+      )
+      .catch(() => undefined);
     if (resp.status === 401) {
-      return { ok: false, error: 'ElevenLabs rejected this key (401 Unauthorized).' };
+      return {
+        ok: false,
+        error: `ElevenLabs rejected this key (401)${detail ? `: ${detail}` : '.'} A restricted key needs the Voices "Read" and Text to Speech permissions.`,
+      };
     }
-    return { ok: false, error: `ElevenLabs returned HTTP ${resp.status} while validating.` };
+    return {
+      ok: false,
+      error: `ElevenLabs returned HTTP ${resp.status} while validating${detail ? `: ${detail}` : '.'}`,
+    };
   } catch (err) {
     return { ok: false, error: `Could not reach ElevenLabs: ${(err as Error).message}` };
   }
