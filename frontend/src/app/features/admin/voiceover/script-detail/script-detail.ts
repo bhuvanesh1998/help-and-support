@@ -110,9 +110,13 @@ export class ScriptDetail implements OnInit, OnDestroy {
   /** Tones that already exist for these frames, so we don't offer duplicates. */
   readonly existingTones = computed(() => {
     const s = this.script();
+    // A tone only "exists" if its run produced narration. A failed, cancelled or
+    // empty run (e.g. a provider quota error) must stay retryable.
+    const usable = (x: { status: string; segmentCount: number }): boolean =>
+      x.status !== 'error' && x.status !== 'cancelled' && !(x.status === 'done' && x.segmentCount === 0);
     const tones = new Set<string>();
-    if (s) tones.add(s.tone);
-    for (const v of this.variants()) tones.add(v.tone);
+    if (s && usable(s)) tones.add(s.tone);
+    for (const v of this.variants()) if (usable(v)) tones.add(v.tone);
     return tones;
   });
 
