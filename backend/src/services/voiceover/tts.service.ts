@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { env } from '../../config/env.js';
 import { uploadDir } from '../../lib/upload.js';
+import { logger } from '../../lib/logger.js';
 
 const API_BASE = 'https://api.elevenlabs.io/v1';
 
@@ -50,12 +51,17 @@ export async function validateKey(apiKey: string): Promise<{ ok: boolean; error?
     const resp = await fetch(`${API_BASE}/voices`, { headers: headers(key) });
     if (resp.ok) return { ok: true };
     // ElevenLabs explains refusals in { detail: { status, message } } — surface it.
-    const detail = await resp
-      .json()
-      .then((b: { detail?: { status?: string; message?: string } | string }) =>
-        typeof b.detail === 'string' ? b.detail : b.detail?.message ?? b.detail?.status,
-      )
-      .catch(() => undefined);
+    const raw = await resp.text().catch(() => '');
+    let detail: string | undefined;
+    try {
+      const b = JSON.parse(raw) as { detail?: { status?: string; message?: string } | string };
+      detail = typeof b.detail === 'string' ? b.detail : b.detail?.message ?? b.detail?.status;
+    } catch {
+      /* not JSON — fall back to the raw text below */
+    }
+    // Never echo the key back; ElevenLabs bodies don't contain it, but be safe.
+    detail = (detail ?? raw.replace(/\s+/g, ' ').trim().slice(0, 300)).replaceAll(key, '***') || undefined;
+    logger.warn('voiceover: ElevenLabs key validation failed', { status: resp.status, detail });
     if (resp.status === 401) {
       return {
         ok: false,

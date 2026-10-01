@@ -18,10 +18,30 @@
           @if (s.sourceScriptId) { · re-toned from an earlier run }
         </p>
       </div>
+      <div class="sd-top__actions">
       <button mat-flat-button color="primary" [disabled]="!s.segments.length" (click)="download()">
         <mat-icon aria-hidden="true">download</mat-icon>
         Download ZIP
       </button>
+      <button
+        mat-stroked-button
+        [disabled]="!s.segments.length"
+        matTooltip="Subtitles for Premiere Pro — File › Import, then drag onto a captions track"
+        (click)="downloadSubtitles('srt')"
+      >
+        <mat-icon aria-hidden="true">closed_caption</mat-icon>
+        Subtitles .srt
+      </button>
+      <button
+        mat-stroked-button
+        [disabled]="!s.segments.length"
+        matTooltip="WebVTT subtitles for the web and YouTube"
+        (click)="downloadSubtitles('vtt')"
+      >
+        <mat-icon aria-hidden="true">subtitles</mat-icon>
+        .vtt
+      </button>
+      </div>
     </header>
 
     <section class="sd-card">
@@ -169,8 +189,8 @@
                   <span class="sd-track__build">build {{ track.segmentVersion }}</span>
                 </strong>
                 <span>
-                  {{ timecode(s.durationSec) }} · {{ track.voiceName }} · matches the video
-                  exactly — lay it under as one layer
+                  {{ timecode(s.durationSec) }} · {{ track.voiceName }} · each line fitted to its slot, so it
+                  lines up from 0:00 — lay it under as one layer
                 </span>
               </div>
               <audio class="sd-track__player" controls preload="metadata" [src]="track.publicUrl"></audio>
@@ -184,6 +204,8 @@
                 {{ savingTrack() ? 'Saving…' : 'MP3' }}
               </button>
             </div>
+
+            <app-sync-preview [trackUrl]="track.publicUrl" [captionsUrl]="captionsUrl(s.id)" />
 
             @if (trackStale()) {
               <p class="sd-track__warn">
