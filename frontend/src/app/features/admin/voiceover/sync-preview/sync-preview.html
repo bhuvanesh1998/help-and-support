@@ -1,0 +1,49 @@
+<div class="sp">
+  <div class="sp__bar">
+    <label class="sp__pick">
+      <input type="file" accept="video/*" (change)="pickVideo($event)" />
+      <span>
+        <mat-icon aria-hidden="true">video_file</mat-icon>
+        {{ videoName() ? 'Change video' : 'Choose the recorded video' }}
+      </span>
+    </label>
+    @if (videoName()) {
+      <span class="sp__name">{{ videoName() }}</span>
+    }
+    <mat-slide-toggle [checked]="showCaptions()" (change)="showCaptions.set($event.checked)">
+      Show subtitles
+    </mat-slide-toggle>
+  </div>
+
+  @if (captionsError()) {
+    <p class="sp__warn">{{ captionsError() }}</p>
+  }
+
+  @if (videoSrc(); as src) {
+    <video
+      #video
+      class="sp__video"
+      controls
+      muted
+      playsinline
+      [src]="src"
+      (play)="onPlay()"
+      (pause)="onPause()"
+      (seeked)="sync(true)"
+      (ratechange)="sync(true)"
+      (timeupdate)="sync()"
+      (waiting)="onWaiting()"
+      (playing)="onPlaying()"
+    >
+      @if (captionsSrc(); as vtt) {
+        <track kind="subtitles" srclang="en" label="Narration" default [src]="vtt" (load)="onTrackLoaded()" />
+      }
+    </video>
+    <audio #audio preload="auto" [src]="trackUrl()"></audio>
+  } @else {
+    <p class="sp__hint">
+      Pick the same video you uploaded to watch it with the narration and subtitles in sync.
+      It plays from your computer and is not uploaded again.
+    </p>
+  }
+</div>

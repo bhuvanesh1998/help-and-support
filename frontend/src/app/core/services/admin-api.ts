@@ -378,7 +378,7 @@ export class AdminApiService {
   }
   /** Stitch the rendered lines into one track matching the video length. */
   buildAudioTimeline(scriptId: string) {
-    return this.http.post<{ clip: VoAudioClip; lines: number; missing: number }>(
+    return this.http.post<{ clip: VoAudioClip; lines: number; missing: number; fitted: number; trimmed: number }>(
       `${this.b}/voiceover/scripts/${scriptId}/audio/timeline`,
       {},
     );
@@ -396,6 +396,10 @@ export class AdminApiService {
       `${this.b}/voiceover/scripts/${scriptId}/segments/${index}/versions/${version}/restore`,
       {},
     );
+  }
+  /** SRT/VTT captions timed to the assembled narration. `inline` skips the download header. */
+  voiceoverSubtitlesUrl(scriptId: string, token: string, format: 'srt' | 'vtt', inline = false): string {
+    return `${this.b}/voiceover/scripts/${scriptId}/subtitles?format=${format}${inline ? '&inline=1' : ''}&token=${encodeURIComponent(token)}`;
   }
   voiceoverAudioExportUrl(scriptId: string, token: string): string {
     return `${this.b}/voiceover/scripts/${scriptId}/audio/export?token=${encodeURIComponent(token)}`;

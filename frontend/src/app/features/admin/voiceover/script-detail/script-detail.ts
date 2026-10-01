@@ -21,6 +21,7 @@ import { downloadFile, safeFilename } from '../../../../core/utils/download-file
 import { ConfirmService } from '../../../../core/services/confirm.service';
 import { AuthStore } from '../../../../core/services/auth-store';
 import { ScriptTable } from '../script-table/script-table';
+import { SyncPreview } from '../sync-preview/sync-preview';
 import type {
   TtsVoice,
   VoAudioClip,
@@ -40,6 +41,7 @@ import type {
 @Component({
   selector: 'ha-script-detail',
   imports: [
+    SyncPreview,
     FormsModule,
     RouterLink,
     ScriptTable,
@@ -77,6 +79,18 @@ export class ScriptDetail implements OnInit, OnDestroy {
     { value: 'marketing', label: 'Marketing — lead with the outcome' },
     { value: 'onboarding', label: 'Onboarding — welcome a new user' },
   ];
+
+  /** Captions for Premiere Pro (SRT) or the web / YouTube (VTT). */
+  downloadSubtitles(format: 'srt' | 'vtt'): void {
+    const s = this.script();
+    if (!s) return;
+    window.open(this.api.voiceoverSubtitlesUrl(s.id, this.auth.accessToken() ?? '', format), '_blank');
+  }
+
+  /** Inline VTT for the synced preview player. */
+  captionsUrl(scriptId: string): string {
+    return this.api.voiceoverSubtitlesUrl(scriptId, this.auth.accessToken() ?? '', 'vtt', true);
+  }
 
   // ── Narration audio ───────────────────────────────────────────────────────
   readonly voices = signal<TtsVoice[]>([]);
@@ -701,11 +715,15 @@ export class ScriptDetail implements OnInit, OnDestroy {
       const res = await firstValueFrom(this.api.buildAudioTimeline(s.id));
       this.audio.update((list) => [...list.filter((c) => c.kind !== 'timeline'), res.clip]);
       // A track with silent gaps looks finished until someone watches it.
-      this.ttsError.set(
-        res.missing > 0
-          ? `Track assembled from ${res.lines} line(s). ${res.missing} line(s) have no take for their current wording and are silent — record them and assemble again.`
-          : '',
-      );
+      const notes: string[] = [];
+      if (res.missing > 0) {
+        notes.push(`${res.missing} line(s) have no take for their current wording and are silent — record them and assemble again.`);
+      }
+      // Fitting is automatic, but a cut line loses its last words — worth shortening.
+      if (res.trimmed > 0) {
+        notes.push(`${res.trimmed} line(s) ran too long for their slot even sped up, so their ending was cut — shorten them and re-record.`);
+      }
+      this.ttsError.set(notes.length ? `Track assembled from ${res.lines} line(s). ${notes.join(' ')}` : '');
     } catch (err) {
       const message =
         (err as { error?: { error?: { message?: string } } })?.error?.error?.message ??

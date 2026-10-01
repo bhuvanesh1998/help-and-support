@@ -39,7 +39,17 @@ import {
   listAudioFiles,
   saveClip,
 } from '../../services/voiceover/audio-store.service.js';
-import { buildTimeline } from '../../services/voiceover/timeline.service.js';
+import {
+  buildTimeline,
+  placeClips,
+  probeAudioSeconds,
+} from '../../services/voiceover/timeline.service.js';
+import {
+  buildCues,
+  renderSubtitles,
+  type SubtitleFormat,
+} from '../../services/voiceover/subtitles.service.js';
+import { spokenSecondsFor } from '../../services/voiceover/types.js';
 import { getUsageReport, recordUsage } from '../../services/voiceover/usage.service.js';
 import {
   DEFAULT_TTS_MODEL,
@@ -649,6 +659,67 @@ voiceoverRouter.get(
   },
 );
 
+/**
+ * GET /api/admin/voiceover/scripts/:id/subtitles?format=srt|vtt&token=…
+ *
+ * Captions timed to the narration as it sounds on the assembled track: each
+ * line starts on its timecode and ends when its rendered clip stops (fitted to
+ * the slot exactly as the timeline does). Lines not yet recorded are timed from
+ * the word count at the script's speaking pace.
+ */
+voiceoverRouter.get(
+  '/scripts/:id/subtitles',
+  ...canQuery('voiceover.view'),
+  async (req: Request, res: Response) => {
+    const format: SubtitleFormat = req.query['format'] === 'vtt' ? 'vtt' : 'srt';
+    const script = await getScript(p(req, 'id'));
+    if (!script) throw AppError.notFound('Script not found');
+
+    const spoken = script.segments
+      .filter((s) => s.script.trim())
+      .sort((a, b) => a.startSec - b.startSec);
+    if (spoken.length === 0) throw AppError.badRequest('This script has no narration to caption');
+
+    // Latest take of each line's current wording.
+    const files = await listAudioFiles(script.id, 'segment');
+    const clipFor = new Map<number, string>();
+    for (const seg of spoken) {
+      const take = files
+        .filter((f) => f.segmentIndex === seg.index && f.segmentVersion === (seg.version ?? 1))
+        .at(-1);
+      if (take && fs.existsSync(take.storagePath)) clipFor.set(seg.index, take.storagePath);
+    }
+
+    const durations = await Promise.all(
+      spoken.map(async (seg) => {
+        const file = clipFor.get(seg.index);
+        if (file) return probeAudioSeconds(file);
+        const words = seg.wordCount ?? seg.script.trim().split(/\s+/).length;
+        return spokenSecondsFor(words, script.wordsPerMinute);
+      }),
+    );
+    const videoSec = script.durationSec > 0 ? script.durationSec : spoken.at(-1)!.endSec;
+    const placed = placeClips(
+      spoken.map((seg, i) => ({ startSec: seg.startSec, durationSec: durations[i] ?? 0 })),
+      videoSec,
+    );
+
+    const cues = buildCues(
+      spoken.map((seg, i) => ({ startSec: placed[i]!.startSec, endSec: placed[i]!.endSec, text: seg.script })),
+    );
+
+    const body = renderSubtitles(cues, format);
+    res.setHeader('Content-Type', format === 'vtt' ? 'text/vtt; charset=utf-8' : 'application/x-subrip; charset=utf-8');
+    if (req.query['inline'] !== '1') {
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${safeSlug(script.videoName)}-subtitles.${format}"`,
+      );
+    }
+    res.send(body);
+  },
+);
+
 // ── Narration audio (ElevenLabs) ─────────────────────────────────────────────
 
 /** The stored ElevenLabs key, or a 400 explaining how to connect one. */
@@ -964,8 +1035,11 @@ voiceoverRouter.post(
       (seg) => seg.script.trim() && !usable.some((f) => f.segmentIndex === seg.index),
     ).length;
 
+    // A clip whose segment no longer exists has no timecode; it is left out
+    // rather than dropped at 0:00 on top of the opening line.
     const clips = usable
-      .map((f) => ({ startSec: startByIndex.get(f.segmentIndex) ?? 0, storagePath: f.storagePath }))
+      .filter((f) => startByIndex.has(f.segmentIndex))
+      .map((f) => ({ startSec: startByIndex.get(f.segmentIndex)!, storagePath: f.storagePath }))
       .sort((a, b) => a.startSec - b.startSec);
 
     const existing = await listAudio(script.id);
@@ -992,7 +1066,9 @@ voiceoverRouter.post(
       await pruneTimelines(script.id);
       // `missing` is reported rather than silently mixed around: a track with
       // gaps looks finished until someone watches it.
-      res.json({ clip: saved, lines: clips.length, missing });
+      const fitted = built.placed.filter((c) => c.tempo > 1).length;
+      const trimmed = built.placed.filter((c) => c.trimmed).length;
+      res.json({ clip: saved, lines: clips.length, missing, fitted, trimmed });
     } catch (err) {
       throw AppError.badRequest((err as Error).message);
     }

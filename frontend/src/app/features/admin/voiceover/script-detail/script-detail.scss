@@ -378,3 +378,10 @@
   max-width: 420px;
   height: 36px;
 }
+
+.sd-top__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
