@@ -17,7 +17,11 @@ export async function downloadFile(url: string, filename: string): Promise<void>
   const response = await fetch(url, { credentials: 'omit' });
   if (!response.ok) throw new Error(`Download failed (${response.status})`);
 
-  const blob = await response.blob();
+  saveBlob(await response.blob(), filename);
+}
+
+/** Hand an in-memory blob to the browser as a download with the given name. */
+export function saveBlob(blob: Blob, filename: string): void {
   const objectUrl = URL.createObjectURL(blob);
 
   const anchor = document.createElement('a');

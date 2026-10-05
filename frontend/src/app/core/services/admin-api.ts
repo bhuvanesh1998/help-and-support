@@ -38,6 +38,38 @@ import type {
   TrashItem,
 } from '../models/admin';
 
+/**
+ * Media library filter: upload-date window (inclusive ISO instants) and guide
+ * category (a category name, or `__none__` for images in no category).
+ */
+export interface MediaDateRange { from?: string; to?: string; category?: string }
+
+/** A guide category that has images, with how many. */
+export interface MediaCategoryCount { name: string; count: number }
+
+export type MediaBulkAction = 'trash' | 'restore' | 'purge';
+
+/** Which assets a bulk call acts on: explicit ids, or every match in the view. */
+export interface MediaBulkTarget extends MediaDateRange {
+  view: 'library' | 'trash';
+  ids?: string[];
+  all?: boolean;
+}
+
+export interface MediaCategoriesResponse {
+  data: MediaCategoryCount[];
+  uncategorised: number;
+  noCategoryKey: string;
+}
+
+function rangeParams(range: MediaDateRange): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (range.from) out['from'] = range.from;
+  if (range.to) out['to'] = range.to;
+  if (range.category) out['category'] = range.category;
+  return out;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private readonly http = inject(HttpClient);
@@ -159,9 +191,10 @@ export class AdminApiService {
   }
 
   // ── Media ─────────────────────────────────────────────────────────────────
-  listMedia(page = 1, limit = 20) {
+  /** `range` narrows to an upload-date window (inclusive ISO instants). */
+  listMedia(page = 1, limit = 20, range: MediaDateRange = {}) {
     return this.http.get<PaginatedResponse<MediaAsset>>(`${this.b}/media`, {
-      params: { page, limit },
+      params: { page, limit, ...rangeParams(range) },
     });
   }
   uploadMedia(file: File) {
@@ -198,9 +231,9 @@ export class AdminApiService {
   }
   /** List trashed assets (soft-deleted, awaiting restore or 30-day purge). */
   /** The media library's own trash — images only. See listTrash() for all types. */
-  listMediaTrash(page = 1, limit = 20) {
+  listMediaTrash(page = 1, limit = 20, range: MediaDateRange = {}) {
     return this.http.get<PaginatedResponse<MediaAsset>>(`${this.b}/media/trash`, {
-      params: { page, limit },
+      params: { page, limit, ...rangeParams(range) },
     });
   }
   /** Restore a trashed asset back to the library. */
@@ -210,6 +243,28 @@ export class AdminApiService {
   /** Permanently delete a trashed asset (removes DB record + files). */
   purgeMedia(id: string) {
     return this.http.delete(`${this.b}/media/${id}/permanent`);
+  }
+  /** Trash / restore / permanently delete many assets — by ids, or all matching a range. */
+  bulkMedia(action: MediaBulkAction, target: MediaBulkTarget) {
+    return this.http.post<{ count: number }>(`${this.b}/media/bulk`, { action, ...target });
+  }
+  /** Guide categories with images in a view, for the category filter (date range applies). */
+  listMediaCategories(view: 'library' | 'trash', range: MediaDateRange = {}) {
+    const { from, to } = range;
+    return this.http.get<MediaCategoriesResponse>(`${this.b}/media/categories`, {
+      params: { view, ...rangeParams({ from, to }) },
+    });
+  }
+  /**
+   * Zip of the targeted images (authenticated, so fetched as a blob).
+   * `groupByCategory` puts them in one folder per guide category.
+   */
+  downloadMediaZip(target: MediaBulkTarget, groupByCategory = false) {
+    const params: Record<string, string> = { view: target.view, ...rangeParams(target) };
+    if (target.all) params['all'] = 'true';
+    else params['ids'] = (target.ids ?? []).join(',');
+    if (groupByCategory) params['groupBy'] = 'category';
+    return this.http.get(`${this.b}/media/download`, { params, responseType: 'blob' });
   }
 
   // ── Analytics ─────────────────────────────────────────────────────────────

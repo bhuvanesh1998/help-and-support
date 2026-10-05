@@ -60,6 +60,111 @@
     </div>
   </div>
 
+  <!-- Selection + upload-date filter -->
+  <div class="filter-row">
+    <mat-checkbox class="select-page"
+                  [checked]="pageAllSelected()"
+                  [indeterminate]="pageSomeSelected()"
+                  [disabled]="loading() || filtered().length === 0"
+                  (change)="togglePage()"
+                  aria-label="Select all on this page">
+      Select page
+    </mat-checkbox>
+
+    <div class="date-filter" role="group" aria-label="Filter by upload date">
+      <mat-icon class="date-filter-icon" aria-hidden="true">event</mat-icon>
+      <span class="date-filter-label">Uploaded</span>
+      <input type="date" class="date-input"
+             [value]="dateFrom()" [max]="dateTo() || today"
+             (change)="setDateFrom($any($event.target).value)"
+             aria-label="From date" />
+      <span class="date-sep" aria-hidden="true">–</span>
+      <input type="date" class="date-input"
+             [value]="dateTo()" [min]="dateFrom()" [max]="today"
+             (change)="setDateTo($any($event.target).value)"
+             aria-label="To date" />
+      <div class="date-presets">
+        <button class="preset-btn" [class.preset-btn--active]="isPreset(1)" (click)="setPreset(1)">Today</button>
+        <button class="preset-btn" [class.preset-btn--active]="isPreset(7)" (click)="setPreset(7)">7 days</button>
+        <button class="preset-btn" [class.preset-btn--active]="isPreset(30)" (click)="setPreset(30)">30 days</button>
+      </div>
+      @if (hasDateFilter()) {
+        <button class="date-clear" (click)="clearDateFilter()" aria-label="Clear date filter" matTooltip="Clear dates">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </div>
+
+    <div class="date-filter category-filter" role="group" aria-label="Filter by guide category">
+      <mat-icon class="date-filter-icon" aria-hidden="true">folder</mat-icon>
+      <select class="date-input category-select"
+              [value]="category()"
+              (change)="setCategory($any($event.target).value)"
+              aria-label="Category">
+        <option value="">All categories</option>
+        @for (c of categories()?.data ?? []; track c.name) {
+          <option [value]="c.name" [selected]="c.name === category()">{{ c.name }} ({{ c.count }})</option>
+        }
+        @if (categories(); as cats) {
+          @if (cats.uncategorised > 0) {
+            <option [value]="cats.noCategoryKey" [selected]="category() === cats.noCategoryKey">
+              Not in a guide ({{ cats.uncategorised }})
+            </option>
+          }
+        }
+      </select>
+    </div>
+
+    <button mat-stroked-button class="category-download"
+            [disabled]="bulkBusy() || loading() || !(active()?.meta?.total)"
+            (click)="downloadByCategory()"
+            matTooltip="Zip everything matching the filters, one folder per category">
+      <mat-icon aria-hidden="true">folder_zip</mat-icon>
+      {{ category() ? 'Download category' : 'Download by category' }}
+    </button>
+  </div>
+
+  <!-- Bulk action bar -->
+  @if (selectionMode()) {
+    <div class="bulk-bar" role="toolbar" aria-label="Bulk actions">
+      <span class="bulk-count">
+        {{ selectionCount() }} selected
+        @if (allMatching()) { <span class="bulk-scope">(all{{ filterLabel() ? ' ' + filterLabel() : '' }})</span> }
+      </span>
+      @if (canSelectAllMatching()) {
+        <button class="bulk-link" (click)="selectAllMatching()">
+          Select all {{ active()?.meta?.total }}{{ filterLabel() ? ' ' + filterLabel() : '' }}
+        </button>
+      }
+      <button class="bulk-link" (click)="clearSelection()">Clear</button>
+
+      <span class="bulk-spacer"></span>
+
+      <button mat-stroked-button class="bulk-btn" [disabled]="bulkBusy()" (click)="bulkDownload()">
+        <mat-icon aria-hidden="true">download</mat-icon>
+        Download
+      </button>
+      @if (showTrash()) {
+        <button mat-stroked-button class="bulk-btn" [disabled]="bulkBusy()" (click)="bulkRestore()">
+          <mat-icon aria-hidden="true">restore_from_trash</mat-icon>
+          Restore
+        </button>
+      } @else {
+        <button mat-stroked-button class="bulk-btn" [disabled]="bulkBusy()" (click)="bulkTrash()">
+          <mat-icon aria-hidden="true">delete_outline</mat-icon>
+          Move to trash
+        </button>
+      }
+      <button mat-flat-button class="bulk-btn bulk-btn--danger" [disabled]="bulkBusy()" (click)="bulkPurge()">
+        <mat-icon aria-hidden="true">delete_forever</mat-icon>
+        Delete permanently
+      </button>
+    </div>
+    @if (bulkBusy()) {
+      <mat-progress-bar mode="indeterminate" class="bulk-progress"></mat-progress-bar>
+    }
+  }
+
   <!-- Hidden file input -->
   <input #fileInput type="file" accept="image/*" multiple
          style="display:none" (change)="onFileChange($event)"
@@ -114,6 +219,10 @@
         <mat-icon class="empty-icon" aria-hidden="true">image_search</mat-icon>
         <p class="empty-title">No results for "{{ search() }}"</p>
         <p class="empty-sub">Try a different search term</p>
+      } @else if (hasFilter()) {
+        <mat-icon class="empty-icon" aria-hidden="true">filter_alt_off</mat-icon>
+        <p class="empty-title">No images match these filters</p>
+        <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
       } @else if (showTrash()) {
         <mat-icon class="empty-icon" aria-hidden="true">delete_outline</mat-icon>
         <p class="empty-title">Trash is empty</p>
@@ -134,13 +243,19 @@
   @else {
     <div class="media-grid">
       @for (asset of filtered(); track asset.id) {
-        <div class="media-card" role="group" [attr.aria-label]="asset.originalName">
-          <div class="card-thumb">
+        <div class="media-card" role="group" [attr.aria-label]="asset.originalName"
+             [class.media-card--selected]="isSelected(asset)"
+             [class.media-card--selecting]="selectionMode()">
+          <div class="card-thumb" (click)="onThumbClick(asset)">
             <img [src]="asset.publicUrl"
                  [alt]="asset.altText || asset.originalName"
-                 loading="lazy"
-                 (click)="openViewer(asset)" />
+                 loading="lazy" />
             <span class="ext-badge" aria-hidden="true">{{ extBadge(asset.mimeType) }}</span>
+            <mat-checkbox class="card-check"
+                          [checked]="isSelected(asset)"
+                          (click)="$event.stopPropagation()"
+                          (change)="toggleSelect(asset)"
+                          [attr.aria-label]="'Select ' + asset.originalName" />
 
             @if (showTrash()) {
               <span class="days-badge" aria-label="{{ daysLeft(asset) }} days until permanent deletion">
@@ -149,12 +264,12 @@
               <div class="thumb-overlay" role="toolbar" [attr.aria-label]="'Actions for ' + asset.originalName">
                 <button mat-icon-button class="overlay-btn"
                         matTooltip="Restore" aria-label="Restore image"
-                        (click)="restore(asset)">
+                        (click)="$event.stopPropagation(); restore(asset)">
                   <mat-icon>restore_from_trash</mat-icon>
                 </button>
                 <button mat-icon-button class="overlay-btn overlay-btn--danger"
                         matTooltip="Delete forever" aria-label="Delete permanently"
-                        (click)="purge(asset)">
+                        (click)="$event.stopPropagation(); purge(asset)">
                   <mat-icon>delete_forever</mat-icon>
                 </button>
               </div>
@@ -162,22 +277,27 @@
               <div class="thumb-overlay" role="toolbar" [attr.aria-label]="'Actions for ' + asset.originalName">
                 <button mat-icon-button class="overlay-btn"
                         matTooltip="View image" aria-label="View image"
-                        (click)="openViewer(asset)">
+                        (click)="$event.stopPropagation(); openViewer(asset)">
                   <mat-icon>visibility</mat-icon>
                 </button>
                 <button mat-icon-button class="overlay-btn"
+                        matTooltip="Download" aria-label="Download image"
+                        (click)="$event.stopPropagation(); downloadOne(asset)">
+                  <mat-icon>download</mat-icon>
+                </button>
+                <button mat-icon-button class="overlay-btn"
                         matTooltip="Copy URL" aria-label="Copy URL"
-                        (click)="copyUrl(asset)">
+                        (click)="$event.stopPropagation(); copyUrl(asset)">
                   <mat-icon>content_copy</mat-icon>
                 </button>
                 <button mat-icon-button class="overlay-btn"
                         matTooltip="Edit image (annotate)" aria-label="Edit image"
-                        (click)="editImage(asset)">
+                        (click)="$event.stopPropagation(); editImage(asset)">
                   <mat-icon>brush</mat-icon>
                 </button>
                 <button mat-icon-button class="overlay-btn overlay-btn--danger"
                         matTooltip="Move to trash" aria-label="Move to trash"
-                        (click)="delete(asset)">
+                        (click)="$event.stopPropagation(); delete(asset)">
                   <mat-icon>delete_outline</mat-icon>
                 </button>
               </div>
@@ -185,7 +305,7 @@
           </div>
           <div class="card-meta">
             <span class="card-name" [title]="asset.originalName">{{ asset.originalName }}</span>
-            <span class="card-size">{{ formatBytes(asset.sizeBytes) }}</span>
+            <span class="card-size">{{ formatBytes(asset.sizeBytes) }} · {{ formatDate(asset.createdAt) }}</span>
           </div>
         </div>
       }

@@ -376,7 +376,7 @@
 
 .ext-badge {
   position: absolute;
-  top: 6px;
+  bottom: 6px;
   left: 6px;
   font-size: 0.65rem;
   font-weight: 700;
@@ -542,3 +542,169 @@
   cursor: default;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
 }
+
+// ── Filter row (select page + upload-date range) ─────────────────────────────
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  margin: -8px 0 16px;
+}
+
+.date-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  font-size: 0.8125rem;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.date-filter-icon { font-size: 18px; width: 18px; height: 18px; }
+.date-filter-label { font-weight: 500; margin-right: 2px; }
+.date-sep { opacity: 0.6; }
+
+.date-input {
+  font: inherit;
+  color: var(--mat-sys-on-surface);
+  background: var(--mat-sys-surface);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 6px;
+  padding: 3px 6px;
+  color-scheme: light dark;
+
+  &:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 1px; }
+}
+
+.date-presets { display: flex; gap: 2px; margin-left: 4px; }
+
+.preset-btn {
+  font: inherit;
+  font-size: 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--mat-sys-on-surface-variant);
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover { background: var(--mat-sys-surface-variant); color: var(--mat-sys-on-surface); }
+
+  &--active {
+    background: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
+    color: var(--mat-sys-primary);
+    font-weight: 600;
+  }
+}
+
+.date-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--mat-sys-on-surface-variant);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+  &:hover { background: var(--mat-sys-surface-variant); }
+}
+
+// ── Bulk action bar ──────────────────────────────────────────────────────────
+
+.bulk-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--mat-sys-shadow, #000) 12%, transparent);
+}
+
+.bulk-count { font-weight: 600; font-size: 0.875rem; }
+.bulk-scope { font-weight: 400; opacity: 0.8; }
+.bulk-spacer { flex: 1; }
+
+.bulk-link {
+  font: inherit;
+  font-size: 0.8125rem;
+  border: none;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 2px 4px;
+
+  &:hover { opacity: 0.8; }
+}
+
+.bulk-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.bulk-btn--danger:not([disabled]) {
+  background: var(--mat-sys-error) !important;
+  color: var(--mat-sys-on-error) !important;
+}
+
+.bulk-progress { margin: -12px 0 12px; border-radius: 2px; }
+
+// ── Card selection ───────────────────────────────────────────────────────────
+
+.card-check {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--mat-sys-surface) 85%, transparent);
+}
+
+.media-card:hover .card-check,
+.media-card:focus-within .card-check,
+.media-card--selecting .card-check { opacity: 1; }
+
+.media-card--selecting {
+  .card-thumb, .card-thumb img { cursor: pointer; }
+  // While selecting, a click anywhere on the thumbnail toggles it.
+  .thumb-overlay { display: none; }
+}
+
+.media-card--selected {
+  border-color: var(--mat-sys-primary);
+  box-shadow: 0 0 0 2px var(--mat-sys-primary);
+
+  .card-thumb img { opacity: 0.85; }
+}
+
+@media (hover: none) {
+  .card-check { opacity: 1; }
+}
+
+// ── Category filter + download ───────────────────────────────────────────────
+
+.category-filter { padding-right: 8px; }
+
+.category-select {
+  max-width: 220px;
+  cursor: pointer;
+}
+
+.category-download mat-icon { font-size: 18px; width: 18px; height: 18px; }
