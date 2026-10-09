@@ -50,11 +50,30 @@
         <div class="embed-msg"><div class="spinner"></div></div>
       }
       @case ('empty') {
-        <div class="embed-msg">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4z" stroke="currentColor" stroke-width="1.5"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <p>No help guide for this screen yet.</p>
+        <div class="embed-msg embed-empty">
+          <svg class="empty-art" width="132" height="112" viewBox="0 0 132 112" fill="none" aria-hidden="true">
+            <ellipse class="empty-art__shadow" cx="66" cy="102" rx="34" ry="5" />
+            <g class="empty-art__doc">
+              <rect x="34" y="14" width="56" height="70" rx="8" class="empty-art__page" />
+              <rect x="44" y="28" width="30" height="5" rx="2.5" class="empty-art__line" />
+              <rect x="44" y="40" width="36" height="5" rx="2.5" class="empty-art__line empty-art__line--2" />
+              <rect x="44" y="52" width="22" height="5" rx="2.5" class="empty-art__line empty-art__line--3" />
+            </g>
+            <g class="empty-art__lens">
+              <circle cx="88" cy="62" r="13" class="empty-art__glass" />
+              <path d="M97.5 71.5 108 82" class="empty-art__handle" />
+            </g>
+            <circle cx="22" cy="30" r="3" class="empty-art__spark" />
+            <circle cx="112" cy="24" r="2.5" class="empty-art__spark empty-art__spark--2" />
+            <circle cx="18" cy="70" r="2" class="empty-art__spark empty-art__spark--3" />
+          </svg>
+          <h3 class="empty-title">No guide for this screen yet</h3>
+          <p>We haven’t written help for this page. Our team can walk you through it.</p>
           @if (supportAvailable()) {
-            <button type="button" class="nav-btn nav-btn--primary" (click)="tab.set('ticket')">Raise a ticket</button>
+            <button type="button" class="empty-cta" (click)="tab.set('ticket')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16v9H8l-4 4V6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              Raise a ticket
+            </button>
           }
         </div>
       }
