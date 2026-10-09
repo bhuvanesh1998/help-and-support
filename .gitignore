@@ -12,3 +12,6 @@ scratchpad/
 **/.env.*
 !backend/.env.production.example
 !backend/.env.example
+
+# Claude Code per-machine permissions
+.claude/settings.local.json
