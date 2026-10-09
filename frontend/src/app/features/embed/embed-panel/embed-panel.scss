@@ -61,6 +61,71 @@
 }
 @keyframes ha-spin { to { transform: rotate(360deg); } }
 
+// Empty state — animated "searching the docs" illustration + a normal-sized CTA.
+// (.nav-btn is flex: 1 for the footer row; inside this column it would stretch
+// to full height, so the CTA has its own sizing.)
+.embed-empty {
+  padding: 8px 12px 24px;
+  p { max-width: 260px; line-height: 1.5; }
+}
+.empty-title { margin: 4px 0 0; font-size: 1rem; font-weight: 700; color: var(--mat-sys-on-surface, #1a202c); }
+.empty-cta {
+  flex: none; align-self: center;
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 6px; padding: 10px 20px; border: none; border-radius: 999px;
+  font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  background: var(--ha-accent); color: var(--ha-on-accent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ha-accent) 28%, transparent);
+  transition: transform .15s, box-shadow .15s;
+  &:hover { transform: translateY(-1px); box-shadow: 0 6px 16px color-mix(in srgb, var(--ha-accent) 36%, transparent); }
+  &:focus-visible { outline: 2px solid var(--ha-accent); outline-offset: 3px; }
+}
+
+.empty-art {
+  // Ink = accent nudged toward the text colour, so a dark accent stays visible on
+  // a dark surface (on-surface is light there) and keeps its hue in light mode.
+  --ink: color-mix(in srgb, var(--ha-accent) 70%, var(--mat-sys-on-surface, #1a202c));
+  overflow: visible;
+  &__shadow { fill: color-mix(in srgb, var(--ink) 16%, transparent); animation: ha-shadow 3s ease-in-out infinite; transform-origin: 66px 102px; }
+  &__doc { animation: ha-float 3s ease-in-out infinite; }
+  &__page {
+    fill: var(--mat-sys-surface, #fff);
+    stroke: color-mix(in srgb, var(--ink) 60%, transparent); stroke-width: 2;
+  }
+  &__line {
+    fill: color-mix(in srgb, var(--ink) 30%, transparent);
+    animation: ha-shimmer 1.8s ease-in-out infinite;
+    &--2 { animation-delay: .2s; }
+    &--3 { animation-delay: .4s; }
+  }
+  &__lens { animation: ha-search 3.2s ease-in-out infinite; transform-origin: 88px 62px; }
+  &__glass {
+    fill: color-mix(in srgb, var(--mat-sys-surface, #fff) 70%, transparent);
+    stroke: var(--ink); stroke-width: 3.5;
+  }
+  &__handle { stroke: var(--ink); stroke-width: 5; stroke-linecap: round; }
+  &__spark {
+    fill: var(--ink); opacity: 0;
+    animation: ha-twinkle 2.4s ease-in-out infinite;
+    &--2 { animation-delay: .8s; }
+    &--3 { animation-delay: 1.6s; }
+  }
+}
+@keyframes ha-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes ha-shadow { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.85); } }
+@keyframes ha-shimmer { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes ha-search {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  25% { transform: translate(-22px, -14px) rotate(-8deg); }
+  50% { transform: translate(-30px, 4px) rotate(4deg); }
+  75% { transform: translate(-8px, -22px) rotate(-4deg); }
+}
+@keyframes ha-twinkle { 0%, 100% { opacity: 0; transform: scale(.6); } 50% { opacity: .7; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .empty-art * { animation: none !important; }
+  .empty-art__spark { opacity: .5; }
+}
+
 .progress-track { flex: 1; height: 5px; border-radius: 4px; background: var(--mat-sys-surface-container-high, #eef0f1); overflow: hidden; }
 .progress-fill { height: 100%; background: var(--ha-accent); transition: width .25s; }
 .progress-label { font-size: 0.72rem; color: var(--mat-sys-on-surface-variant, #667085); white-space: nowrap; }
@@ -114,7 +179,7 @@
   background: color-mix(in srgb, var(--ha-on-accent) 14%, transparent);
   color: var(--ha-on-accent);
   &:hover { background: color-mix(in srgb, var(--ha-on-accent) 26%, transparent); }
-  &--on, &--on:hover { background: var(--mat-sys-surface, #fff); color: var(--ha-accent); }
+  &--on, &--on:hover { background: var(--mat-sys-surface, #fff); color: color-mix(in srgb, var(--ha-accent) 55%, var(--mat-sys-on-surface, #1a202c)); }
 }
 
 // Header actions: Support shortcut + close.
@@ -126,7 +191,7 @@
   background: color-mix(in srgb, var(--ha-on-accent) 18%, transparent);
   color: var(--ha-on-accent);
   &:hover { background: color-mix(in srgb, var(--ha-on-accent) 34%, transparent); }
-  &--on { background: var(--mat-sys-surface, #fff); color: var(--ha-accent); }
+  &--on { background: var(--mat-sys-surface, #fff); color: color-mix(in srgb, var(--ha-accent) 55%, var(--mat-sys-on-surface, #1a202c)); }
 }
 .embed-badge {
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-style: normal;
